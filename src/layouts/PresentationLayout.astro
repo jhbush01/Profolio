@@ -1,0 +1,36 @@
+---
+/**
+ * PresentationLayout — stripped-back shell for showing the portfolio to a
+ * panel or mentor. No navigation, generous whitespace, print-friendly.
+ *
+ * FUTURE: keyboard slide navigation and a full-screen toggle go here.
+ */
+import { portfolio } from '../lib/portfolio';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={portfolio.tagline} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} · {portfolio.title}</title>
+  </head>
+  <body class="min-h-screen bg-surface">
+    <a
+      href="/"
+      class="no-print fixed left-5 top-5 z-10 rounded-full border border-line bg-surface/90 px-4 py-1.5 text-xs font-medium text-ink-muted backdrop-blur transition hover:text-ink"
+      >← Exit presentation</a
+    >
+    <main class="mx-auto w-full max-w-4xl px-6 py-20">
+      <slot />
+    </main>
+  </body>
+</html>

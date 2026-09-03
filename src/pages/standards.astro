@@ -1,0 +1,63 @@
+---
+/**
+ * Framework alignment — PLACEHOLDER coverage view.
+ *
+ * Shows which standards have evidence against them and which are still bare.
+ * FUTURE: click a row to see the matching artefacts, and flag under-evidenced
+ * standards before the portfolio is submitted.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import StandardTag from '../components/StandardTag.astro';
+import { portfolio, standardCoverage } from '../lib/portfolio';
+
+const coverage = standardCoverage();
+const domains = [...new Set(coverage.map((standard) => standard.domain))];
+const evidenced = coverage.filter((standard) => standard.artefactCount > 0).length;
+---
+
+<BaseLayout title={`${portfolio.framework} alignment`}>
+  <PageHeader
+    eyebrow={portfolio.frameworkName}
+    title={`${portfolio.framework} alignment`}
+    lead={`${evidenced} of ${coverage.length} tracked standards currently have at least one artefact attached.`}
+  />
+
+  {
+    domains.map((domain) => (
+      <section class="mb-10">
+        <h2 class="mb-3 text-lg font-semibold">{domain}</h2>
+        <div class="overflow-hidden rounded-xl border border-line bg-surface">
+          {coverage
+            .filter((standard) => standard.domain === domain)
+            .map((standard) => (
+              <div class="flex flex-wrap items-start gap-x-4 gap-y-2 border-b border-line p-4 last:border-b-0">
+                <div class="w-16 shrink-0">
+                  <StandardTag code={standard.code} />
+                </div>
+                <div class="min-w-[14rem] flex-1">
+                  <p class="text-sm font-medium">{standard.focus}</p>
+                  <p class="prose-body mt-0.5 text-xs">{standard.descriptor}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2 text-xs">
+                  <span
+                    class:list={[
+                      'rounded-full px-2.5 py-0.5 font-medium',
+                      standard.artefactCount > 0
+                        ? 'bg-accent-soft text-accent'
+                        : 'bg-canvas text-ink-muted',
+                    ]}
+                  >
+                    {standard.artefactCount} artefact{standard.artefactCount === 1 ? '' : 's'}
+                  </span>
+                  <span class="text-ink-muted">
+                    {standard.phaseCount} week{standard.phaseCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+              </div>
+            ))}
+        </div>
+      </section>
+    ))
+  }
+</BaseLayout>

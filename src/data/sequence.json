@@ -1,0 +1,93 @@
+[
+  {
+    "slug": "week-1",
+    "number": 1,
+    "title": "Diagnostic and Baseline",
+    "focus": "Establishing prior knowledge",
+    "summary": "Placeholder — diagnostic assessment, class profile, and baseline data collection for the sequence.",
+    "learningIntentions": [
+      "Placeholder learning intention — what students should know by the end of the week.",
+      "Placeholder learning intention — the skill being developed."
+    ],
+    "plannedEvidence": [
+      "Lesson plans (x3)",
+      "Diagnostic assessment task",
+      "Class profile / differentiation notes"
+    ],
+    "standards": ["1.1", "2.3", "5.1"],
+    "reflection": "Placeholder reflection — replace with a short account of what happened and what you changed."
+  },
+  {
+    "slug": "week-2",
+    "number": 2,
+    "title": "Explicit Instruction",
+    "focus": "Core concepts and modelling",
+    "summary": "Placeholder — explicit teaching of the core concepts, with worked examples and guided practice.",
+    "learningIntentions": [
+      "Placeholder learning intention.",
+      "Placeholder learning intention."
+    ],
+    "plannedEvidence": [
+      "Lesson plans (x3)",
+      "Annotated resources / slides",
+      "Photos of modelled work"
+    ],
+    "standards": ["2.1", "3.2", "3.3"],
+    "reflection": "Placeholder reflection."
+  },
+  {
+    "slug": "week-3",
+    "number": 3,
+    "title": "Guided Practice and Differentiation",
+    "focus": "Adjusting for the full range of abilities",
+    "summary": "Placeholder — differentiated tasks, scaffolds, and extension work in response to Week 2 data.",
+    "learningIntentions": [
+      "Placeholder learning intention.",
+      "Placeholder learning intention."
+    ],
+    "plannedEvidence": [
+      "Lesson plans (x3)",
+      "Differentiated task sheets",
+      "Student work samples (low / mid / high)"
+    ],
+    "standards": ["1.5", "3.3", "4.1"],
+    "reflection": "Placeholder reflection."
+  },
+  {
+    "slug": "week-4",
+    "number": 4,
+    "title": "Formative Assessment and Feedback",
+    "focus": "Checking for understanding",
+    "summary": "Placeholder — formative checks, feedback strategies, and the data used to adjust the final week.",
+    "learningIntentions": [
+      "Placeholder learning intention.",
+      "Placeholder learning intention."
+    ],
+    "plannedEvidence": [
+      "Lesson plans (x3)",
+      "Exit tickets / formative data",
+      "Feedback samples"
+    ],
+    "standards": ["5.1", "5.4", "3.5"],
+    "reflection": "Placeholder reflection."
+  },
+  {
+    "slug": "week-5",
+    "number": 5,
+    "title": "Summative Assessment and Evaluation",
+    "focus": "Measuring growth against the baseline",
+    "summary": "Placeholder — summative task, growth analysis against Week 1 baseline, and mentor feedback.",
+    "learningIntentions": [
+      "Placeholder learning intention.",
+      "Placeholder learning intention."
+    ],
+    "plannedEvidence": [
+      "Lesson plans (x3)",
+      "Summative assessment task and rubric",
+      "Pre/post data comparison",
+      "Mentor teacher feedback"
+    ],
+    "standards": ["5.4", "6.3", "7.1"],
+    "reflection": "Placeholder reflection."
+  }
+]

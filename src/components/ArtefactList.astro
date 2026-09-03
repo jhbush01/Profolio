@@ -1,0 +1,60 @@
+---
+/**
+ * ArtefactList — grid of artefacts with an empty state.
+ *
+ * FUTURE: add client-side filtering by type/week/standard. The filter controls
+ * below are rendered but inert.
+ */
+import ArtefactCard from './ArtefactCard.astro';
+import type { Artefact } from '../types';
+
+interface Props {
+  artefacts: Artefact[];
+  showPhase?: boolean;
+  showFilters?: boolean;
+  emptyMessage?: string;
+}
+
+const {
+  artefacts,
+  showPhase = true,
+  showFilters = false,
+  emptyMessage = 'No artefacts yet. Upload evidence to see it listed here.',
+} = Astro.props;
+
+const types = [...new Set(artefacts.map((artefact) => artefact.type))];
+---
+
+{
+  showFilters && artefacts.length > 0 && (
+    <div class="mb-5 flex flex-wrap items-center gap-2">
+      <span class="text-xs font-medium text-ink-muted">Filter (placeholder):</span>
+      <button type="button" class="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+        All
+      </button>
+      {types.map((type) => (
+        <button
+          type="button"
+          disabled
+          class="cursor-not-allowed rounded-full border border-line px-3 py-1 text-xs text-ink-muted opacity-60"
+        >
+          {type}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+{
+  artefacts.length === 0 ? (
+    <p class="rounded-xl border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
+      {emptyMessage}
+    </p>
+  ) : (
+    <div class="grid gap-4 sm:grid-cols-2">
+      {artefacts.map((artefact) => (
+        <ArtefactCard artefact={artefact} showPhase={showPhase} />
+      ))}
+    </div>
+  )
+}

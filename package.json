@@ -1,0 +1,24 @@
+{
+  "name": "profolio",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Digital teaching portfolio — organise and present evidence from a teaching sequence.",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^7.3.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.2"
+  }
+}

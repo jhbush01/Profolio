@@ -1,0 +1,19 @@
+---
+/** Teaching sequence index — all weeks. */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import WeekCard from '../../components/WeekCard.astro';
+import { phases, portfolio } from '../../lib/portfolio';
+---
+
+<BaseLayout title="Teaching sequence">
+  <PageHeader
+    eyebrow={portfolio.context}
+    title="Teaching sequence"
+    lead={`Five weeks of planned instruction. Each week holds its lesson plans, evidence, ${portfolio.framework} tags and reflection.`}
+  />
+
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {phases.map((phase) => <WeekCard phase={phase} />)}
+  </div>
+</BaseLayout>

@@ -1,0 +1,127 @@
+---
+/**
+ * One week of the sequence.
+ *
+ * Routing note: a single dynamic route generates Week 1–5 from
+ * /src/data/sequence.json rather than five near-identical .astro files.
+ * Adding or renaming a week means editing JSON only. With `output: 'static'`
+ * getStaticPaths pre-renders every week at build time — no runtime needed.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import ArtefactList from '../../components/ArtefactList.astro';
+import StandardTag from '../../components/StandardTag.astro';
+import { artefactsForPhase, getStandard, phases } from '../../lib/portfolio';
+import type { Phase } from '../../types';
+
+export function getStaticPaths() {
+  return phases.map((phase) => ({
+    params: { week: phase.slug },
+    props: { phase },
+  }));
+}
+
+interface Props {
+  phase: Phase;
+}
+
+const { phase } = Astro.props;
+const artefacts = artefactsForPhase(phase.slug);
+
+const index = phases.findIndex((candidate) => candidate.slug === phase.slug);
+const previous = phases[index - 1];
+const next = phases[index + 1];
+---
+
+<BaseLayout title={`Week ${phase.number} — ${phase.title}`}>
+  <PageHeader eyebrow={`Week ${phase.number} · ${phase.focus}`} title={phase.title} lead={phase.summary} />
+
+  <div class="grid gap-6 lg:grid-cols-3">
+    <div class="lg:col-span-2 flex flex-col gap-6">
+      <section class="card">
+        <h2 class="mb-3 text-lg font-semibold">Learning intentions</h2>
+        <ul class="prose-body list-disc space-y-1.5 pl-5 text-sm">
+          {phase.learningIntentions.map((intention) => <li>{intention}</li>)}
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2 class="mb-3 text-lg font-semibold">Planned evidence</h2>
+        <!-- FUTURE: tick items off automatically as matching artefacts are uploaded. -->
+        <ul class="space-y-2 text-sm">
+          {
+            phase.plannedEvidence.map((item) => (
+              <li class="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  class="inline-block size-3.5 shrink-0 rounded-[4px] border border-line"
+                />
+                <span class="prose-body">{item}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section>
+        <div class="mb-4 flex items-baseline justify-between">
+          <h2 class="text-lg font-semibold">Artefacts</h2>
+          <a href="/evidence" class="text-sm text-accent hover:underline">Add evidence →</a>
+        </div>
+        <ArtefactList
+          artefacts={artefacts}
+          showPhase={false}
+          emptyMessage={`No artefacts attached to Week ${phase.number} yet.`}
+        />
+      </section>
+
+      <section class="card">
+        <h2 class="mb-3 text-lg font-semibold">Reflection</h2>
+        <!-- FUTURE: rich text editing, saved per week. -->
+        <p class="prose-body text-sm">{phase.reflection}</p>
+      </section>
+    </div>
+
+    <aside class="flex flex-col gap-6">
+      <section class="card">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-muted">
+          Standards addressed
+        </h2>
+        <ul class="space-y-3">
+          {
+            phase.standards.map((code) => {
+              const standard = getStandard(code);
+              return (
+                <li>
+                  <StandardTag code={code} />
+                  {standard && <p class="prose-body mt-1 text-xs">{standard.descriptor}</p>}
+                </li>
+              );
+            })
+          }
+        </ul>
+      </section>
+
+      <nav class="card flex flex-col gap-2 text-sm" aria-label="Sequence">
+        {
+          previous ? (
+            <a href={`/sequence/${previous.slug}`} class="text-accent hover:underline">
+              ← Week {previous.number}: {previous.title}
+            </a>
+          ) : (
+            <span class="text-ink-muted">← Start of sequence</span>
+          )
+        }
+        {
+          next ? (
+            <a href={`/sequence/${next.slug}`} class="text-accent hover:underline">
+              Week {next.number}: {next.title} →
+            </a>
+          ) : (
+            <span class="text-ink-muted">End of sequence →</span>
+          )
+        }
+      </nav>
+    </aside>
+  </div>
+</BaseLayout>

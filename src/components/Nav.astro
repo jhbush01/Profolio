@@ -1,0 +1,48 @@
+---
+/** Primary site navigation. */
+import { portfolio } from '../lib/portfolio';
+
+const path = Astro.url.pathname;
+
+const links = [
+  { href: '/', label: 'Home' },
+  { href: '/sequence', label: 'Teaching sequence' },
+  { href: '/evidence', label: 'Evidence' },
+  { href: '/standards', label: portfolio.framework },
+  { href: '/present', label: 'Presentation mode' },
+];
+
+const isActive = (href: string) =>
+  href === '/' ? path === '/' : path.startsWith(href);
+---
+
+<header class="no-print border-b border-line bg-surface">
+  <div class="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
+    <a href="/" class="mr-auto flex flex-col leading-tight">
+      <span class="font-display text-lg font-semibold">{portfolio.title}</span>
+      <span class="text-xs text-ink-muted">{portfolio.owner} · {portfolio.context}</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="flex flex-wrap items-center gap-1">
+        {
+          links.map((link) => (
+            <li>
+              <a
+                href={link.href}
+                aria-current={isActive(link.href) ? 'page' : undefined}
+                class:list={[
+                  'rounded-md px-3 py-1.5 text-sm transition',
+                  isActive(link.href)
+                    ? 'bg-accent-soft font-medium text-accent'
+                    : 'text-ink-muted hover:bg-canvas hover:text-ink',
+                ]}
+              >
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,68 @@
+[
+  {
+    "id": "art-001",
+    "title": "Week 1 — Lesson Plan 1 (Diagnostic)",
+    "type": "lesson-plan",
+    "week": "week-1",
+    "fileName": "w1-lesson-1-diagnostic.pdf",
+    "sizeLabel": "142 KB",
+    "addedOn": "2026-07-21",
+    "standards": ["2.3", "5.1"],
+    "caption": "Placeholder artefact record. Replace with a real upload once the storage backend exists."
+  },
+  {
+    "id": "art-002",
+    "title": "Class Profile and Differentiation Notes",
+    "type": "planning",
+    "week": "week-1",
+    "fileName": "class-profile.docx",
+    "sizeLabel": "38 KB",
+    "addedOn": "2026-07-21",
+    "standards": ["1.1", "1.5"],
+    "caption": "Placeholder artefact record."
+  },
+  {
+    "id": "art-003",
+    "title": "Student Work Sample — Guided Practice",
+    "type": "student-work",
+    "week": "week-3",
+    "fileName": "work-sample-mid.jpg",
+    "sizeLabel": "1.2 MB",
+    "addedOn": "2026-08-06",
+    "standards": ["1.5", "4.1"],
+    "caption": "Placeholder artefact record. Remember to de-identify student work before uploading."
+  },
+  {
+    "id": "art-004",
+    "title": "Exit Ticket Data — Weeks 2–4",
+    "type": "data",
+    "week": "week-4",
+    "fileName": "exit-ticket-tracking.xlsx",
+    "sizeLabel": "24 KB",
+    "addedOn": "2026-08-13",
+    "standards": ["5.1", "5.4"],
+    "caption": "Placeholder artefact record."
+  },
+  {
+    "id": "art-005",
+    "title": "Reflection — Adjusting after the Week 4 check",
+    "type": "reflection",
+    "week": "week-4",
+    "fileName": "reflection-week-4.md",
+    "sizeLabel": "6 KB",
+    "addedOn": "2026-08-15",
+    "standards": ["5.4", "6.3"],
+    "caption": "Placeholder artefact record."
+  },
+  {
+    "id": "art-006",
+    "title": "Pre/Post Growth Comparison",
+    "type": "data",
+    "week": "week-5",
+    "fileName": "growth-comparison.png",
+    "sizeLabel": "410 KB",
+    "addedOn": "2026-08-22",
+    "standards": ["5.4"],
+    "caption": "Placeholder artefact record."
+  }
+]

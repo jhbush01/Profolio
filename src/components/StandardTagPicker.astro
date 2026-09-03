@@ -1,0 +1,60 @@
+---
+/**
+ * StandardTagPicker — PLACEHOLDER UI for tagging an artefact against the
+ * framework. Renders every standard as a toggleable chip.
+ *
+ * This is intentionally non-functional: the checkboxes hold state in the DOM
+ * only and nothing is persisted.
+ *
+ * FUTURE: on submit, POST the selected codes to an endpoint that updates the
+ * artefact record. The markup below is already form-ready — each input shares
+ * the `standards[]` name, so a server handler reads them as an array.
+ */
+import { standards } from '../lib/portfolio';
+
+interface Props {
+  /** Codes pre-selected for the artefact being tagged. */
+  selected?: string[];
+  legend?: string;
+}
+
+const { selected = [], legend = 'Tag against the standards' } = Astro.props;
+
+// Group by domain so the list reads the way the framework is published.
+const domains = [...new Set(standards.map((standard) => standard.domain))];
+---
+
+<fieldset class="rounded-xl border border-line bg-surface p-5">
+  <legend class="px-1 text-sm font-medium">{legend}</legend>
+  <p class="prose-body mb-4 text-xs">
+    Placeholder — selections are not saved yet. Wire this to the artefact record
+    when the storage backend lands.
+  </p>
+
+  {
+    domains.map((domain) => (
+      <div class="mb-4 last:mb-0">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">{domain}</p>
+        <div class="flex flex-wrap gap-2">
+          {standards
+            .filter((standard) => standard.domain === domain)
+            .map((standard) => (
+              <label
+                class="cursor-pointer rounded-full border border-line px-3 py-1 text-xs text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent hover:border-accent/40"
+                title={standard.descriptor}
+              >
+                <input
+                  type="checkbox"
+                  name="standards[]"
+                  value={standard.code}
+                  checked={selected.includes(standard.code)}
+                  class="sr-only"
+                />
+                {standard.code} · {standard.focus}
+              </label>
+            ))}
+        </div>
+      </div>
+    ))
+  }
+</fieldset>

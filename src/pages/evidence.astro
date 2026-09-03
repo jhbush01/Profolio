@@ -1,0 +1,29 @@
+---
+/** Evidence module — placeholder upload UI plus the artefact list. */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import EvidenceUpload from '../components/EvidenceUpload.astro';
+import ArtefactList from '../components/ArtefactList.astro';
+import { artefacts } from '../lib/portfolio';
+---
+
+<BaseLayout title="Evidence">
+  <PageHeader
+    eyebrow="Evidence vault"
+    title="Upload and organise artefacts"
+    lead="Every artefact carries a week, a type and its standard tags, so the portfolio can be sliced by any of the three."
+  />
+
+  <section class="mb-12">
+    <h2 class="mb-4 text-xl font-semibold">Add evidence</h2>
+    <EvidenceUpload />
+  </section>
+
+  <section>
+    <div class="mb-4 flex items-baseline justify-between">
+      <h2 class="text-xl font-semibold">Collected artefacts</h2>
+      <span class="text-sm text-ink-muted">{artefacts.length} items</span>
+    </div>
+    <ArtefactList artefacts={artefacts} showFilters />
+  </section>
+</BaseLayout>

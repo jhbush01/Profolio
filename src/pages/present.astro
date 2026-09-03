@@ -1,0 +1,76 @@
+---
+/**
+ * Presentation mode — minimal, clean layout for showing the portfolio.
+ *
+ * Deliberately read-only: no nav, no upload, no editing. Sections below are
+ * placeholders for the artefact rendering that comes later (inline PDF/image
+ * previews, a per-week slide, a growth chart).
+ *
+ * FUTURE: keyboard navigation between sections, a full-screen mode, and a
+ * print/PDF export path (the @media print rules in global.css are the start).
+ */
+import PresentationLayout from '../layouts/PresentationLayout.astro';
+import StandardTag from '../components/StandardTag.astro';
+import { artefactsForPhase, phases, portfolio } from '../lib/portfolio';
+---
+
+<PresentationLayout title="Presentation mode">
+  <header class="mb-20 border-b border-line pb-12 text-center">
+    <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-accent">{portfolio.role}</p>
+    <h1 class="font-display text-5xl font-semibold">{portfolio.title}</h1>
+    <p class="prose-body mx-auto mt-4 max-w-xl text-base">{portfolio.tagline}</p>
+    <p class="mt-6 text-sm text-ink-muted">{portfolio.owner} · {portfolio.context}</p>
+  </header>
+
+  {
+    phases.map((phase) => {
+      const artefacts = artefactsForPhase(phase.slug);
+      return (
+        <section class="mb-20 break-inside-avoid">
+          <p class="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-accent">
+            Week {phase.number}
+          </p>
+          <h2 class="font-display text-3xl font-semibold">{phase.title}</h2>
+          <p class="prose-body mt-3 max-w-2xl text-base">{phase.summary}</p>
+
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            {phase.standards.map((code) => (
+              <StandardTag code={code} />
+            ))}
+          </div>
+
+          {/* PLACEHOLDER: artefact rendering slot.
+              FUTURE: replace each tile with an inline preview of the artefact —
+              PDF first page, image thumbnail, or a rendered data chart. */}
+          <div class="mt-6 grid gap-4 sm:grid-cols-2">
+            {artefacts.length === 0 ? (
+              <div class="rounded-xl border border-dashed border-line p-10 text-center text-sm text-ink-muted sm:col-span-2">
+                Artefact previews will render here.
+              </div>
+            ) : (
+              artefacts.map((artefact) => (
+                <figure class="overflow-hidden rounded-xl border border-line">
+                  <div class="flex aspect-[4/3] items-center justify-center bg-canvas text-xs text-ink-muted">
+                    Preview placeholder · {artefact.fileName}
+                  </div>
+                  <figcaption class="border-t border-line p-3">
+                    <p class="text-sm font-medium">{artefact.title}</p>
+                    <p class="prose-body mt-0.5 text-xs">{artefact.caption}</p>
+                  </figcaption>
+                </figure>
+              ))
+            )}
+          </div>
+
+          <blockquote class="mt-6 border-l-2 border-accent/30 pl-4">
+            <p class="prose-body text-sm italic">{phase.reflection}</p>
+          </blockquote>
+        </section>
+      );
+    })
+  }
+
+  <footer class="border-t border-line pt-10 text-center text-sm text-ink-muted">
+    <p>Evidence mapped to the {portfolio.frameworkName} ({portfolio.framework}).</p>
+  </footer>
+</PresentationLayout>

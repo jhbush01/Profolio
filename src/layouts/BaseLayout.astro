@@ -1,0 +1,34 @@
+---
+/**
+ * BaseLayout — chrome for every authoring/browsing page.
+ * Presentation mode uses PresentationLayout instead (no nav, no footer).
+ */
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { portfolio } from '../lib/portfolio';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = portfolio.tagline } = Astro.props;
+---
+
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} · {portfolio.title}</title>
+  </head>
+  <body class="min-h-screen">
+    <Nav />
+    <main class="mx-auto w-full max-w-5xl px-5 py-10">
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

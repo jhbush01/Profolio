@@ -1,0 +1,74 @@
+[
+  {
+    "code": "1.1",
+    "domain": "Professional Knowledge",
+    "focus": "Physical, social and intellectual development",
+    "descriptor": "Demonstrate knowledge and understanding of physical, social and intellectual development and characteristics of students and how these may affect learning."
+  },
+  {
+    "code": "1.5",
+    "domain": "Professional Knowledge",
+    "focus": "Differentiate teaching",
+    "descriptor": "Demonstrate knowledge and understanding of strategies for differentiating teaching to meet the specific learning needs of students across the full range of abilities."
+  },
+  {
+    "code": "2.1",
+    "domain": "Professional Knowledge",
+    "focus": "Content and teaching strategies",
+    "descriptor": "Demonstrate knowledge and understanding of the concepts, substance and structure of the content and teaching strategies of the teaching area."
+  },
+  {
+    "code": "2.3",
+    "domain": "Professional Knowledge",
+    "focus": "Curriculum, assessment and reporting",
+    "descriptor": "Use curriculum, assessment and reporting knowledge to design learning sequences and lesson plans."
+  },
+  {
+    "code": "3.2",
+    "domain": "Professional Practice",
+    "focus": "Plan, structure and sequence learning programs",
+    "descriptor": "Plan lesson sequences using knowledge of student learning, content and effective teaching strategies."
+  },
+  {
+    "code": "3.3",
+    "domain": "Professional Practice",
+    "focus": "Teaching strategies",
+    "descriptor": "Include a range of teaching strategies."
+  },
+  {
+    "code": "3.5",
+    "domain": "Professional Practice",
+    "focus": "Communication",
+    "descriptor": "Demonstrate a range of verbal and non-verbal communication strategies to support student engagement."
+  },
+  {
+    "code": "4.1",
+    "domain": "Professional Practice",
+    "focus": "Student participation",
+    "descriptor": "Identify strategies to support inclusive student participation and engagement in classroom activities."
+  },
+  {
+    "code": "5.1",
+    "domain": "Professional Practice",
+    "focus": "Assess student learning",
+    "descriptor": "Demonstrate understanding of assessment strategies, including informal and formal, diagnostic, formative and summative approaches."
+  },
+  {
+    "code": "5.4",
+    "domain": "Professional Practice",
+    "focus": "Interpret student data",
+    "descriptor": "Demonstrate the capacity to interpret student assessment data to evaluate student learning and modify teaching practice."
+  },
+  {
+    "code": "6.3",
+    "domain": "Professional Engagement",
+    "focus": "Engage with colleagues and improve practice",
+    "descriptor": "Seek and apply constructive feedback from supervisors and teachers to improve teaching practices."
+  },
+  {
+    "code": "7.1",
+    "domain": "Professional Engagement",
+    "focus": "Professional ethics and responsibilities",
+    "descriptor": "Understand and apply the key principles described in codes of ethics and conduct for the teaching profession."
+  }
+]

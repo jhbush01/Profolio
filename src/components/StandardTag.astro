@@ -1,0 +1,31 @@
+---
+/**
+ * StandardTag — one framework code rendered as a chip.
+ *
+ * FUTURE: links through to /standards/[code] once per-standard evidence pages
+ * exist; the tooltip becomes a popover with the full descriptor.
+ */
+import { getStandard } from '../lib/portfolio';
+
+interface Props {
+  code: string;
+  /** `subtle` for dense lists, `solid` where the tag is the main content. */
+  variant?: 'subtle' | 'solid';
+}
+
+const { code, variant = 'subtle' } = Astro.props;
+const standard = getStandard(code);
+---
+
+<span
+  title={standard ? `${standard.code} — ${standard.descriptor}` : code}
+  class:list={[
+    'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium',
+    variant === 'solid'
+      ? 'bg-accent text-white'
+      : 'bg-accent-soft text-accent ring-1 ring-inset ring-accent/15',
+  ]}
+>
+  <span aria-hidden="true" class="opacity-60">#</span>{code}
+  {standard && <span class="sr-only"> — {standard.focus}</span>}
+</span>

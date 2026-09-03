@@ -1,0 +1,38 @@
+---
+/** WeekCard — summary tile for one phase of the sequence. */
+import StandardTag from './StandardTag.astro';
+import { artefactsForPhase } from '../lib/portfolio';
+import type { Phase } from '../types';
+
+interface Props {
+  phase: Phase;
+}
+
+const { phase } = Astro.props;
+const count = artefactsForPhase(phase.slug).length;
+---
+
+<a
+  href={`/sequence/${phase.slug}`}
+  class="card group flex flex-col gap-3 transition hover:border-accent/40 hover:shadow-[0_2px_10px_rgba(20,24,31,0.07)]"
+>
+  <div class="flex items-baseline justify-between gap-3">
+    <span class="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+      Week {phase.number}
+    </span>
+    <span class="text-xs text-ink-muted">
+      {count} {count === 1 ? 'artefact' : 'artefacts'}
+    </span>
+  </div>
+
+  <div>
+    <h3 class="text-lg font-semibold leading-snug group-hover:text-accent">{phase.title}</h3>
+    <p class="mt-0.5 text-xs text-ink-muted">{phase.focus}</p>
+  </div>
+
+  <p class="prose-body text-sm">{phase.summary}</p>
+
+  <div class="mt-auto flex flex-wrap gap-1.5 border-t border-line pt-3">
+    {phase.standards.map((code) => <StandardTag code={code} />)}
+  </div>
+</a>

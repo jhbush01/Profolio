@@ -1,0 +1,87 @@
+---
+/** Home — intro text and navigation into each module. */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import WeekCard from '../components/WeekCard.astro';
+import { artefacts, phases, portfolio, standards } from '../lib/portfolio';
+
+const stats = [
+  { label: 'Weeks in sequence', value: phases.length },
+  { label: 'Artefacts collected', value: artefacts.length },
+  { label: `${portfolio.framework} standards tracked`, value: standards.length },
+];
+
+const modules = [
+  {
+    href: '/sequence',
+    title: 'Teaching sequence',
+    body: 'Week-by-week planning, learning intentions, evidence and reflection.',
+  },
+  {
+    href: '/evidence',
+    title: 'Evidence vault',
+    body: 'Upload and browse artefacts — lesson plans, work samples, data, reflections.',
+  },
+  {
+    href: '/standards',
+    title: `${portfolio.framework} alignment`,
+    body: 'See which standards are evidenced and where the gaps are.',
+  },
+  {
+    href: '/present',
+    title: 'Presentation mode',
+    body: 'A clean, distraction-free view for showing the portfolio to a panel.',
+  },
+];
+---
+
+<BaseLayout title="Home">
+  <PageHeader eyebrow={portfolio.role} title={portfolio.title} lead={portfolio.tagline}>
+    <p class="prose-body mt-3 max-w-2xl">
+      This portfolio collects evidence from a five-week teaching sequence in
+      {portfolio.context}. Each artefact is tagged against the
+      {portfolio.frameworkName} so the mapping between practice and standards is
+      explicit rather than asserted.
+    </p>
+  </PageHeader>
+
+  <dl class="mb-12 grid gap-4 sm:grid-cols-3">
+    {
+      stats.map((stat) => (
+        <div class="card">
+          <dt class="text-xs uppercase tracking-wider text-ink-muted">{stat.label}</dt>
+          <dd class="mt-1 font-display text-3xl font-semibold">{stat.value}</dd>
+        </div>
+      ))
+    }
+  </dl>
+
+  <section class="mb-12">
+    <h2 class="mb-4 text-xl font-semibold">Modules</h2>
+    <div class="grid gap-4 sm:grid-cols-2">
+      {
+        modules.map((module) => (
+          <a
+            href={module.href}
+            class="card group transition hover:border-accent/40 hover:shadow-[0_2px_10px_rgba(20,24,31,0.07)]"
+          >
+            <h3 class="text-base font-semibold group-hover:text-accent">
+              {module.title} <span aria-hidden="true">→</span>
+            </h3>
+            <p class="prose-body mt-1 text-sm">{module.body}</p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <section>
+    <div class="mb-4 flex items-baseline justify-between">
+      <h2 class="text-xl font-semibold">The sequence</h2>
+      <a href="/sequence" class="text-sm text-accent hover:underline">View all weeks →</a>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {phases.map((phase) => <WeekCard phase={phase} />)}
+    </div>
+  </section>
+</BaseLayout>
