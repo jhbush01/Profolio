@@ -17,17 +17,24 @@ interface Props {
 
 const { artefact, showPhase = true } = Astro.props;
 const phase = artefact.week ? getPhase(artefact.week) : undefined;
+
+// Built as a string rather than inline template expressions: Astro collapses
+// the whitespace at a line break before an expression, which silently eats the
+// spaces around the separators.
+const meta = [
+  artefactTypeLabel(artefact.type),
+  showPhase && phase ? `Week ${phase.number}` : null,
+  `Added ${artefact.addedOn}`,
+]
+  .filter(Boolean)
+  .join(' \u00b7 ');
 ---
 
 <article class="card flex flex-col gap-3">
   <div class="flex items-start justify-between gap-3">
     <div>
       <h3 class="text-base font-semibold leading-snug">{artefact.title}</h3>
-      <p class="mt-1 text-xs text-ink-muted">
-        {artefactTypeLabel(artefact.type)}
-        {showPhase && phase && <> · Week {phase.number}</>}
-        · Added {artefact.addedOn}
-      </p>
+      <p class="mt-1 text-xs text-ink-muted">{meta}</p>
     </div>
     <span
       class="shrink-0 rounded-md bg-canvas px-2 py-1 text-[0.7rem] font-medium text-ink-muted"
