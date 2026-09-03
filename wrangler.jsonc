@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "profolio",
+  "compatibility_date": "2026-09-03",
+
+  // Static-assets-only Worker: there is no server-side entrypoint, so Cloudflare
+  // serves ./dist directly from its edge. This matches `output: 'static'` in
+  // astro.config.mjs — see the notes there for the migration to a real Worker
+  // when the evidence upload endpoint lands.
+  "assets": {
+    "directory": "./dist",
+    // Serve Astro's generated 404 page for unmatched routes rather than a bare
+    // Cloudflare error page.
+    "not_found_handling": "404-page"
+  }
+}

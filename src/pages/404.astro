@@ -1,0 +1,25 @@
+---
+/** 404 — served by Cloudflare for unmatched routes (see not_found_handling in wrangler.jsonc). */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+---
+
+<BaseLayout title="Page not found">
+  <PageHeader
+    eyebrow="404"
+    title="That page isn't here"
+    lead="The link may be out of date, or the artefact may not have been added yet."
+  />
+  <div class="flex flex-wrap gap-3">
+    <a
+      href="/"
+      class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+      >Back to home</a
+    >
+    <a
+      href="/sequence"
+      class="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40"
+      >Teaching sequence</a
+    >
+  </div>
+</BaseLayout>
