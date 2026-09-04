@@ -1,6 +1,9 @@
 ---
-/** Site footer. Kept deliberately thin. */
-import { portfolio } from '../lib/portfolio';
+/**
+ * Site footer. App-level, so it must not carry teaching-specific wording —
+ * that belongs on the teaching-portfolio pages themselves.
+ */
+import { site } from '../lib/portfolio';
 
 const year = new Date().getFullYear();
 ---
@@ -9,10 +12,7 @@ const year = new Date().getFullYear();
   <div
     class="mx-auto flex w-full max-w-5xl flex-col gap-1 px-5 py-6 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between"
   >
-    <p>{portfolio.title} · {portfolio.owner} · {year}</p>
-    <p>
-      Evidence mapped to the {portfolio.frameworkName} ({portfolio.framework}).
-      De-identify student work before uploading.
-    </p>
+    <p>{site.name} · {year}</p>
+    <p>{site.note}</p>
   </div>
 </footer>

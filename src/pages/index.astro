@@ -1,86 +1,107 @@
 ---
-/** Home — intro text and navigation into each module. */
+/**
+ * Home — the neutral entry point.
+ *
+ * Profolio has two areas: the industry-agnostic portfolio builder, and the
+ * teaching portfolio, which is now framed as a worked example of what a
+ * fully-specified portfolio looks like rather than as the whole product.
+ */
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PageHeader from '../components/PageHeader.astro';
-import WeekCard from '../components/WeekCard.astro';
 import { artefacts, phases, portfolio, standards } from '../lib/portfolio';
-
-const stats = [
-  { label: 'Weeks in sequence', value: phases.length },
-  { label: 'Artefacts collected', value: artefacts.length },
-  { label: `${portfolio.framework} standards tracked`, value: standards.length },
-];
-
-const modules = [
-  {
-    href: '/sequence',
-    title: 'Teaching sequence',
-    body: 'Week-by-week planning, learning intentions, evidence and reflection.',
-  },
-  {
-    href: '/evidence',
-    title: 'Evidence vault',
-    body: 'Upload and browse artefacts — lesson plans, work samples, data, reflections.',
-  },
-  {
-    href: '/standards',
-    title: `${portfolio.framework} alignment`,
-    body: 'See which standards are evidenced and where the gaps are.',
-  },
-  {
-    href: '/present',
-    title: 'Presentation mode',
-    body: 'A clean, distraction-free view for showing the portfolio to a panel.',
-  },
-];
 ---
 
-<BaseLayout title="Home">
-  <PageHeader eyebrow={portfolio.role} title={portfolio.title} lead={portfolio.tagline}>
-    <p class="prose-body mt-3 max-w-2xl">
-      This portfolio collects evidence from a five-week teaching sequence in {portfolio.context}.
-      Each artefact is tagged against the {portfolio.frameworkName} so the mapping
-      between practice and standards is explicit rather than asserted.
-    </p>
-  </PageHeader>
+<BaseLayout
+  title="Home"
+  description="Profolio — a digital evidence vault and showcase for any profession."
+>
+  <PageHeader
+    eyebrow="Professional evidence vault"
+    title="Profolio"
+    lead="Collect the evidence of your practice in one place, organise it the way you want to present it, and export it as a portfolio you can hand over."
+  />
 
-  <dl class="mb-12 grid gap-4 sm:grid-cols-3">
-    {
-      stats.map((stat) => (
-        <div class="card">
-          <dt class="text-xs uppercase tracking-wider text-ink-muted">{stat.label}</dt>
-          <dd class="mt-1 font-display text-3xl font-semibold">{stat.value}</dd>
-        </div>
-      ))
-    }
-  </dl>
+  <div class="mb-14 grid gap-4 md:grid-cols-2">
+    <a
+      href="/portfolio"
+      class="card group flex flex-col gap-3 border-accent/30 bg-accent-soft/40 transition hover:border-accent/60 hover:shadow-[0_2px_12px_rgba(20,24,31,0.08)]"
+    >
+      <span class="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Start here</span>
+      <h2 class="text-xl font-semibold group-hover:text-accent">
+        Build your own portfolio <span aria-hidden="true">→</span>
+      </h2>
+      <p class="prose-body text-sm">
+        Upload documents, group them into folders, and export the whole thing as one organised
+        PDF. Nothing about it assumes an industry — nurse, teacher, designer, tradesperson.
+      </p>
+      <p class="mt-auto text-xs text-ink-muted">
+        Runs entirely in your browser. No account needed.
+      </p>
+    </a>
 
-  <section class="mb-12">
-    <h2 class="mb-4 text-xl font-semibold">Modules</h2>
-    <div class="grid gap-4 sm:grid-cols-2">
+    <a
+      href="/sequence"
+      class="card group flex flex-col gap-3 transition hover:border-accent/40 hover:shadow-[0_2px_12px_rgba(20,24,31,0.07)]"
+    >
+      <span class="text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
+        Worked example
+      </span>
+      <h2 class="text-xl font-semibold group-hover:text-accent">
+        Teaching portfolio <span aria-hidden="true">→</span>
+      </h2>
+      <p class="prose-body text-sm">
+        A five-week teaching sequence with evidence mapped to the {portfolio.frameworkName}.
+        Shows what a portfolio looks like once it is tailored to a profession's standards
+        framework.
+      </p>
+      <dl class="mt-auto flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-muted">
+        <div><dt class="inline">Weeks</dt> <dd class="inline font-medium text-ink">{phases.length}</dd></div>
+        <div><dt class="inline">Artefacts</dt> <dd class="inline font-medium text-ink">{artefacts.length}</dd></div>
+        <div><dt class="inline">{portfolio.framework} standards</dt> <dd class="inline font-medium text-ink">{standards.length}</dd></div>
+      </dl>
+    </a>
+  </div>
+
+  <section class="mb-14">
+    <h2 class="mb-4 text-xl font-semibold">How it works</h2>
+    <ol class="grid gap-4 sm:grid-cols-3">
       {
-        modules.map((module) => (
-          <a
-            href={module.href}
-            class="card group transition hover:border-accent/40 hover:shadow-[0_2px_10px_rgba(20,24,31,0.07)]"
-          >
-            <h3 class="text-base font-semibold group-hover:text-accent">
-              {module.title} <span aria-hidden="true">→</span>
-            </h3>
-            <p class="prose-body mt-1 text-sm">{module.body}</p>
-          </a>
+        [
+          {
+            step: '1',
+            title: 'Add your documents',
+            body: 'Drag in PDFs, images and files. Everything stays on your device.',
+          },
+          {
+            step: '2',
+            title: 'Organise into folders',
+            body: 'Folders become the sections of your portfolio, with an optional note on each.',
+          },
+          {
+            step: '3',
+            title: 'Export a PDF',
+            body: 'One file with a cover, contents page and every document laid out in order.',
+          },
+        ].map((item) => (
+          <li class="card flex flex-col gap-2">
+            <span class="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent">
+              {item.step}
+            </span>
+            <h3 class="text-base font-semibold">{item.title}</h3>
+            <p class="prose-body text-sm">{item.body}</p>
+          </li>
         ))
       }
-    </div>
+    </ol>
   </section>
 
-  <section>
-    <div class="mb-4 flex items-baseline justify-between">
-      <h2 class="text-xl font-semibold">The sequence</h2>
-      <a href="/sequence" class="text-sm text-accent hover:underline">View all weeks →</a>
-    </div>
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {phases.map((phase) => <WeekCard phase={phase} />)}
-    </div>
+  <section class="rounded-xl border border-line bg-surface p-6">
+    <h2 class="text-base font-semibold">Where this is going</h2>
+    <p class="prose-body mt-2 max-w-2xl text-sm">
+      Portfolios currently live in your browser, which keeps the app free and private but means
+      they do not follow you between devices. Accounts and cloud storage are the next step;
+      profession-specific standards frameworks — beyond the {portfolio.framework} example — come
+      after that.
+    </p>
   </section>
 </BaseLayout>

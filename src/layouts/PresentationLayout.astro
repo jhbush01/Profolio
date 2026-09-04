@@ -5,7 +5,7 @@
  *
  * FUTURE: keyboard slide navigation and a full-screen toggle go here.
  */
-import { portfolio } from '../lib/portfolio';
+import { portfolio, site } from '../lib/portfolio';
 import '../styles/global.css';
 
 interface Props {
@@ -21,7 +21,7 @@ const { title } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={portfolio.tagline} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title} · {portfolio.title}</title>
+    <title>{title} · {site.name}</title>
   </head>
   <body class="min-h-screen bg-surface">
     <a

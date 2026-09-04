@@ -1,0 +1,116 @@
+---
+/**
+ * The generic portfolio builder — industry-neutral.
+ *
+ * Everything on this page is client-side: files, folders and profile live in
+ * IndexedDB in the visitor's browser, and the PDF is generated locally. The
+ * page itself is still statically rendered, so the site remains a plain static
+ * deploy.
+ *
+ * FUTURE: for durable, multi-device portfolios, replace src/lib/vault/db.ts
+ * with calls to a Worker backed by R2 + D1 and add sign-in. The UI here does
+ * not need to change.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+---
+
+<BaseLayout
+  title="Portfolio builder"
+  description="Build a simple digital portfolio: upload documents, organise them into folders, and export a tidy PDF."
+>
+  <PageHeader
+    eyebrow="Portfolio builder"
+    title="Build your portfolio"
+    lead="Add documents, group them into folders, then export the lot as one organised PDF. Works for any profession — nothing here assumes an industry."
+  />
+
+  <!-- Storage reality, stated up front rather than discovered later. -->
+  <div class="mb-8 rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-sm">
+    <p class="font-medium text-amber-900">Everything is stored in this browser only.</p>
+    <p class="mt-1 text-amber-800">
+      There is no account and no server. Your files never leave this device — which also means
+      they will not appear on another computer, and clearing your browser data deletes them.{' '}
+      <strong class="font-medium">Export a PDF to keep a permanent copy.</strong>
+    </p>
+  </div>
+
+  <!-- Profile: printed on the PDF cover page. -->
+  <section class="card mb-6">
+    <h2 class="mb-1 text-base font-semibold">Cover details</h2>
+    <p class="prose-body mb-4 text-xs">These appear on the front page of the exported PDF.</p>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="flex flex-col gap-1.5">
+        <span class="text-xs font-medium">Your name</span>
+        <input id="profile-name" type="text" placeholder="e.g. Jordan Rivers" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      </label>
+      <label class="flex flex-col gap-1.5">
+        <span class="text-xs font-medium">Title or role</span>
+        <input id="profile-title" type="text" placeholder="e.g. Registered Nurse" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      </label>
+      <label class="flex flex-col gap-1.5 sm:col-span-2">
+        <span class="text-xs font-medium">Short summary</span>
+        <textarea id="profile-summary" rows="2" placeholder="One or two lines about what this portfolio contains." class="rounded-lg border border-line bg-surface px-3 py-2 text-sm"></textarea>
+      </label>
+    </div>
+  </section>
+
+  <!-- Toolbar -->
+  <div class="mb-6 flex flex-wrap items-center gap-2">
+    <button id="add-files" type="button" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
+      Add files
+    </button>
+    <button id="new-folder" type="button" class="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
+      New folder
+    </button>
+    <button id="export-pdf" type="button" class="rounded-lg border border-accent bg-accent-soft px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent hover:text-white disabled:opacity-50">
+      Export PDF
+    </button>
+    <p id="export-status" role="status" aria-live="polite" class="text-xs text-ink-muted"></p>
+    <button id="clear-all" type="button" class="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-red-600">
+      Clear everything
+    </button>
+    <input id="file-input" type="file" multiple class="sr-only" />
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-[16rem_1fr]">
+    <!-- Folder tree -->
+    <aside class="card h-fit p-3">
+      <p class="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Folders</p>
+      <div id="folder-tree"></div>
+    </aside>
+
+    <!-- Documents in the selected folder -->
+    <section>
+      <div class="mb-3 flex items-baseline justify-between gap-3">
+        <h2 id="list-heading" class="text-lg font-semibold">All documents</h2>
+        <p id="usage" class="text-xs text-ink-muted"></p>
+      </div>
+
+      <div id="folder-note-wrap" class="mb-4" hidden>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">Section note</span>
+          <textarea id="folder-note" rows="2" placeholder="Optional. Introduces this section on its divider page in the PDF." class="rounded-lg border border-line bg-surface px-3 py-2 text-xs"></textarea>
+        </label>
+      </div>
+
+      <div id="document-list" class="grid gap-4 sm:grid-cols-2"></div>
+    </section>
+  </div>
+
+  <!-- Full-page drop target hint, shown while dragging. -->
+  <div
+    id="drop-hint"
+    hidden
+    class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-accent/10 backdrop-blur-[1px]"
+  >
+    <p class="rounded-xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-sm font-medium text-accent">
+      Drop files to add them
+    </p>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initVault } from '../lib/vault/ui';
+  initVault();
+</script>

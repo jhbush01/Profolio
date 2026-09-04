@@ -10,11 +10,16 @@
  * component tree does not change.
  */
 import artefactsJson from '../data/artefacts.json';
+import siteJson from '../data/site.json';
 import portfolioJson from '../data/portfolio.json';
 import sequenceJson from '../data/sequence.json';
 import standardsJson from '../data/standards.json';
 import type { Artefact, Phase, PortfolioMeta, Standard } from '../types';
 
+/** App-level branding, shared by every page. */
+export const site = siteJson as { name: string; tagline: string; note: string };
+
+/** Metadata for the teaching portfolio example specifically. */
 export const portfolio = portfolioJson as PortfolioMeta;
 
 /** All phases (weeks), ordered. */

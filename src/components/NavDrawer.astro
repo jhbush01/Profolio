@@ -1,0 +1,181 @@
+---
+/**
+ * Slide-out navigation drawer.
+ *
+ * Replaces the old inline top-bar nav. The drawer is always available (it is
+ * not a mobile-only pattern here) because the app now has two distinct areas —
+ * the generic portfolio builder and the teaching portfolio — and a flat row of
+ * links stopped describing that structure.
+ *
+ * Progressive enhancement: the markup is a plain <nav> with real links. If the
+ * script fails, the drawer is still reachable and the links still work.
+ */
+import { portfolio } from '../lib/portfolio';
+
+const path = Astro.url.pathname;
+
+const sections = [
+  {
+    label: null,
+    links: [{ href: '/', label: 'Home', hint: 'Start here' }],
+  },
+  {
+    label: 'Portfolio builder',
+    links: [
+      { href: '/portfolio', label: 'My portfolio', hint: 'Upload, organise, export' },
+    ],
+  },
+  {
+    label: 'Teaching portfolio',
+    links: [
+      { href: '/sequence', label: 'Teaching sequence', hint: 'Weeks 1-5' },
+      { href: '/evidence', label: 'Evidence', hint: 'Artefacts by week' },
+      { href: '/standards', label: `${portfolio.framework} alignment`, hint: 'Coverage map' },
+      { href: '/present', label: 'Presentation mode', hint: 'Clean read-only view' },
+    ],
+  },
+];
+
+const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+---
+
+<header class="no-print sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
+  <div class="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
+    <button
+      type="button"
+      id="drawer-open"
+      aria-controls="app-drawer"
+      aria-expanded="false"
+      class="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
+    >
+      <svg viewBox="0 0 20 20" class="size-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M3 5h14M3 10h14M3 15h14" />
+      </svg>
+      Menu
+    </button>
+
+    <a href="/" class="font-display text-base font-semibold">Profolio</a>
+  </div>
+</header>
+
+<!-- Overlay + drawer. `hidden` is toggled by the script; CSS handles the slide. -->
+<div id="drawer-overlay" class="no-print fixed inset-0 z-40 bg-ink/40 opacity-0 transition-opacity duration-200" hidden></div>
+
+<aside
+  id="app-drawer"
+  class="no-print fixed inset-y-0 left-0 z-50 flex w-[19rem] max-w-[85vw] -translate-x-full flex-col border-r border-line bg-surface transition-transform duration-200 ease-out"
+  aria-label="Main navigation"
+  aria-hidden="true"
+>
+  <div class="flex items-center justify-between border-b border-line px-5 py-4">
+    <div>
+      <p class="font-display text-lg font-semibold">Profolio</p>
+      <p class="text-xs text-ink-muted">Professional evidence vault</p>
+    </div>
+    <button
+      type="button"
+      id="drawer-close"
+      aria-label="Close menu"
+      class="rounded-md p-1.5 text-ink-muted transition hover:bg-canvas hover:text-ink"
+    >
+      <svg viewBox="0 0 20 20" class="size-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M5 5l10 10M15 5L5 15" />
+      </svg>
+    </button>
+  </div>
+
+  <nav class="flex-1 overflow-y-auto px-3 py-4">
+    {
+      sections.map((section) => (
+        <div class="mb-5 last:mb-0">
+          {section.label && (
+            <p class="mb-1.5 px-2 text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              {section.label}
+            </p>
+          )}
+          <ul class="space-y-0.5">
+            {section.links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  aria-current={isActive(link.href) ? 'page' : undefined}
+                  class:list={[
+                    'block rounded-lg px-3 py-2 transition',
+                    isActive(link.href)
+                      ? 'bg-accent-soft text-accent'
+                      : 'hover:bg-canvas',
+                  ]}
+                >
+                  <span class="block text-sm font-medium">{link.label}</span>
+                  <span class="block text-xs text-ink-muted">{link.hint}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+  </nav>
+
+  <p class="border-t border-line px-5 py-3 text-[0.7rem] leading-relaxed text-ink-muted">
+    Portfolio files are stored in this browser only. Export a PDF to keep a copy.
+  </p>
+</aside>
+
+<script>
+  const drawer = document.getElementById('app-drawer');
+  const overlay = document.getElementById('drawer-overlay');
+  const openButton = document.getElementById('drawer-open');
+  const closeButton = document.getElementById('drawer-close');
+
+  if (drawer && overlay && openButton && closeButton) {
+    let lastFocused: HTMLElement | null = null;
+
+    const open = () => {
+      lastFocused = document.activeElement as HTMLElement;
+      overlay.hidden = false;
+      // Next frame, so the opacity transition has a starting value to animate from.
+      requestAnimationFrame(() => overlay.classList.replace('opacity-0', 'opacity-100'));
+      drawer.classList.remove('-translate-x-full');
+      drawer.setAttribute('aria-hidden', 'false');
+      openButton.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+      closeButton.focus();
+    };
+
+    const close = () => {
+      overlay.classList.replace('opacity-100', 'opacity-0');
+      drawer.classList.add('-translate-x-full');
+      drawer.setAttribute('aria-hidden', 'true');
+      openButton.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      window.setTimeout(() => {
+        overlay.hidden = true;
+      }, 200);
+      lastFocused?.focus();
+    };
+
+    openButton.addEventListener('click', open);
+    closeButton.addEventListener('click', close);
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && drawer.getAttribute('aria-hidden') === 'false') close();
+    });
+
+    // Keep tabbing inside the drawer while it is open.
+    drawer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const focusable = drawer.querySelectorAll<HTMLElement>('a[href], button');
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  }
+</script>
