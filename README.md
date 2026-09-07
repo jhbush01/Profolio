@@ -32,7 +32,9 @@ npx wrangler r2 bucket create profolio-documents
 npx wrangler d1 create profolio
 ```
 
-Put the `database_id` printed by the last command into `wrangler.jsonc`.
+The bucket name and `database_id` are already set in `wrangler.jsonc`. If you
+recreate either resource, update them there — `database_id` is an identifier
+rather than a credential, so it is committed, as in Cloudflare's own templates.
 
 Note: R2 requires a payment method on the account even to use the free tier (10 GB storage, 1M writes, 10M reads per month, **free egress**). D1's free tier is 500 MB per database and 5 GB per account, with daily caps of 5M rows read and 100K rows written — Cloudflare began enforcing those daily caps on 1 September 2026.
 

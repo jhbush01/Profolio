@@ -9,13 +9,14 @@
   // Prerendered pages are served straight from the edge, so the Worker only runs
   // for routes marked `export const prerender = false` (the /api/* endpoints).
 
-  // Document metadata. Replace database_id with the value printed by
-  // `npx wrangler d1 create profolio`.
+  // Document metadata. `database_id` is an identifier, not a credential — it
+  // grants nothing without account authentication, which is why Cloudflare's
+  // own templates commit it.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "profolio",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "6765d921-d062-41db-8474-a3327ab5c17d",
       "migrations_dir": "migrations"
     }
   ],
