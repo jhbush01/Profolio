@@ -3,7 +3,9 @@
  *
  * Deliberately separate from the teaching-portfolio types in src/types.ts:
  * that module models a fixed, authored sequence read from JSON at build time,
- * while this one models user-created content living in the browser.
+ * while this one models user-created content stored in D1 and R2.
+ *
+ * These shapes are the API contract — they match what /api/vault returns.
  */
 
 /** A folder. `parentId` of null means it sits at the top level. */
@@ -18,7 +20,11 @@ export interface VaultFolder {
   order: number;
 }
 
-/** An uploaded document. The bytes live in `blob`; everything else is metadata. */
+/**
+ * An uploaded document's metadata. The bytes live in R2 and are fetched
+ * separately from /api/documents/[id]/content, so a portfolio with 200 files
+ * still loads as one small JSON response.
+ */
 export interface VaultDocument {
   id: string;
   name: string;
@@ -31,7 +37,6 @@ export interface VaultDocument {
   caption: string;
   addedAt: number;
   order: number;
-  blob: Blob;
 }
 
 /** Owner details printed on the exported PDF cover page. */

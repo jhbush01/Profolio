@@ -2,15 +2,37 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "profolio",
   "compatibility_date": "2026-09-03",
+  "compatibility_flags": ["nodejs_compat"],
 
-  // Static-assets-only Worker: there is no server-side entrypoint, so Cloudflare
-  // serves ./dist directly from its edge. This matches `output: 'static'` in
-  // astro.config.mjs — see the notes there for the migration to a real Worker
-  // when the evidence upload endpoint lands.
-  "assets": {
-    "directory": "./dist",
-    // Serve Astro's generated 404 page for unmatched routes rather than a bare
-    // Cloudflare error page.
-    "not_found_handling": "404-page"
+  // `main` and `assets` are filled in by @astrojs/cloudflare at build time; it
+  // reads this file and writes a deploy-ready config to dist/server/wrangler.json.
+  // Prerendered pages are served straight from the edge, so the Worker only runs
+  // for routes marked `export const prerender = false` (the /api/* endpoints).
+
+  // Document metadata. Replace database_id with the value printed by
+  // `npx wrangler d1 create profolio`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "profolio",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Document bytes. Created with
+  // `npx wrangler r2 bucket create profolio-documents`.
+  "r2_buckets": [
+    {
+      "binding": "DOCUMENTS",
+      "bucket_name": "profolio-documents"
+    }
+  ],
+
+  "vars": {
+    // Cloudflare Access settings. Both must be set in production or the API
+    // refuses every request — see src/lib/server/access.ts.
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
   }
 }

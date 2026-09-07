@@ -9,15 +9,14 @@
  * framework rather than growing this file.
  */
 import {
-  addDocument,
+  addDocuments,
+  ApiError,
   clearAll,
   createFolder,
   deleteDocument,
   deleteFolderDeep,
-  estimateUsage,
-  getProfile,
-  listDocuments,
-  listFolders,
+  documentBytes,
+  loadVault,
   saveProfile,
   updateDocument,
   updateFolder,
@@ -32,6 +31,7 @@ let folders: VaultFolder[] = [];
 let documents: VaultDocument[] = [];
 let profile: VaultProfile = { name: '', title: '', summary: '' };
 let selected: string = ALL;
+let signedInAs = '';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
@@ -197,32 +197,60 @@ function renderDocuments() {
     .join('');
 }
 
-async function renderUsage() {
+function renderUsage() {
   const host = $('usage');
   if (!host) return;
-  const usage = await estimateUsage();
   const totalBytes = documents.reduce((sum, doc) => sum + doc.size, 0);
-  host.textContent = usage
-    ? `${documents.length} file${documents.length === 1 ? '' : 's'} · ${formatBytes(totalBytes)} stored · browser allows about ${formatBytes(usage.quota)}`
-    : `${documents.length} file${documents.length === 1 ? '' : 's'} · ${formatBytes(totalBytes)} stored`;
+  host.textContent = `${documents.length} file${documents.length === 1 ? '' : 's'} · ${formatBytes(totalBytes)} in R2`;
 }
 
 async function refresh() {
-  [folders, documents] = await Promise.all([listFolders(), listDocuments()]);
+  const snapshot = await loadVault();
+  folders = snapshot.folders;
+  documents = snapshot.documents;
+  profile = snapshot.profile;
+  signedInAs = snapshot.signedInAs;
+
+  const identity = $('signed-in-as');
+  if (identity) identity.textContent = signedInAs;
+
   if (selected !== ALL && selected !== UNFILED && !folders.some((f) => f.id === selected)) {
     selected = ALL;
   }
   renderFolders();
   renderDocuments();
-  await renderUsage();
+  renderUsage();
+}
+
+/**
+ * Runs an action, surfacing failures in the status line instead of throwing
+ * into the console. A 401 means the Access session lapsed — reloading bounces
+ * the user through the login page.
+ */
+async function guard(label: string, action: () => Promise<unknown>) {
+  try {
+    await action();
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      setStatus('Your sign-in expired. Reloading…');
+      window.location.reload();
+      return;
+    }
+    setStatus(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /* ----------------------------------------------------------------- actions */
 
 async function handleFiles(files: FileList | File[]) {
   const target = selected === ALL || selected === UNFILED ? null : selected;
-  for (const file of Array.from(files)) await addDocument(file, target);
-  await refresh();
+  const list = Array.from(files);
+  setStatus(`Uploading ${list.length} file${list.length === 1 ? '' : 's'}…`, true);
+  await guard('Upload', async () => {
+    await addDocuments(list, target);
+    await refresh();
+    setStatus(`Uploaded ${list.length} file${list.length === 1 ? '' : 's'}.`);
+  });
 }
 
 function setStatus(message: string, busy = false) {
@@ -247,9 +275,15 @@ async function exportPdf() {
     // page itself stays light.
     const { buildPortfolioPdf } = await import('./pdf');
     setStatus('Building PDF…', true);
-    const bytes = await buildPortfolioPdf(profile, folders, documents, (done, total, label) => {
-      setStatus(`Adding ${done + 1} of ${total}: ${label}`, true);
-    });
+    const bytes = await buildPortfolioPdf(
+      profile,
+      folders,
+      documents,
+      // Bytes are pulled from R2 one document at a time, so exporting a large
+      // portfolio never needs the whole thing in memory at once.
+      (doc) => documentBytes(doc.id),
+      (done, total, label) => setStatus(`Adding ${done + 1} of ${total}: ${label}`, true),
+    );
     // Copy into a fresh ArrayBuffer so the Blob owns its own memory.
     const blob = new Blob([bytes.slice()], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -272,21 +306,16 @@ async function exportPdf() {
 /* ------------------------------------------------------------------- wiring */
 
 export async function initVault() {
-  profile = await getProfile();
   const nameField = $<HTMLInputElement>('profile-name');
   const titleField = $<HTMLInputElement>('profile-title');
   const summaryField = $<HTMLTextAreaElement>('profile-summary');
-  if (nameField) nameField.value = profile.name;
-  if (titleField) titleField.value = profile.title;
-  if (summaryField) summaryField.value = profile.summary;
-
   const persistProfile = async () => {
     profile = {
       name: nameField?.value ?? '',
       title: titleField?.value ?? '',
       summary: summaryField?.value ?? '',
     };
-    await saveProfile(profile);
+    await guard('Saving cover details', () => saveProfile(profile));
   };
   [nameField, titleField, summaryField].forEach((field) =>
     field?.addEventListener('change', persistProfile),
@@ -295,9 +324,11 @@ export async function initVault() {
   $('new-folder')?.addEventListener('click', async () => {
     const name = window.prompt('Folder name');
     if (!name?.trim()) return;
-    const folder = await createFolder(name.trim(), null);
-    selected = folder.id;
-    await refresh();
+    await guard('Creating folder', async () => {
+      const folder = await createFolder(name.trim(), null);
+      selected = folder.id;
+      await refresh();
+    });
   });
 
   const fileInput = $<HTMLInputElement>('file-input');
@@ -310,21 +341,25 @@ export async function initVault() {
   $('export-pdf')?.addEventListener('click', exportPdf);
 
   $('clear-all')?.addEventListener('click', async () => {
-    if (!window.confirm('Delete every folder and document in this browser? This cannot be undone.')) return;
-    await clearAll();
-    selected = ALL;
-    profile = { name: '', title: '', summary: '' };
-    if (nameField) nameField.value = '';
-    if (titleField) titleField.value = '';
-    if (summaryField) summaryField.value = '';
-    await refresh();
-    setStatus('Cleared.');
+    if (!window.confirm('Delete every folder and document in your portfolio? This removes them from R2 and cannot be undone.')) return;
+    await guard('Clearing', async () => {
+      await clearAll();
+      selected = ALL;
+      if (nameField) nameField.value = '';
+      if (titleField) titleField.value = '';
+      if (summaryField) summaryField.value = '';
+      await refresh();
+      setStatus('Cleared.');
+    });
   });
 
   $<HTMLTextAreaElement>('folder-note')?.addEventListener('change', async (event) => {
     if (selected === ALL || selected === UNFILED) return;
-    await updateFolder(selected, { note: (event.target as HTMLTextAreaElement).value });
-    await refresh();
+    const note = (event.target as HTMLTextAreaElement).value;
+    await guard('Saving note', async () => {
+      await updateFolder(selected, { note });
+      await refresh();
+    });
   });
 
   // Folder tree actions (delegated, because the tree is re-rendered wholesale).
@@ -344,9 +379,11 @@ export async function initVault() {
     if (sub) {
       const name = window.prompt('Subfolder name');
       if (!name?.trim()) return;
-      const folder = await createFolder(name.trim(), sub);
-      selected = folder.id;
-      await refresh();
+      await guard('Creating folder', async () => {
+        const folder = await createFolder(name.trim(), sub);
+        selected = folder.id;
+        await refresh();
+      });
       return;
     }
 
@@ -355,8 +392,10 @@ export async function initVault() {
       const folder = folders.find((f) => f.id === rename);
       const name = window.prompt('Rename folder', folder?.name ?? '');
       if (!name?.trim()) return;
-      await updateFolder(rename, { name: name.trim() });
-      await refresh();
+      await guard('Renaming', async () => {
+        await updateFolder(rename, { name: name.trim() });
+        await refresh();
+      });
       return;
     }
 
@@ -368,8 +407,10 @@ export async function initVault() {
         ? `Delete "${folder?.name}" and the ${inside} document${inside === 1 ? '' : 's'} inside it?`
         : `Delete "${folder?.name}"?`;
       if (!window.confirm(warning)) return;
-      await deleteFolderDeep(remove);
-      await refresh();
+      await guard('Deleting folder', async () => {
+        await deleteFolderDeep(remove);
+        await refresh();
+      });
     }
   });
 
@@ -380,19 +421,28 @@ export async function initVault() {
     if (!id) return;
     const doc = documents.find((d) => d.id === id);
     if (!window.confirm(`Remove "${doc?.name}" from the portfolio?`)) return;
-    await deleteDocument(id);
-    await refresh();
+    await guard('Deleting document', async () => {
+      await deleteDocument(id);
+      await refresh();
+    });
   });
   list?.addEventListener('change', async (event) => {
     const target = event.target as HTMLInputElement | HTMLSelectElement;
     if (target.dataset.caption) {
-      await updateDocument(target.dataset.caption, { caption: target.value });
-      documents = await listDocuments();
+      const id = target.dataset.caption;
+      await guard('Saving caption', async () => {
+        await updateDocument(id, { caption: target.value });
+        const doc = documents.find((d) => d.id === id);
+        if (doc) doc.caption = target.value;
+      });
       return;
     }
     if (target.dataset.move) {
-      await updateDocument(target.dataset.move, { folderId: target.value || null });
-      await refresh();
+      const id = target.dataset.move;
+      await guard('Moving document', async () => {
+        await updateDocument(id, { folderId: target.value || null });
+        await refresh();
+      });
     }
   });
 
@@ -416,5 +466,10 @@ export async function initVault() {
     if (event.dataTransfer?.files?.length) await handleFiles(event.dataTransfer.files);
   });
 
-  await refresh();
+  await guard('Loading your portfolio', async () => {
+    await refresh();
+    if (nameField) nameField.value = profile.name;
+    if (titleField) titleField.value = profile.title;
+    if (summaryField) summaryField.value = profile.summary;
+  });
 }

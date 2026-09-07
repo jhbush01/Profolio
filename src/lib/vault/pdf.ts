@@ -7,7 +7,8 @@
  * in page-for-page, and anything pdf-lib cannot render represented by a card
  * that records what the file was.
  *
- * Runs entirely in the browser; no bytes leave the device.
+ * Still runs entirely in the browser: document bytes are streamed down from R2
+ * on demand via `loadBytes`, assembled locally, and never round-trip back up.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
@@ -75,10 +76,14 @@ export interface ExportProgress {
   (done: number, total: number, label: string): void;
 }
 
+/** Fetches one document's bytes. Injected so this module stays storage-agnostic. */
+export type LoadBytes = (doc: VaultDocument) => Promise<Uint8Array>;
+
 export async function buildPortfolioPdf(
   profile: VaultProfile,
   folders: VaultFolder[],
   documents: VaultDocument[],
+  loadBytes: LoadBytes,
   onProgress: ExportProgress = () => {},
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -166,13 +171,13 @@ export async function buildPortfolioPdf(
 
     try {
       if (kind === 'pdf') {
-        const bytes = new Uint8Array(await doc.blob.arrayBuffer());
+        const bytes = await loadBytes(doc);
         const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
         const copied = await pdf.copyPages(source, source.getPageIndices());
         for (const page of copied) pdf.addPage(page);
         if (copied.length === 0) throw new Error('PDF contained no pages');
       } else if (kind === 'image') {
-        const bytes = new Uint8Array(await doc.blob.arrayBuffer());
+        const bytes = await loadBytes(doc);
         const isPng = doc.mime.includes('png') || doc.name.toLowerCase().endsWith('.png');
         const image = isPng ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
 

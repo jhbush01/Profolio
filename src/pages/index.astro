@@ -32,10 +32,11 @@ import { artefacts, phases, portfolio, standards } from '../lib/portfolio';
       </h2>
       <p class="prose-body text-sm">
         Upload documents, group them into folders, and export the whole thing as one organised
-        PDF. Nothing about it assumes an industry — nurse, teacher, designer, tradesperson.
+        PDF, from any device you sign in on. Nothing about it assumes an industry — nurse,
+        teacher, designer, tradesperson.
       </p>
       <p class="mt-auto text-xs text-ink-muted">
-        Runs entirely in your browser. No account needed.
+        Documents stored in Cloudflare R2. Sign-in required.
       </p>
     </a>
 
@@ -70,7 +71,7 @@ import { artefacts, phases, portfolio, standards } from '../lib/portfolio';
           {
             step: '1',
             title: 'Add your documents',
-            body: 'Drag in PDFs, images and files. Everything stays on your device.',
+            body: 'Drag in PDFs, images and files. They upload straight to your own storage.',
           },
           {
             step: '2',
@@ -98,10 +99,9 @@ import { artefacts, phases, portfolio, standards } from '../lib/portfolio';
   <section class="rounded-xl border border-line bg-surface p-6">
     <h2 class="text-base font-semibold">Where this is going</h2>
     <p class="prose-body mt-2 max-w-2xl text-sm">
-      Portfolios currently live in your browser, which keeps the app free and private but means
-      they do not follow you between devices. Accounts and cloud storage are the next step;
-      profession-specific standards frameworks — beyond the {portfolio.framework} example — come
-      after that.
+      Access is currently limited to allowlisted accounts, so this is a private vault rather than
+      an open sign-up. Opening it to public registration, and adding profession-specific standards
+      frameworks beyond the {portfolio.framework} example, are the next steps.
     </p>
   </section>
 </BaseLayout>

@@ -10,9 +10,14 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "astro": "astro"
+    "astro": "astro",
+    "deploy": "wrangler deploy -c dist/server/wrangler.json",
+    "dev:worker": "astro build && wrangler dev -c dist/server/wrangler.json --persist-to .wrangler/state --var ACCESS_DEV_BYPASS:true",
+    "db:migrate:local": "wrangler d1 execute profolio --local --persist-to .wrangler/state -c dist/server/wrangler.json --file=migrations/0001_init.sql",
+    "db:migrate:remote": "wrangler d1 execute profolio --remote -c dist/server/wrangler.json --file=migrations/0001_init.sql"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.3.0",
     "astro": "^7.3.1",
     "idb": "^8.0.3",
     "pdf-lib": "^1.17.1"
@@ -20,6 +25,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.4.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.2",
     "wrangler": "^4.129.0"

@@ -4,23 +4,121 @@ Taking the portfolio and creating a digital, universal professional evidence vau
 
 **Current state: MVP.** Two areas:
 
-1. **Portfolio builder** (`/portfolio`) — industry-neutral and actually functional. Upload documents, organise them into nested folders, and export the whole portfolio as one PDF with a cover page, contents page and page numbers. Runs entirely in the browser.
-2. **Teaching portfolio** (`/sequence`, `/evidence`, `/standards`, `/present`) — a worked example: a five-week teaching sequence mapped to the Australian Professional Standards for Teachers (APST). Authored content, placeholder upload UI.
+1. **Portfolio builder** (`/portfolio`) — industry-neutral and functional. Upload documents, organise them into nested folders, and export the whole portfolio as one PDF with a cover page, contents page and page numbers. Documents are stored in Cloudflare R2, metadata in D1, behind Cloudflare Access.
+2. **Teaching portfolio** (`/sequence`, `/evidence`, `/standards`, `/present`) — a worked example: a five-week teaching sequence mapped to the Australian Professional Standards for Teachers (APST). Authored content read from JSON at build time.
 
-There is no backend, no database and no authentication.
+Access is an **allowlist**, not public sign-up: only email addresses you add to
+the Access policy can sign in, and each signed-in identity owns its own rows.
 
-## Where portfolio data lives — read this first
+## Architecture
 
-The portfolio builder stores everything in **IndexedDB in the visitor's browser**. There is no server.
+| Concern | Where it lives |
+| --- | --- |
+| Document bytes | Cloudflare R2 (`DOCUMENTS` binding), keyed `<owner-email>/<uuid>` |
+| Document/folder metadata | Cloudflare D1 (`DB` binding) |
+| Authentication | Cloudflare Access (Zero Trust), JWT verified in the Worker |
+| Content pages | Prerendered HTML served from the edge — no Worker invocation |
+| PDF assembly | The browser. Bytes stream down from R2 one document at a time |
 
-- Files never leave the device. Nothing is uploaded anywhere.
-- Portfolios do **not** sync between devices or browsers.
-- Clearing site data deletes them.
-- **PDF export is the backup path**, and the UI says so on the page.
+Only `/api/*` runs on the Worker (`export const prerender = false`). Everything else is static.
 
-This is a deliberate MVP trade-off: it makes the app free, private and deployable as static assets. Durable multi-device portfolios need R2 (blobs) + D1 (metadata) + sign-in — see `src/lib/vault/db.ts`, which is written as a single swappable seam for exactly that.
+## Cloudflare setup
 
----
+### 1. Provision the resources
+
+```bash
+npx wrangler login
+npx wrangler r2 bucket create profolio-documents
+npx wrangler d1 create profolio
+```
+
+Put the `database_id` printed by the last command into `wrangler.jsonc`.
+
+Note: R2 requires a payment method on the account even to use the free tier (10 GB storage, 1M writes, 10M reads per month, **free egress**). D1's free tier is 500 MB per database and 5 GB per account, with daily caps of 5M rows read and 100K rows written — Cloudflare began enforcing those daily caps on 1 September 2026.
+
+### 2. Create the tables
+
+```bash
+npm run db:migrate:remote
+```
+
+### 3. Put Cloudflare Access in front of the app
+
+In the Cloudflare dashboard, under **Zero Trust → Access → Applications**, add a
+self-hosted application:
+
+- **Domain**: your Worker's hostname, with path `/` (covering `/api/*` too).
+- **Policy**: Allow → Emails → the addresses you want to let in.
+- After saving, open the application's **Overview** tab and copy the
+  **Application Audience (AUD) tag**.
+
+Then set both variables in `wrangler.jsonc` (or as Worker settings):
+
+```jsonc
+"vars": {
+  "ACCESS_TEAM_DOMAIN": "yourteam.cloudflareaccess.com",
+  "ACCESS_AUD": "<the AUD tag>"
+}
+```
+
+**Both must be set.** With either missing, every `/api` route returns 503 rather
+than serving unauthenticated — see `src/lib/server/access.ts`.
+
+### 4. Point the build at the right config
+
+The Astro adapter writes a deploy-ready config to `dist/server/wrangler.json`.
+A bare `wrangler deploy` against the root config fails with *"Missing
+entry-point"*, so the deploy command must be:
+
+```
+npx wrangler deploy -c dist/server/wrangler.json
+```
+
+In **Workers Builds**, set:
+
+| Field | Value |
+| --- | --- |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy -c dist/server/wrangler.json` |
+| Version command | `npx wrangler versions upload -c dist/server/wrangler.json` |
+| Root directory | `/` |
+
+## How authentication is enforced
+
+Cloudflare Access adds a signed JWT to every request it lets through.
+`src/lib/server/access.ts` verifies:
+
+- the RS256 signature, against the team's published keys (cached for an hour);
+- the issuer matches `https://<team domain>`;
+- the audience contains your application's AUD tag;
+- `exp` / `nbf`.
+
+The `Cf-Access-Authenticated-User-Email` header is **not** trusted on its own —
+a Worker is reachable on its `workers.dev` hostname where no Access policy
+applies, and any client can set that header. The verified `email` claim becomes
+the `owner` column on every row, and every query filters on it.
+
+Astro's CSRF origin check is also active, which matters because Access
+authenticates with a cookie: a cross-origin `POST`/`DELETE` is rejected with 403.
+
+## Running locally
+
+Local development uses Miniflare's D1 and R2 emulation — no Cloudflare account
+needed, and nothing touches your real bucket:
+
+```bash
+npm install
+npm run db:migrate:local   # once, to create the tables
+npm run dev:worker         # builds, then serves on http://localhost:8787
+```
+
+`dev:worker` passes `--var ACCESS_DEV_BYPASS:true`, which skips JWT
+verification and signs you in as `dev@localhost`. That flag is passed on the
+command line only — it is deliberately **not** in `wrangler.jsonc`, so it cannot
+reach production.
+
+`npm run dev` still runs the plain Astro dev server, which is fine for the
+static pages but has no bindings, so `/portfolio` will not load data.
 
 ## Running locally
 
@@ -35,9 +133,12 @@ Other scripts:
 
 | Command           | What it does                                        |
 | ----------------- | --------------------------------------------------- |
-| `npm run build`   | Builds the static site to `./dist`                   |
-| `npm run preview` | Serves the built output locally                      |
-| `npm run check`   | Runs `astro check` (TypeScript + template diagnostics) |
+| `npm run build`          | Builds to `./dist` (`client/` assets + `server/` Worker) |
+| `npm run dev:worker`     | Build, then run the Worker locally with local D1 + R2    |
+| `npm run db:migrate:local`  | Create the tables in the local emulated D1            |
+| `npm run db:migrate:remote` | Create the tables in the real D1                     |
+| `npm run deploy`         | Deploy via the adapter-generated config                  |
+| `npm run check`          | `astro check` (TypeScript + template diagnostics)        |
 
 ## Routes
 
@@ -79,6 +180,7 @@ src/
     index.astro
     portfolio.astro       Portfolio builder
     404.astro
+    api/                  On-demand routes (vault, profile, folders, documents)
     evidence.astro
     standards.astro
     present.astro
@@ -92,11 +194,17 @@ src/
     standards.json        APST descriptors
   lib/
     portfolio.ts          Data-access seam for the authored (teaching) content
+    server/
+      access.ts           Cloudflare Access JWT verification
+      repo.ts             D1 + R2 data access, scoped to one owner
+      handler.ts          Shared auth + error wrapper for /api routes
     vault/
-      types.ts            Folder / document / profile types for the builder
-      db.ts               IndexedDB store — the swap point for a real backend
-      pdf.ts              Client-side PDF export (pdf-lib)
+      types.ts            Folder / document / profile types (the API contract)
+      db.ts               Browser-side API client
+      pdf.ts              PDF export (pdf-lib), byte loader injected
       ui.ts               DOM controller for /portfolio
+migrations/
+  0001_init.sql           D1 schema
   styles/
     global.css            Tailwind import + design tokens (@theme)
   types.ts                Shared domain types
@@ -121,20 +229,6 @@ components import from it, so replacing file-based data with a real store is a
 single-file change. Helpers: `getPhase`, `getStandard`, `artefactsForPhase`,
 `artefactsForStandard`, `standardCoverage`.
 
-## Deploying to Cloudflare
-
-The build is fully static (`output: 'static'`), so it deploys to Cloudflare
-Pages with no adapter and no server runtime:
-
-- Build command: `npm run build`
-- Output directory: `dist`
-
-When the evidence upload module needs a real backend, switch to the Cloudflare
-adapter (see the commented block in `astro.config.mjs`), add an
-`src/pages/api/upload.ts` endpoint backed by an R2 bucket binding, and mark only
-the dynamic pages with `export const prerender = false`. Nothing in this
-scaffold assumes a server, so that migration is additive.
-
 ## How the PDF export works
 
 `src/lib/vault/pdf.ts` builds the document with pdf-lib, in the browser:
@@ -147,9 +241,14 @@ scaffold assumes a server, so that migration is additive.
 
 ## Not built yet (intentionally)
 
-Accounts, server-side storage, sync between devices, sharing a portfolio by link, drag-to-reorder, artefact previews in the teaching module, filtering, rich-text reflections. Each has a `FUTURE:` comment where the logic will attach.
+Public sign-up (access is an allowlist, not registration), sharing a portfolio
+by link, drag-to-reorder, resumable uploads for large files, artefact previews
+in the teaching module, rich-text reflections.
+
+Uploads are capped at 25 MB per file (`MAX_UPLOAD_BYTES` in
+`src/lib/server/repo.ts`) — a single Worker request has to hold the body, so
+larger files need presigned direct-to-R2 uploads.
 
 ## Before real use
 
-Student work must be de-identified before upload. Nothing in this scaffold
-enforces that yet.
+Student work must be de-identified before upload. Nothing here enforces that.
