@@ -137,8 +137,8 @@ Other scripts:
 | ----------------- | --------------------------------------------------- |
 | `npm run build`          | Builds to `./dist` (`client/` assets + `server/` Worker) |
 | `npm run dev:worker`     | Build, then run the Worker locally with local D1 + R2    |
-| `npm run db:migrate:local`  | Create the tables in the local emulated D1            |
-| `npm run db:migrate:remote` | Create the tables in the real D1                     |
+| `npm run db:migrate:local`  | Create the tables in the local emulated D1 (no build needed) |
+| `npm run db:migrate:remote` | Create the tables in the real D1 (no build needed)   |
 | `npm run deploy`         | Deploy via the adapter-generated config                  |
 | `npm run check`          | `astro check` (TypeScript + template diagnostics)        |
 
