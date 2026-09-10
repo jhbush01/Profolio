@@ -126,6 +126,48 @@ export function clearAll(): Promise<unknown> {
   return request('/api/vault', { method: 'DELETE' });
 }
 
+export interface Programme {
+  id: string;
+  template: string;
+  name: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  createdAt: number;
+  archived: boolean;
+}
+
+export function loadProgrammes(): Promise<{ programmes: Programme[] }> {
+  return request('/api/programmes');
+}
+
+export function createProgramme(input: {
+  template: string;
+  name: string;
+  startsOn: string | null;
+  endsOn: string | null;
+}): Promise<Programme> {
+  return request('/api/programmes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateProgramme(
+  id: string,
+  patch: { name?: string; startsOn?: string | null; endsOn?: string | null; archived?: boolean },
+): Promise<unknown> {
+  return request(`/api/programmes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteProgramme(id: string): Promise<unknown> {
+  return request(`/api/programmes/${id}`, { method: 'DELETE' });
+}
+
 /** Persists a new display order. Ids must be in the desired order. */
 export function saveOrder(order: { documents?: string[]; folders?: string[] }): Promise<unknown> {
   return request('/api/order', {

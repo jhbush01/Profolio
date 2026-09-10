@@ -64,14 +64,31 @@ programme overlay            GTPA final placement · registration renewal
 ```
 
 A programme owns:
-- a **checklist** of required evidence items (for GTPA, Appendix 2's audit tool);
-- a **date window** (a placement block, a registration period, a school year);
-- **generated outputs** (for GTPA, the profile-of-data-collection table and
-  the context statement).
+- a **checklist** of required evidence items, each auto-satisfied by evidence
+  whose dimensions match a predicate;
+- a **date window**, so the checklist can say what should exist *by now*;
+- **generated outputs** (currently the data-collection profile).
 
 Adding registration renewal later must be a new programme definition, not a
-schema migration. If a field only makes sense for GTPA, it belongs to the
-programme, not to `documents`.
+schema migration. If a field only makes sense for one programme, it belongs to
+the programme, not to `documents`.
+
+### Programmes are rows, not a setting
+
+A template is deliberately **not** a field on the user's account. A
+practitioner accumulates programmes across a career — a final placement, then
+professional-development years, then a renewal period — and each keeps its own
+name, window and progress. Storing "the chosen template" on the profile would
+mean starting a PD record silently destroyed the placement one.
+
+There is also **no foreign key from `documents` to `programmes`**. A programme
+selects evidence by predicate, so one artefact counts toward every programme it
+satisfies without being copied or moved: a compliance certificate is evidence
+for a placement *and* for that year's professional development.
+
+Implemented in `src/lib/programmes/`. Adding a template is a new file plus one
+entry in `index.ts` — no schema change, and nothing in the vault knows it
+exists.
 
 ## Evidence dimensions
 

@@ -1,0 +1,48 @@
+---
+/**
+ * Programmes — selectable templates over the same vault.
+ *
+ * A programme is a lens: it scores a checklist against your evidence within a
+ * date window. It never owns documents, so one artefact can count toward a
+ * placement and a professional-development year at the same time.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+---
+
+<BaseLayout
+  title="Programmes"
+  description="Track your evidence against a template — a final placement, a year of professional development — with a date window and a checklist."
+>
+  <PageHeader
+    eyebrow="Programmes"
+    title="What are you collecting for?"
+    lead="Pick a template and set your dates. Your evidence is scored against its checklist as you go, so you can see what is still missing while there is still time to collect it."
+  />
+
+  <p id="programme-status" role="status" aria-live="polite" class="mb-4 text-xs text-ink-muted"></p>
+
+  <section id="programme-list" class="mb-10 flex flex-col gap-5"></section>
+
+  <p
+    id="programme-empty"
+    hidden
+    class="mb-10 rounded-xl border border-dashed border-line bg-surface p-6 text-center text-sm text-ink-muted"
+  >
+    No programme yet. Start one below and your existing evidence is scored against it immediately.
+  </p>
+
+  <section>
+    <h2 class="mb-1 text-xl font-semibold">Available templates</h2>
+    <p class="prose-body mb-4 text-sm">
+      You can run more than one at a time. The same artefact counts toward every programme it
+      satisfies — nothing is copied or moved.
+    </p>
+    <div id="template-list" class="grid gap-4 sm:grid-cols-2"></div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { initProgrammes } from '../lib/vault/programme-ui';
+  initProgrammes();
+</script>

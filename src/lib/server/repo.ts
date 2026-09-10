@@ -33,6 +33,25 @@ export interface ProfileRow {
   summary: string;
 }
 
+export interface ProgrammeRow {
+  id: string;
+  template: string;
+  name: string;
+  /** ISO date, YYYY-MM-DD, or null when not set yet. */
+  startsOn: string | null;
+  endsOn: string | null;
+  createdAt: number;
+  archived: boolean;
+}
+
+/** Accepts only YYYY-MM-DD; anything else becomes null rather than corrupt data. */
+function isoDateOrNull(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return Number.isFinite(Date.parse(`${trimmed}T00:00:00Z`)) ? trimmed : null;
+}
+
 /** Fields a caller may change on a document. Anything omitted is left alone. */
 export interface DocumentPatch {
   caption?: string;
@@ -409,6 +428,91 @@ export class Repo {
       ),
     );
     return valid.length;
+  }
+
+  /* ------------------------------------------------------------ programmes */
+
+  async programmes(): Promise<ProgrammeRow[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT id, template, name, starts_on, ends_on, created_at, archived
+           FROM programmes WHERE owner = ?1
+          ORDER BY archived, created_at DESC`,
+      )
+      .bind(this.who.email)
+      .all<Record<string, unknown>>();
+
+    return results.map((row) => ({
+      id: row.id as string,
+      template: row.template as string,
+      name: row.name as string,
+      startsOn: (row.starts_on as string | null) ?? null,
+      endsOn: (row.ends_on as string | null) ?? null,
+      createdAt: row.created_at as number,
+      archived: Boolean(row.archived),
+    }));
+  }
+
+  async createProgramme(input: {
+    template: string;
+    name: string;
+    startsOn: string | null;
+    endsOn: string | null;
+  }): Promise<ProgrammeRow> {
+    const programme: ProgrammeRow = {
+      id: crypto.randomUUID(),
+      template: input.template,
+      name: input.name,
+      startsOn: isoDateOrNull(input.startsOn),
+      endsOn: isoDateOrNull(input.endsOn),
+      createdAt: Date.now(),
+      archived: false,
+    };
+
+    await this.db
+      .prepare(
+        `INSERT INTO programmes (id, owner, template, name, starts_on, ends_on, created_at, archived)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)`,
+      )
+      .bind(
+        programme.id, this.who.email, programme.template, programme.name,
+        programme.startsOn, programme.endsOn, programme.createdAt,
+      )
+      .run();
+
+    return programme;
+  }
+
+  async updateProgramme(
+    id: string,
+    patch: { name?: string; startsOn?: string | null; endsOn?: string | null; archived?: boolean },
+  ): Promise<void> {
+    const owned = await this.db
+      .prepare(`SELECT 1 AS ok FROM programmes WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.email)
+      .first<{ ok: number }>();
+    if (!owned) throw new HttpError(404, 'Programme not found');
+
+    const columns: Array<[string, unknown]> = [];
+    if (patch.name !== undefined) columns.push(['name', patch.name]);
+    if (patch.startsOn !== undefined) columns.push(['starts_on', isoDateOrNull(patch.startsOn)]);
+    if (patch.endsOn !== undefined) columns.push(['ends_on', isoDateOrNull(patch.endsOn)]);
+    if (patch.archived !== undefined) columns.push(['archived', patch.archived ? 1 : 0]);
+    if (columns.length === 0) return;
+
+    const assignments = columns.map(([column], i) => `${column} = ?${i + 3}`).join(', ');
+    await this.db
+      .prepare(`UPDATE programmes SET ${assignments} WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.email, ...columns.map(([, value]) => value))
+      .run();
+  }
+
+  /** Removes the programme only. Evidence is never touched — it is a lens. */
+  async deleteProgramme(id: string): Promise<void> {
+    await this.db
+      .prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.email)
+      .run();
   }
 
   async deleteDocument(id: string): Promise<void> {
