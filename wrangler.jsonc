@@ -31,9 +31,14 @@
   ],
 
   "vars": {
-    // Cloudflare Access settings. Both must be set in production or the API
+    // Cloudflare Access settings, used to verify the signed JWT that Access
+    // attaches to every request it lets through. Both must be set or the API
     // refuses every request — see src/lib/server/access.ts.
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    //
+    // Neither is a secret: the team domain is public, and the AUD tag only
+    // identifies which Access application a token was issued for. They are
+    // checked against the signature, they do not grant anything.
+    "ACCESS_TEAM_DOMAIN": "blue-band-b8e0.cloudflareaccess.com",
+    "ACCESS_AUD": "9059f6b2ca6d38e7762d83d6c16beeefb2322304965bebe37907693e0d7023d2"
   }
 }
