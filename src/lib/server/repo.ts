@@ -4,7 +4,7 @@
  * Every query filters on `owner`, so a bug in a route handler cannot leak one
  * user's documents to another even once this becomes multi-user.
  */
-import type { Identity } from './access';
+import { HttpError, type Identity } from './access';
 
 export interface FolderRow {
   id: string;
@@ -101,9 +101,36 @@ export class Repo {
     };
   }
 
+  /**
+   * When this owner acknowledged the de-identification requirement, or null.
+   * Uploads are refused until it is set — see POST /api/documents.
+   */
+  async deidAcknowledgedAt(): Promise<number | null> {
+    const row = await this.db
+      .prepare(`SELECT deid_ack_at FROM profiles WHERE owner = ?1`)
+      .bind(this.who.email)
+      .first<{ deid_ack_at: number | null }>();
+    return row?.deid_ack_at ?? null;
+  }
+
+  /** Records the acknowledgement. Idempotent: the first timestamp stands. */
+  async acknowledgeDeid(): Promise<number> {
+    const now = Date.now();
+    await this.db
+      .prepare(
+        `INSERT INTO profiles (owner, deid_ack_at) VALUES (?1, ?2)
+         ON CONFLICT(owner) DO UPDATE SET deid_ack_at = COALESCE(deid_ack_at, ?2)`,
+      )
+      .bind(this.who.email, now)
+      .run();
+    return (await this.deidAcknowledgedAt()) ?? now;
+  }
+
   async saveProfile(profile: ProfileRow): Promise<void> {
     await this.db
       .prepare(
+        // Only the cover fields are touched; deid_ack_at is a compliance
+        // record and must survive a profile edit.
         `INSERT INTO profiles (owner, name, title, summary) VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(owner) DO UPDATE SET name = ?2, title = ?3, summary = ?4`,
       )
@@ -113,7 +140,7 @@ export class Repo {
 
   async createFolder(name: string, parentId: string | null): Promise<FolderRow> {
     if (parentId && !(await this.ownsFolder(parentId))) {
-      throw new Error('Parent folder not found');
+      throw new HttpError(404, 'Parent folder not found');
     }
     const siblings = await this.db
       .prepare(
@@ -144,7 +171,7 @@ export class Repo {
   }
 
   async updateFolder(id: string, patch: { name?: string; note?: string }): Promise<void> {
-    if (!(await this.ownsFolder(id))) throw new Error('Folder not found');
+    if (!(await this.ownsFolder(id))) throw new HttpError(404, 'Folder not found');
     if (patch.name !== undefined) {
       await this.db
         .prepare(`UPDATE folders SET name = ?3 WHERE id = ?1 AND owner = ?2`)
@@ -161,7 +188,7 @@ export class Repo {
 
   /** Deletes a folder, its descendants, and every document inside them. */
   async deleteFolder(id: string): Promise<number> {
-    if (!(await this.ownsFolder(id))) throw new Error('Folder not found');
+    if (!(await this.ownsFolder(id))) throw new HttpError(404, 'Folder not found');
 
     const all = await this.folders();
     const doomed = new Set([id]);
@@ -196,10 +223,18 @@ export class Repo {
   }
 
   async addDocument(file: File, folderId: string | null): Promise<DocumentRow> {
-    if (file.size > MAX_UPLOAD_BYTES) {
-      throw new Error(`"${file.name}" is larger than the ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB limit`);
+    // Server-side gate. The UI blocks this too, but a client cannot be the
+    // only thing standing between children's work and a public bucket.
+    if ((await this.deidAcknowledgedAt()) === null) {
+      throw new HttpError(403, 'Acknowledge the de-identification requirement before uploading');
     }
-    if (folderId && !(await this.ownsFolder(folderId))) throw new Error('Folder not found');
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new HttpError(
+        413,
+        `"${file.name}" is larger than the ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB limit`,
+      );
+    }
+    if (folderId && !(await this.ownsFolder(folderId))) throw new HttpError(404, 'Folder not found');
 
     const siblings = await this.db
       .prepare(
@@ -249,7 +284,7 @@ export class Repo {
     id: string,
     patch: { caption?: string; folderId?: string | null },
   ): Promise<void> {
-    if (!(await this.ownsDocument(id))) throw new Error('Document not found');
+    if (!(await this.ownsDocument(id))) throw new HttpError(404, 'Document not found');
     if (patch.caption !== undefined) {
       await this.db
         .prepare(`UPDATE documents SET caption = ?3 WHERE id = ?1 AND owner = ?2`)
@@ -258,7 +293,7 @@ export class Repo {
     }
     if (patch.folderId !== undefined) {
       if (patch.folderId && !(await this.ownsFolder(patch.folderId))) {
-        throw new Error('Folder not found');
+        throw new HttpError(404, 'Folder not found');
       }
       await this.db
         .prepare(`UPDATE documents SET folder_id = ?3 WHERE id = ?1 AND owner = ?2`)
@@ -268,7 +303,7 @@ export class Repo {
   }
 
   async deleteDocument(id: string): Promise<void> {
-    if (!(await this.ownsDocument(id))) throw new Error('Document not found');
+    if (!(await this.ownsDocument(id))) throw new HttpError(404, 'Document not found');
     await this.bucket.delete(this.key(id));
     await this.db
       .prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`)
@@ -295,7 +330,10 @@ export class Repo {
     await this.db.batch([
       this.db.prepare(`DELETE FROM documents WHERE owner = ?1`).bind(this.who.email),
       this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.email),
-      this.db.prepare(`DELETE FROM profiles WHERE owner = ?1`).bind(this.who.email),
+      // Clears the cover details but keeps the acknowledgement on record.
+      this.db
+        .prepare(`UPDATE profiles SET name = '', title = '', summary = '' WHERE owner = ?1`)
+        .bind(this.who.email),
     ]);
   }
 

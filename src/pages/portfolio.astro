@@ -54,15 +54,53 @@ import PageHeader from '../components/PageHeader.astro';
     </div>
   </section>
 
+  <!-- De-identification gate. Hidden by the controller once acknowledged;
+       server-side, uploads are refused until the record exists. -->
+  <section
+    id="deid-gate"
+    hidden
+    class="mb-8 rounded-xl border border-amber-300/70 bg-amber-50 p-5"
+  >
+    <h2 class="text-base font-semibold text-amber-900">Before you upload anything</h2>
+    <p class="mt-2 text-sm text-amber-900">
+      Portfolio evidence often includes other people's work — including students'.
+      That is the most sensitive material this app will ever hold.
+    </p>
+    <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900">
+      <li>Remove names, student numbers, dates of birth and photographs of faces.</li>
+      <li>Refer to individuals by a pseudonym or as Focus Student A, B and C.</li>
+      <li>Check your school's and university's rules before storing anything about a student.</li>
+      <li>Rename files too — a filename can identify someone just as easily.</li>
+    </ul>
+    <p class="mt-3 text-xs text-amber-800">
+      We warn you if a filename looks like it contains an identifier, but that check
+      is a safety net, not a substitute for looking.
+    </p>
+
+    <label class="mt-4 flex items-start gap-2 text-sm text-amber-900">
+      <input id="deid-confirm" type="checkbox" class="mt-0.5" />
+      <span>
+        I understand, and I will de-identify student material before uploading it.
+      </span>
+    </label>
+    <button
+      id="deid-accept"
+      type="button"
+      class="mt-4 rounded-lg bg-amber-900 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+    >
+      Confirm and enable uploads
+    </button>
+  </section>
+
   <!-- Toolbar -->
   <div class="mb-6 flex flex-wrap items-center gap-2">
-    <button id="add-files" type="button" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
+    <button id="add-files" type="button" disabled class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
       Add files
     </button>
     <button id="new-folder" type="button" class="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
       New folder
     </button>
-    <button id="export-pdf" type="button" class="rounded-lg border border-accent bg-accent-soft px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent hover:text-white disabled:opacity-50">
+    <button id="export-pdf" type="button" disabled class="rounded-lg border border-accent bg-accent-soft px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
       Export PDF
     </button>
     <p id="export-status" role="status" aria-live="polite" class="text-xs text-ink-muted"></p>

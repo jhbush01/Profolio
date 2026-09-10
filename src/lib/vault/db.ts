@@ -43,6 +43,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface VaultSnapshot {
   signedInAs: string;
+  /** Whether this user has acknowledged the de-identification requirement. */
+  deidAcknowledged: boolean;
   profile: VaultProfile;
   folders: VaultFolder[];
   documents: VaultDocument[];
@@ -51,6 +53,11 @@ export interface VaultSnapshot {
 /** One round trip for the whole vault. */
 export function loadVault(): Promise<VaultSnapshot> {
   return request<VaultSnapshot>('/api/vault');
+}
+
+/** Records the de-identification acknowledgement, unlocking uploads. */
+export function acknowledgeDeid(): Promise<{ acknowledgedAt: number }> {
+  return request('/api/acknowledgement', { method: 'PUT' });
 }
 
 export function saveProfile(profile: VaultProfile): Promise<{ ok: true }> {

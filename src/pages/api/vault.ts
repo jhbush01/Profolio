@@ -8,6 +8,7 @@ export const GET: APIRoute = ({ request }) =>
   withRepo(request, async (repo, email) =>
     Response.json({
       signedInAs: email,
+      deidAcknowledged: (await repo.deidAcknowledgedAt()) !== null,
       profile: await repo.profile(),
       folders: await repo.folders(),
       documents: await repo.documents(),

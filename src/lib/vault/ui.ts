@@ -9,6 +9,7 @@
  * framework rather than growing this file.
  */
 import {
+  acknowledgeDeid,
   addDocuments,
   ApiError,
   clearAll,
@@ -21,6 +22,7 @@ import {
   updateDocument,
   updateFolder,
 } from './db';
+import { describeFindings, scanFiles } from './deidentify';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 import { renderKindFor } from './types';
 
@@ -32,6 +34,7 @@ let documents: VaultDocument[] = [];
 let profile: VaultProfile = { name: '', title: '', summary: '' };
 let selected: string = ALL;
 let signedInAs = '';
+let deidAcknowledged = false;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
@@ -210,9 +213,18 @@ async function refresh() {
   documents = snapshot.documents;
   profile = snapshot.profile;
   signedInAs = snapshot.signedInAs;
+  deidAcknowledged = snapshot.deidAcknowledged;
 
   const identity = $('signed-in-as');
   if (identity) identity.textContent = signedInAs;
+
+  // Uploads stay locked until the de-identification notice is acknowledged.
+  const gate = $('deid-gate');
+  if (gate) gate.hidden = deidAcknowledged;
+  for (const id of ['add-files', 'export-pdf']) {
+    const button = $<HTMLButtonElement>(id);
+    if (button) button.disabled = !deidAcknowledged;
+  }
 
   if (selected !== ALL && selected !== UNFILED && !folders.some((f) => f.id === selected)) {
     selected = ALL;
@@ -243,8 +255,21 @@ async function guard(label: string, action: () => Promise<unknown>) {
 /* ----------------------------------------------------------------- actions */
 
 async function handleFiles(files: FileList | File[]) {
+  if (!deidAcknowledged) {
+    setStatus('Acknowledge the de-identification notice before uploading.');
+    $('deid-gate')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
   const target = selected === ALL || selected === UNFILED ? null : selected;
   const list = Array.from(files);
+
+  // Warn — never silently block — on filenames that look like identifiers.
+  const suspicious = scanFiles(list);
+  if (suspicious.length > 0 && !window.confirm(describeFindings(suspicious))) {
+    setStatus('Upload cancelled. Rename the files to remove identifiers, then try again.');
+    return;
+  }
   setStatus(`Uploading ${list.length} file${list.length === 1 ? '' : 's'}…`, true);
   await guard('Upload', async () => {
     await addDocuments(list, target);
@@ -339,6 +364,19 @@ export async function initVault() {
   });
 
   $('export-pdf')?.addEventListener('click', exportPdf);
+
+  $('deid-accept')?.addEventListener('click', async () => {
+    const box = $<HTMLInputElement>('deid-confirm');
+    if (box && !box.checked) {
+      setStatus('Tick the box to confirm you understand.');
+      return;
+    }
+    await guard('Recording acknowledgement', async () => {
+      await acknowledgeDeid();
+      await refresh();
+      setStatus('Thanks — uploads are now enabled.');
+    });
+  });
 
   $('clear-all')?.addEventListener('click', async () => {
     if (!window.confirm('Delete every folder and document in your portfolio? This removes them from R2 and cannot be undone.')) return;

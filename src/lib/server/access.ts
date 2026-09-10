@@ -26,7 +26,11 @@ interface AccessEnv {
   ACCESS_DEV_BYPASS?: string;
 }
 
-export class AuthError extends Error {
+/**
+ * An error that carries the HTTP status it should be reported as, so a policy
+ * refusal is not indistinguishable from a crash.
+ */
+export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
@@ -34,6 +38,8 @@ export class AuthError extends Error {
     super(message);
   }
 }
+
+export class AuthError extends HttpError {}
 
 /** JWKS cache, keyed by team domain. Workers reuse isolates, so this helps. */
 const keyCache = new Map<string, { keys: Map<string, CryptoKey>; fetchedAt: number }>();
@@ -151,7 +157,7 @@ export async function requireIdentity(request: Request, env: AccessEnv): Promise
 
 /** Turns an AuthError (or anything else) into a JSON response. */
 export function errorResponse(error: unknown): Response {
-  if (error instanceof AuthError) {
+  if (error instanceof HttpError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
   const message = error instanceof Error ? error.message : String(error);
