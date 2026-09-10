@@ -12,9 +12,12 @@
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
+import { buildProfileRows, PROFILE_COLUMNS, rowCells } from './profile-table';
 import { renderKindFor } from './types';
 
 const A4: [number, number] = [595.28, 841.89];
+/** A4 landscape, for the data-collection profile — eight columns need the width. */
+const A4_LANDSCAPE: [number, number] = [841.89, 595.28];
 const MARGIN = 56;
 const INK = rgb(0.08, 0.09, 0.12);
 const MUTED = rgb(0.36, 0.4, 0.45);
@@ -141,6 +144,106 @@ export async function buildPortfolioPdf(
       font: regular,
       color: MUTED,
     });
+  }
+
+  /* --------------------------------------- data collection profile table */
+
+  /**
+   * Renders the profile as landscape pages, repeating the header row on each
+   * continuation page so a multi-page table stays readable.
+   *
+   * Rows come from the same builder the on-screen view uses, so the printed
+   * table cannot disagree with the screen.
+   */
+  function drawProfileTable(): number {
+    const rows = buildProfileRows(documents);
+    if (rows.length === 0) return -1;
+
+    const pageWidth = A4_LANDSCAPE[0];
+    const pageHeight = A4_LANDSCAPE[1];
+    const left = 40;
+    const usable = pageWidth - left * 2;
+
+    // Record name gets the most room; APST and the yes/no column the least.
+    const weights = [150, 90, 100, 70, 130, 60, 90, 72];
+    const total = weights.reduce((sum, w) => sum + w, 0);
+    const widths = weights.map((w) => (w / total) * usable);
+    const headings = ['Record', ...PROFILE_COLUMNS];
+
+    const size = 7.5;
+    const lineHeight = 9.5;
+    const padding = 4;
+    const firstIndex = pdf.getPageCount();
+
+    let page = pdf.addPage(A4_LANDSCAPE);
+    let y = pageHeight - 46;
+
+    const drawHeader = () => {
+      page.drawText('Data collection profile', {
+        x: left,
+        y: pageHeight - 34,
+        size: 12,
+        font: bold,
+        color: INK,
+      });
+      y = pageHeight - 58;
+
+      let x = left;
+      headings.forEach((heading, column) => {
+        page.drawText(sanitize(heading), { x: x + padding, y, size, font: bold, color: INK });
+        x += widths[column]!;
+      });
+      y -= 6;
+      page.drawLine({
+        start: { x: left, y },
+        end: { x: pageWidth - left, y },
+        thickness: 0.8,
+        color: LINE,
+      });
+      y -= lineHeight;
+    };
+
+    drawHeader();
+
+    for (const row of rows) {
+      const cells = [row.documentName, ...rowCells(row)];
+
+      // Wrap every cell first, so the row is as tall as its tallest column.
+      const wrapped = cells.map((cell, column) =>
+        wrap(cell, regular, size, widths[column]! - padding * 2),
+      );
+      const height = Math.max(...wrapped.map((lines) => lines.length)) * lineHeight + padding;
+
+      if (y - height < 40) {
+        page = pdf.addPage(A4_LANDSCAPE);
+        drawHeader();
+      }
+
+      let x = left;
+      wrapped.forEach((lines, column) => {
+        lines.forEach((line, index) => {
+          page.drawText(line, {
+            x: x + padding,
+            y: y - index * lineHeight,
+            size,
+            font: regular,
+            // Missing dimensions print muted, matching the screen.
+            color: line === '-' ? MUTED : INK,
+          });
+        });
+        x += widths[column]!;
+      });
+
+      y -= height;
+      page.drawLine({
+        start: { x: left, y: y + lineHeight - 2 },
+        end: { x: pageWidth - left, y: y + lineHeight - 2 },
+        thickness: 0.4,
+        color: LINE,
+      });
+    }
+
+    return firstIndex;
   }
 
   /* ------------------------------------------- ordered folder traversal */
@@ -272,6 +375,11 @@ export async function buildPortfolioPdf(
         y -= 16;
       }
     }
+  }
+
+  const profileIndex = drawProfileTable();
+  if (profileIndex >= 0) {
+    toc.push({ label: 'Data collection profile', depth: 0, rawIndex: profileIndex });
   }
 
   for (const { folder, depth } of ordered) {

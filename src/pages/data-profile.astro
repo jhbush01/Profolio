@@ -1,0 +1,42 @@
+---
+/**
+ * Data-collection profile — a generated summary of every evidence record and
+ * the dimensions attached to it.
+ *
+ * This is the output that justifies capturing dimensions at all: it is the
+ * table a practitioner would otherwise rebuild by hand from memory.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+---
+
+<BaseLayout
+  title="Data collection profile"
+  description="A generated summary of your evidence: what you collected, when, why, from where, and against which standards."
+>
+  <PageHeader
+    eyebrow="Generated"
+    title="Data collection profile"
+    lead="One row per record, ordered by stage of the teaching cycle. Built from the details on your evidence — nothing here is typed twice."
+  />
+
+  <p id="profile-meta" class="mb-4 text-sm text-ink-muted"></p>
+
+  <div
+    id="profile-notice"
+    hidden
+    class="mb-5 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+  ></div>
+
+  <div id="profile-table"></div>
+
+  <p class="prose-body mt-6 text-xs">
+    Rows are ordered planning → teaching → assessing → reflecting → appraising, then by
+    your own ordering within each stage. Records with nothing set sort to the bottom.
+  </p>
+</BaseLayout>
+
+<script>
+  import { initProfileTable } from '../lib/vault/profile-ui';
+  initProfileTable();
+</script>
