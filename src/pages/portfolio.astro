@@ -121,7 +121,14 @@ import PageHeader from '../components/PageHeader.astro';
     <section>
       <div class="mb-3 flex items-baseline justify-between gap-3">
         <h2 id="list-heading" class="text-lg font-semibold">All documents</h2>
-        <p id="usage" class="text-xs text-ink-muted"></p>
+        <div class="flex items-center gap-2">
+          <span
+            id="pending-detail"
+            hidden
+            class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+          ></span>
+          <p id="usage" class="text-xs text-ink-muted"></p>
+        </div>
       </div>
 
       <div id="folder-note-wrap" class="mb-4" hidden>

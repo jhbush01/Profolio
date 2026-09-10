@@ -5,6 +5,7 @@
  * user's documents to another even once this becomes multi-user.
  */
 import { HttpError, type Identity } from './access';
+import type { Dimensions } from '../vault/dimensions';
 
 export interface FolderRow {
   id: string;
@@ -15,7 +16,7 @@ export interface FolderRow {
   order: number;
 }
 
-export interface DocumentRow {
+export interface DocumentRow extends Dimensions {
   id: string;
   name: string;
   folderId: string | null;
@@ -30,6 +31,37 @@ export interface ProfileRow {
   name: string;
   title: string;
   summary: string;
+}
+
+/** Fields a caller may change on a document. Anything omitted is left alone. */
+export interface DocumentPatch {
+  caption?: string;
+  folderId?: string | null;
+  capturedAt?: number | null;
+  cyclePhase?: string | null;
+  evidenceType?: string | null;
+  purpose?: string | null;
+  source?: string | null;
+  subjectScope?: string | null;
+  selfDesigned?: boolean | null;
+  standards?: string[];
+}
+
+/** Blank strings from a cleared <select> mean "unset", not an empty value. */
+function emptyToNull(value: string | null | undefined): string | null {
+  const trimmed = typeof value === 'string' ? value.trim() : value;
+  return trimmed ? trimmed : null;
+}
+
+/** Tolerates legacy nulls and anything malformed rather than throwing. */
+function parseStandards(raw: unknown): string[] {
+  if (typeof raw !== 'string' || raw.length === 0) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Largest single upload accepted, to keep one bad file from filling the bucket. */
@@ -70,7 +102,9 @@ export class Repo {
   async documents(): Promise<DocumentRow[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT id, name, folder_id, mime, size, caption, added_at, sort_order
+        `SELECT id, name, folder_id, mime, size, caption, added_at, sort_order,
+                captured_at, cycle_phase, evidence_type, purpose, source,
+                subject_scope, self_designed, standards
            FROM documents WHERE owner = ?1
           ORDER BY sort_order, added_at`,
       )
@@ -86,6 +120,19 @@ export class Repo {
       caption: (row.caption as string) ?? '',
       addedAt: row.added_at as number,
       order: row.sort_order as number,
+      capturedAt: (row.captured_at as number | null) ?? null,
+      cyclePhase: (row.cycle_phase as string | null) ?? null,
+      evidenceType: (row.evidence_type as string | null) ?? null,
+      purpose: (row.purpose as string | null) ?? null,
+      source: (row.source as string | null) ?? null,
+      subjectScope: (row.subject_scope as string | null) ?? null,
+      // Stored as 1/0/NULL; NULL means "not answered yet", which is different
+      // from "no".
+      selfDesigned:
+        row.self_designed === null || row.self_designed === undefined
+          ? null
+          : Boolean(row.self_designed),
+      standards: parseStandards(row.standards),
     }));
   }
 
@@ -253,6 +300,15 @@ export class Repo {
       caption: '',
       addedAt: Date.now(),
       order: siblings?.n ?? 0,
+      // Dimensions are added later; see docs/PRODUCT.md on why capture stays fast.
+      capturedAt: null,
+      cyclePhase: null,
+      evidenceType: null,
+      purpose: null,
+      source: null,
+      subjectScope: null,
+      selfDesigned: null,
+      standards: [],
     };
 
     await this.bucket.put(this.key(doc.id), file.stream(), {
@@ -280,26 +336,41 @@ export class Repo {
     return doc;
   }
 
-  async updateDocument(
-    id: string,
-    patch: { caption?: string; folderId?: string | null },
-  ): Promise<void> {
+  async updateDocument(id: string, patch: DocumentPatch): Promise<void> {
     if (!(await this.ownsDocument(id))) throw new HttpError(404, 'Document not found');
-    if (patch.caption !== undefined) {
-      await this.db
-        .prepare(`UPDATE documents SET caption = ?3 WHERE id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email, patch.caption)
-        .run();
+
+    if (patch.folderId !== undefined && patch.folderId && !(await this.ownsFolder(patch.folderId))) {
+      throw new HttpError(404, 'Folder not found');
     }
-    if (patch.folderId !== undefined) {
-      if (patch.folderId && !(await this.ownsFolder(patch.folderId))) {
-        throw new HttpError(404, 'Folder not found');
-      }
-      await this.db
-        .prepare(`UPDATE documents SET folder_id = ?3 WHERE id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email, patch.folderId)
-        .run();
+
+    // Map the patch to columns, skipping anything the caller did not send, so
+    // a partial update never blanks a field it was not asked to touch.
+    const columns: Array<[string, unknown]> = [];
+    const put = (column: string, value: unknown) => columns.push([column, value]);
+
+    if (patch.caption !== undefined) put('caption', patch.caption);
+    if (patch.folderId !== undefined) put('folder_id', patch.folderId);
+    if (patch.capturedAt !== undefined) put('captured_at', patch.capturedAt);
+    if (patch.cyclePhase !== undefined) put('cycle_phase', emptyToNull(patch.cyclePhase));
+    if (patch.evidenceType !== undefined) put('evidence_type', emptyToNull(patch.evidenceType));
+    if (patch.purpose !== undefined) put('purpose', emptyToNull(patch.purpose));
+    if (patch.source !== undefined) put('source', emptyToNull(patch.source));
+    if (patch.subjectScope !== undefined) put('subject_scope', emptyToNull(patch.subjectScope));
+    if (patch.selfDesigned !== undefined) {
+      put('self_designed', patch.selfDesigned === null ? null : patch.selfDesigned ? 1 : 0);
     }
+    if (patch.standards !== undefined) {
+      put('standards', patch.standards.length > 0 ? JSON.stringify(patch.standards) : null);
+    }
+
+    if (columns.length === 0) return;
+
+    // Parameters start at ?3 because ?1/?2 are the id and owner.
+    const assignments = columns.map(([column], i) => `${column} = ?${i + 3}`).join(', ');
+    await this.db
+      .prepare(`UPDATE documents SET ${assignments} WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.email, ...columns.map(([, value]) => value))
+      .run();
   }
 
   /**

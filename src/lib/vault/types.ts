@@ -8,6 +8,8 @@
  * These shapes are the API contract — they match what /api/vault returns.
  */
 
+import type { Dimensions } from './dimensions';
+
 /** A folder. `parentId` of null means it sits at the top level. */
 export interface VaultFolder {
   id: string;
@@ -25,7 +27,7 @@ export interface VaultFolder {
  * separately from /api/documents/[id]/content, so a portfolio with 200 files
  * still loads as one small JSON response.
  */
-export interface VaultDocument {
+export interface VaultDocument extends Dimensions {
   id: string;
   name: string;
   /** Folder it lives in, or null for the top level. */

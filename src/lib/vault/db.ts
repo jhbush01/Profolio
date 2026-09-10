@@ -96,10 +96,21 @@ export function addDocuments(files: File[], folderId: string | null): Promise<{ 
   return request('/api/documents', { method: 'POST', body: form });
 }
 
-export function updateDocument(
-  id: string,
-  patch: { caption?: string; folderId?: string | null },
-): Promise<unknown> {
+export interface DocumentPatch {
+  caption?: string;
+  folderId?: string | null;
+  capturedAt?: number | null;
+  cyclePhase?: string | null;
+  evidenceType?: string | null;
+  purpose?: string | null;
+  source?: string | null;
+  subjectScope?: string | null;
+  selfDesigned?: boolean | null;
+  standards?: string[];
+}
+
+/** Partial update — anything omitted is left untouched on the server. */
+export function updateDocument(id: string, patch: DocumentPatch): Promise<unknown> {
   return request(`/api/documents/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

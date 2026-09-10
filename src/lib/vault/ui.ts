@@ -24,6 +24,16 @@ import {
   updateFolder,
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
+import {
+  CYCLE_PHASES,
+  EVIDENCE_TYPES,
+  isComplete,
+  labelFor,
+  missingDimensions,
+  PURPOSES,
+  SUBJECT_SCOPES,
+} from './dimensions';
+import standardsJson from '../../data/standards.json';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 import { renderKindFor } from './types';
 
@@ -59,6 +69,82 @@ function kindBadge(doc: VaultDocument): string {
       ? 'bg-canvas text-ink-muted'
       : 'bg-accent-soft text-accent';
   return `<span class="rounded px-1.5 py-0.5 text-[0.65rem] font-medium ${tone}">${label}</span>`;
+}
+
+const STANDARDS = standardsJson as Array<{ code: string; focus: string; domain: string }>;
+
+type Option = { readonly value: string; readonly label: string };
+
+/** A <select> with a blank "not set" option, since every dimension is optional. */
+function selectFor(
+  attribute: string,
+  id: string,
+  options: readonly Option[],
+  current: string | null,
+  placeholder: string,
+): string {
+  const items = options
+    .map(
+      (option) =>
+        `<option value="${option.value}"${current === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`,
+    )
+    .join('');
+  return `<select data-${attribute}="${id}" class="w-full rounded-lg border border-line bg-surface px-2 py-1 text-xs">
+    <option value=""${current ? '' : ' selected'}>${escapeHtml(placeholder)}</option>${items}
+  </select>`;
+}
+
+/** The evidence-dimension panel, collapsed by default so the list stays scannable. */
+function detailPanel(doc: VaultDocument): string {
+  const gaps = missingDimensions(doc);
+  const summary = gaps.length === 0
+    ? '<span class="text-emerald-700">Details complete</span>'
+    : `<span class="text-amber-700">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
+
+  const standardChips = STANDARDS.map(
+    (standard) => `<label
+        title="${escapeHtml(standard.focus)}"
+        class="cursor-pointer rounded-full border border-line px-2 py-0.5 text-[0.7rem] text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent"
+      >
+        <input
+          type="checkbox"
+          data-standard="${doc.id}"
+          value="${standard.code}"
+          ${doc.standards.includes(standard.code) ? 'checked' : ''}
+          class="sr-only"
+        />${standard.code}
+      </label>`,
+  ).join('');
+
+  const designed = doc.selfDesigned;
+  return `<details class="rounded-lg border border-line">
+    <summary class="cursor-pointer px-3 py-2 text-xs">${summary}</summary>
+    <div class="grid gap-2 border-t border-line p-3 sm:grid-cols-2">
+      ${selectFor('phase', doc.id, CYCLE_PHASES, doc.cyclePhase, 'Stage of the cycle…')}
+      ${selectFor('etype', doc.id, EVIDENCE_TYPES, doc.evidenceType, 'Evidence type…')}
+      ${selectFor('purpose', doc.id, PURPOSES, doc.purpose, 'Purpose…')}
+      ${selectFor('scope', doc.id, SUBJECT_SCOPES, doc.subjectScope, 'Whole class or individual…')}
+      <input
+        type="text"
+        data-source="${doc.id}"
+        value="${escapeHtml(doc.source ?? '')}"
+        placeholder="Source, e.g. school NAPLAN summary"
+        class="rounded-lg border border-line bg-surface px-2 py-1 text-xs sm:col-span-2"
+      />
+      <label class="flex items-center gap-2 text-xs text-ink-muted sm:col-span-2">
+        <span>Who designed it?</span>
+        <select data-designed="${doc.id}" class="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
+          <option value=""${designed === null ? ' selected' : ''}>Not set</option>
+          <option value="yes"${designed === true ? ' selected' : ''}>I designed it</option>
+          <option value="no"${designed === false ? ' selected' : ''}>Someone else / commercial</option>
+        </select>
+      </label>
+      <div class="sm:col-span-2">
+        <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">APST focus areas</p>
+        <div class="flex flex-wrap gap-1">${standardChips}</div>
+      </div>
+    </div>
+  </details>`;
 }
 
 /** Documents shown for the current selection. */
@@ -180,9 +266,14 @@ function renderDocuments() {
             >⠿</span>
           <div class="min-w-0">
             <h3 class="truncate text-sm font-semibold" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h3>
-            <p class="mt-1 flex items-center gap-2 text-xs text-ink-muted">
+            <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
               ${kindBadge(doc)} ${formatBytes(doc.size)}
               ${doc.folderId ? `· ${escapeHtml(folderPath(doc.folderId))}` : ''}
+              <span
+                data-needs-detail
+                ${isComplete(doc) ? 'hidden' : ''}
+                class="rounded bg-amber-100 px-1.5 py-0.5 text-[0.65rem] font-medium text-amber-800"
+              >Needs detail</span>
             </p>
             </div>
           </div>
@@ -197,6 +288,8 @@ function renderDocuments() {
           class="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs"
         />
 
+        ${detailPanel(doc)}
+
         <label class="flex items-center gap-2 text-xs text-ink-muted">
           Folder
           <select data-move="${doc.id}" class="flex-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs">
@@ -206,6 +299,41 @@ function renderDocuments() {
       </article>`,
     )
     .join('');
+}
+
+/**
+ * Updates one card's badge and panel summary without re-rendering the list.
+ *
+ * A full refresh would close the <details> the user is actively filling in and
+ * lose their scroll position, which makes enriching a dozen records miserable.
+ */
+function refreshCardStatus(doc: VaultDocument) {
+  const card = document.querySelector<HTMLElement>(`[data-doc-id="${doc.id}"]`);
+  if (!card) return;
+
+  const gaps = missingDimensions(doc);
+
+  const badge = card.querySelector<HTMLElement>('[data-needs-detail]');
+  if (badge) badge.hidden = gaps.length === 0;
+
+  const summary = card.querySelector<HTMLElement>('details > summary');
+  if (summary) {
+    summary.innerHTML =
+      gaps.length === 0
+        ? '<span class="text-emerald-700">Details complete</span>'
+        : `<span class="text-amber-700">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
+  }
+
+  renderPendingCount();
+}
+
+/** "N need detail" in the list header — the nudge to come back and enrich. */
+function renderPendingCount() {
+  const host = $('pending-detail');
+  if (!host) return;
+  const pending = visibleDocuments().filter((doc) => !isComplete(doc)).length;
+  host.hidden = pending === 0;
+  host.textContent = pending === 1 ? '1 needs detail' : `${pending} need detail`;
 }
 
 function renderUsage() {
@@ -240,6 +368,7 @@ async function refresh() {
   renderFolders();
   renderDocuments();
   renderUsage();
+  renderPendingCount();
 }
 
 /**
@@ -540,6 +669,55 @@ export async function initVault() {
   });
   list?.addEventListener('change', async (event) => {
     const target = event.target as HTMLInputElement | HTMLSelectElement;
+
+    /** Saves one dimension, then updates the badge in place. */
+    const saveDimension = async (id: string, patch: Record<string, unknown>, apply: (doc: VaultDocument) => void) => {
+      await guard('Saving detail', async () => {
+        await updateDocument(id, patch);
+        const doc = documents.find((d) => d.id === id);
+        if (doc) {
+          apply(doc);
+          refreshCardStatus(doc);
+        }
+        setStatus('Saved.');
+      });
+    };
+
+    const blank = (value: string) => (value === '' ? null : value);
+
+    if (target.dataset.phase) {
+      const v = blank(target.value);
+      return saveDimension(target.dataset.phase, { cyclePhase: v }, (d) => (d.cyclePhase = v));
+    }
+    if (target.dataset.etype) {
+      const v = blank(target.value);
+      return saveDimension(target.dataset.etype, { evidenceType: v }, (d) => (d.evidenceType = v));
+    }
+    if (target.dataset.purpose) {
+      const v = blank(target.value);
+      return saveDimension(target.dataset.purpose, { purpose: v }, (d) => (d.purpose = v));
+    }
+    if (target.dataset.scope) {
+      const v = blank(target.value);
+      return saveDimension(target.dataset.scope, { subjectScope: v }, (d) => (d.subjectScope = v));
+    }
+    if (target.dataset.source) {
+      const v = target.value;
+      return saveDimension(target.dataset.source, { source: v }, (d) => (d.source = v));
+    }
+    if (target.dataset.designed) {
+      const v = target.value === '' ? null : target.value === 'yes';
+      return saveDimension(target.dataset.designed, { selfDesigned: v }, (d) => (d.selfDesigned = v));
+    }
+    if (target.dataset.standard) {
+      const id = target.dataset.standard;
+      const card = document.querySelector<HTMLElement>(`[data-doc-id="${id}"]`);
+      const codes = [...(card?.querySelectorAll<HTMLInputElement>('[data-standard]') ?? [])]
+        .filter((box) => box.checked)
+        .map((box) => box.value);
+      return saveDimension(id, { standards: codes }, (d) => (d.standards = codes));
+    }
+
     if (target.dataset.caption) {
       const id = target.dataset.caption;
       await guard('Saving caption', async () => {
