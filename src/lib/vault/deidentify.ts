@@ -51,7 +51,18 @@ const NOT_NAMES = new Set([
   'school', 'college', 'primary', 'secondary', 'high', 'state', 'catholic',
   'independent', 'public', 'report', 'summary', 'overview', 'table', 'figure',
   'photo', 'image', 'scan', 'document', 'file', 'untitled', 'screenshot',
-  'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
+  // Qualifications and compliance documents — a teacher's vault is full of
+  // these, and "First Aid" was a live false positive before this list grew.
+  'first', 'aid', 'certificate', 'certification', 'cpr', 'anaphylaxis',
+  'asthma', 'blue', 'card', 'working', 'children', 'check', 'clearance',
+  'police', 'mandatory', 'reporting', 'induction', 'training', 'course',
+  'workshop', 'module', 'development', 'learning', 'registration', 'renewal',
+  'accreditation', 'qualification', 'transcript', 'academic', 'record',
+  'university', 'faculty', 'code', 'conduct', 'ethics', 'policy', 'procedure',
+  'letter', 'reference', 'referee', 'testimonial', 'resume', 'curriculum',
+  'vitae', 'application', 'employment', 'contract', 'award', 'completion',
+  'attendance', 'hours', 'log', 'logbook', 'evidence', 'portfolio',
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
   'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
   'september', 'october', 'november', 'december',
 ]);

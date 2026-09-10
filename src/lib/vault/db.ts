@@ -115,6 +115,15 @@ export function clearAll(): Promise<unknown> {
   return request('/api/vault', { method: 'DELETE' });
 }
 
+/** Persists a new display order. Ids must be in the desired order. */
+export function saveOrder(order: { documents?: string[]; folders?: string[] }): Promise<unknown> {
+  return request('/api/order', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order),
+  });
+}
+
 /** Fetches one document's bytes from R2, for the PDF exporter. */
 export async function documentBytes(id: string): Promise<Uint8Array> {
   const response = await fetch(`/api/documents/${id}/content`, { credentials: 'same-origin' });

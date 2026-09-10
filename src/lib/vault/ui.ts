@@ -18,6 +18,7 @@ import {
   deleteFolderDeep,
   documentBytes,
   loadVault,
+  saveOrder,
   saveProfile,
   updateDocument,
   updateFolder,
@@ -169,14 +170,21 @@ function renderDocuments() {
   host.innerHTML = items
     .map(
       (doc) => `
-      <article class="card flex flex-col gap-3">
+      <article class="card flex flex-col gap-3" draggable="true" data-doc-id="${doc.id}">
         <div class="flex items-start justify-between gap-3">
+          <div class="flex min-w-0 items-start gap-2">
+            <span
+              aria-hidden="true"
+              title="Drag to reorder"
+              class="mt-0.5 cursor-grab select-none text-ink-muted"
+            >⠿</span>
           <div class="min-w-0">
             <h3 class="truncate text-sm font-semibold" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h3>
             <p class="mt-1 flex items-center gap-2 text-xs text-ink-muted">
               ${kindBadge(doc)} ${formatBytes(doc.size)}
               ${doc.folderId ? `· ${escapeHtml(folderPath(doc.folderId))}` : ''}
             </p>
+            </div>
           </div>
           <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}" class="shrink-0 rounded p-1 text-xs text-ink-muted hover:text-red-600">✕</button>
         </div>
@@ -326,6 +334,72 @@ async function exportPdf() {
   } finally {
     button.disabled = false;
   }
+}
+
+/* --------------------------------------------------------------- reordering */
+
+/**
+ * Native HTML5 drag and drop — no library. Order is written back immediately,
+ * because the exported PDF follows it and a lost reorder is invisible until
+ * someone opens the finished document.
+ *
+ * Bound ONCE from initVault, not per render: #document-list persists and only
+ * its innerHTML is replaced, so re-binding would stack duplicate handlers and
+ * fire one save per past render.
+ */
+function enableDocumentDragging() {
+  const list = $('document-list');
+  if (!list) return;
+
+  let dragging: HTMLElement | null = null;
+
+  list.addEventListener('dragstart', (event) => {
+    const card = (event.target as HTMLElement).closest<HTMLElement>('[data-doc-id]');
+    if (!card) return;
+    dragging = card;
+    card.classList.add('opacity-40');
+    event.dataTransfer?.setData('text/plain', card.dataset.docId ?? '');
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  });
+
+  list.addEventListener('dragend', () => {
+    dragging?.classList.remove('opacity-40');
+    dragging = null;
+  });
+
+  list.addEventListener('dragover', (event) => {
+    if (!dragging) return;
+    // Only handle reordering here; the page-level handler deals with files.
+    event.preventDefault();
+    event.stopPropagation();
+
+    const over = (event.target as HTMLElement).closest<HTMLElement>('[data-doc-id]');
+    if (!over || over === dragging) return;
+
+    const cards = [...list.querySelectorAll<HTMLElement>('[data-doc-id]')];
+    const from = cards.indexOf(dragging);
+    const to = cards.indexOf(over);
+    if (from < 0 || to < 0) return;
+    over.insertAdjacentElement(from < to ? 'afterend' : 'beforebegin', dragging);
+  });
+
+  list.addEventListener('drop', async (event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const ids = [...list.querySelectorAll<HTMLElement>('[data-doc-id]')]
+      .map((card) => card.dataset.docId!)
+      .filter(Boolean);
+
+    // Keep the on-screen order optimistically; reconcile from the server after.
+    setStatus('Saving order…', true);
+    await guard('Saving order', async () => {
+      await saveOrder({ documents: ids });
+      await refresh();
+      setStatus('Order saved.');
+    });
+  });
 }
 
 /* ------------------------------------------------------------------- wiring */
@@ -483,6 +557,8 @@ export async function initVault() {
       });
     }
   });
+
+  enableDocumentDragging();
 
   // Drag and drop anywhere on the page.
   const dropHint = $('drop-hint');

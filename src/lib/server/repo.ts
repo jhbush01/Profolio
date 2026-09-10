@@ -302,6 +302,44 @@ export class Repo {
     }
   }
 
+  /**
+   * Rewrites sort_order for a set of documents in one batch.
+   *
+   * Export order is submission order, so this is not cosmetic — it is how a
+   * user controls the shape of the document they hand to an assessor.
+   * Unknown or unowned ids are ignored rather than failing the whole reorder.
+   */
+  async reorderDocuments(ids: string[]): Promise<number> {
+    const owned = new Set((await this.documents()).map((doc) => doc.id));
+    const valid = ids.filter((id) => owned.has(id));
+    if (valid.length === 0) return 0;
+
+    await this.db.batch(
+      valid.map((id, index) =>
+        this.db
+          .prepare(`UPDATE documents SET sort_order = ?3 WHERE id = ?1 AND owner = ?2`)
+          .bind(id, this.who.email, index),
+      ),
+    );
+    return valid.length;
+  }
+
+  /** Same, for folders — folders are the PDF's section order. */
+  async reorderFolders(ids: string[]): Promise<number> {
+    const owned = new Set((await this.folders()).map((folder) => folder.id));
+    const valid = ids.filter((id) => owned.has(id));
+    if (valid.length === 0) return 0;
+
+    await this.db.batch(
+      valid.map((id, index) =>
+        this.db
+          .prepare(`UPDATE folders SET sort_order = ?3 WHERE id = ?1 AND owner = ?2`)
+          .bind(id, this.who.email, index),
+      ),
+    );
+    return valid.length;
+  }
+
   async deleteDocument(id: string): Promise<void> {
     if (!(await this.ownsDocument(id))) throw new HttpError(404, 'Document not found');
     await this.bucket.delete(this.key(id));
