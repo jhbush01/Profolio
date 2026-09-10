@@ -1,17 +1,17 @@
 ---
 /**
- * EvidenceUpload — PLACEHOLDER upload UI. No backend, nothing is stored.
+ * EvidenceUpload — PLACEHOLDER upload UI for the teaching example. Nothing is
+ * stored; the form deliberately has no `action`.
  *
- * The form deliberately has no `action`; submitting it does nothing.
+ * Real uploads live at /portfolio, which is backed by R2 + D1 (see
+ * src/lib/server/repo.ts). This module is NOT wired to that backend because
+ * teaching artefacts carry two extra dimensions the generic builder has no
+ * concept of: the week of the sequence, and APST standard tags.
  *
- * FUTURE (Cloudflare path):
- *   1. Switch the Astro output to `server` with @astrojs/cloudflare.
- *   2. Add `src/pages/api/upload.ts` that puts the file into an R2 bucket
- *      binding and writes an artefact row to D1.
- *   3. Point `action="/api/upload"` and `method="post"` at it, keep
- *      `enctype="multipart/form-data"`.
- *   4. Progressive enhancement (drag/drop, progress bar) is client JS layered
- *      on top — the plain form keeps working without it.
+ * FUTURE: to make this real, add `week` and `standards` columns to the
+ * documents table, extend POST /api/documents to accept them, and swap this
+ * form for the same API client the builder uses. The UI below already collects
+ * both fields.
  */
 import StandardTagPicker from './StandardTagPicker.astro';
 import { phases } from '../lib/portfolio';
@@ -87,6 +87,10 @@ import { phases } from '../lib/portfolio';
     >
       Upload evidence
     </button>
-    <span class="text-xs text-ink-muted">Disabled until the storage backend exists.</span>
+    <span class="text-xs text-ink-muted">
+      Not wired up — this is the teaching example. Use the{' '}
+      <a href="/portfolio" class="text-accent underline underline-offset-2">portfolio builder</a>{' '}
+      to actually upload files.
+    </span>
   </div>
 </form>

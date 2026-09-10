@@ -14,6 +14,16 @@ import { artefacts } from '../lib/portfolio';
     lead="Every artefact carries a week, a type and its standard tags, so the portfolio can be sliced by any of the three."
   />
 
+  <div class="mb-8 rounded-xl border border-line bg-surface p-4 text-sm">
+    <p class="font-medium">This page is a worked example, not a live uploader.</p>
+    <p class="prose-body mt-1">
+      The artefacts below are sample records from <code class="rounded bg-canvas px-1 py-0.5 text-xs">src/data/artefacts.json</code>.
+      To upload your own files, use the{' '}
+      <a href="/portfolio" class="text-accent underline underline-offset-2">portfolio builder</a> —
+      that one stores documents in R2 and exports a PDF.
+    </p>
+  </div>
+
   <section class="mb-12">
     <h2 class="mb-4 text-xl font-semibold">Add evidence</h2>
     <EvidenceUpload />
