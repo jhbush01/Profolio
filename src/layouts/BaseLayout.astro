@@ -22,6 +22,16 @@ const { title, description = site.tagline } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Home-screen install. start_url is /capture, because the reason to keep
+         this on a phone is capture, not browsing. A service worker (and with it
+         offline capture) is deliberately not here yet — see docs/PRODUCT.md. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Profolio" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#1f5d8b" />
     <title>{title} · {site.name}</title>
   </head>
   <body class="min-h-screen">

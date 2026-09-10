@@ -1,0 +1,87 @@
+---
+/**
+ * Capture — the phone screen.
+ *
+ * Built for one hand in a corridor: the two capture buttons sit at the bottom
+ * of the viewport where a thumb reaches, tagging uses large chips rather than
+ * dropdowns, and nothing is required before the file is safely uploaded.
+ *
+ * Deliberately not the builder. Anything needing a keyboard — captions,
+ * source, standards, folders — stays on the desktop page.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Capture"
+  description="Capture evidence on your phone in seconds, and tag it later."
+>
+  <div class="mx-auto w-full max-w-lg pb-40">
+    <h1 class="text-2xl font-semibold">Capture</h1>
+    <p class="prose-body mt-1 text-sm">
+      Grab it now, tag it now or later. Nothing is required to save a file.
+    </p>
+
+    <p id="capture-status" role="status" aria-live="polite" class="mt-3 text-xs text-ink-muted"></p>
+
+    <!-- Same acknowledgement record as the builder. -->
+    <section
+      id="capture-gate"
+      hidden
+      class="mt-4 rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-sm text-amber-900"
+    >
+      <p class="font-semibold">Before you photograph student work</p>
+      <p class="mt-1">
+        Keep faces, names and student numbers out of the frame. Refer to individuals
+        by a pseudonym. Check your school's rules before capturing anything about a student.
+      </p>
+      <button
+        id="capture-accept"
+        type="button"
+        class="mt-3 w-full rounded-lg bg-amber-900 px-4 py-3 text-sm font-medium text-white"
+      >I understand — enable capture</button>
+    </section>
+
+    <p class="mt-5 rounded-lg bg-canvas px-3 py-2 text-xs text-ink-muted">
+      Check the frame before you shoot: no faces, no names, no student numbers.
+    </p>
+
+    <section class="mt-5">
+      <h2 class="text-sm font-semibold">Captured just now</h2>
+      <p id="capture-empty" hidden class="mt-2 rounded-xl border border-dashed border-line bg-surface p-6 text-center text-sm text-ink-muted">
+        Nothing yet. Use the buttons below.
+      </p>
+      <div id="capture-list" class="mt-2 flex flex-col gap-3"></div>
+    </section>
+  </div>
+
+  <!-- Thumb zone: pinned to the bottom of the viewport, above the safe area. -->
+  <div
+    class="no-print fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur"
+    style="padding-bottom: env(safe-area-inset-bottom, 0px)"
+  >
+    <div class="mx-auto flex w-full max-w-lg gap-3 p-4">
+      <button
+        id="capture-photo-button"
+        type="button"
+        disabled
+        class="flex-1 rounded-xl bg-accent px-4 py-4 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+      >Take photo</button>
+      <button
+        id="capture-file-button"
+        type="button"
+        disabled
+        class="rounded-xl border border-line bg-surface px-4 py-4 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+      >Upload</button>
+    </div>
+  </div>
+
+  <!-- `capture` asks the phone for the rear camera rather than the gallery. -->
+  <input id="capture-photo" type="file" accept="image/*" capture="environment" class="sr-only" />
+  <input id="capture-file" type="file" multiple class="sr-only" />
+</BaseLayout>
+
+<script>
+  import { initCapture } from '../lib/vault/capture-ui';
+  initCapture();
+</script>

@@ -132,4 +132,15 @@ Ordered easiest-first within dependency order.
 5. **Programme checklist with progress.** "By week 3, have I collected…".
 6. **Context statement form.** A fully enumerated form, so a fully generated page.
 7. **Phone-first capture.** Camera → tag → done, in a corridor between lessons.
-   Biggest adoption lever and the hardest to get right.
+   Biggest adoption lever. Shipped: /capture, with the capture bar pinned to the
+   thumb zone, `capture="environment"` for the rear camera, and large tap chips
+   instead of dropdowns (a `<select>` on a phone opens a modal picker, costing
+   two extra taps per dimension).
+
+   Installable from a home screen via a web manifest, with `start_url` of
+   `/capture` — the reason to keep this on a phone is capture, not browsing.
+
+   **Not yet: offline.** There is no service worker. Classroom wifi is usually
+   fine and a caching bug that loses a capture is worse than a failed upload the
+   user can see. Offline queueing is the next thing worth building here, and it
+   should queue uploads explicitly rather than caching the app shell and hoping.
