@@ -23,6 +23,7 @@ import {
   totalWeeks,
 } from '../programmes';
 import type { VaultDocument } from './types';
+import type { ContextField, ProgrammeTemplate } from '../programmes/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
@@ -90,6 +91,79 @@ function renderTemplates() {
       >Start this</button>
     </article>`,
   ).join('');
+}
+
+/** One input, shaped by the field's declared kind. */
+function contextInput(programmeId: string, field: ContextField, value: string): string {
+  const common = `data-context="${programmeId}" data-field="${field.id}"
+    class="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"`;
+
+  if (field.kind === 'select') {
+    const options = (field.options ?? [])
+      .map((option) => `<option${value === option ? ' selected' : ''}>${escapeHtml(option)}</option>`)
+      .join('');
+    return `<select ${common}><option value=""${value ? '' : ' selected'}>Not set</option>${options}</select>`;
+  }
+  if (field.kind === 'longtext') {
+    return `<textarea rows="2" ${common}>${escapeHtml(value)}</textarea>`;
+  }
+  return `<input type="${field.kind === 'number' ? 'number' : 'text'}" value="${escapeHtml(value)}" ${common} />`;
+}
+
+/**
+ * The context section: a form on the left of the disclosure, and the statement
+ * it produces underneath, ready to copy into whatever needs it.
+ *
+ * Duration is derived from the programme's own window rather than asked again.
+ */
+function contextSection(
+  programme: Programme,
+  template: ProgrammeTemplate,
+  weeks: number | null,
+): string {
+  if (template.contextFields.length === 0) return '';
+
+  const answered = template.contextFields.filter((field) => programme.context[field.id]?.trim()).length;
+  const total = template.contextFields.length;
+
+  const inputs = template.contextFields
+    .map(
+      (field) => `<label class="flex flex-col gap-1 ${field.kind === 'longtext' ? 'sm:col-span-2' : ''}">
+        <span class="text-xs font-medium">${escapeHtml(field.label)}</span>
+        ${contextInput(programme.id, field, programme.context[field.id] ?? '')}
+        ${field.hint ? `<span class="text-[0.7rem] text-ink-muted">${escapeHtml(field.hint)}</span>` : ''}
+      </label>`,
+    )
+    .join('');
+
+  const lines = template.contextFields
+    .map((field) => {
+      const value = programme.context[field.id]?.trim();
+      return value ? `${field.label}: ${value}` : null;
+    })
+    .filter((line): line is string => line !== null);
+  // Neutral wording: this line is generated for every template, and a
+  // professional-development year is not a placement.
+  if (weeks) lines.push(`Duration: ${weeks} weeks`);
+
+  const statement =
+    lines.length === 0
+      ? '<p class="text-xs text-ink-muted">Fill in the fields above and your statement appears here.</p>'
+      : `<pre data-statement="${programme.id}" class="whitespace-pre-wrap break-words font-sans text-xs leading-relaxed">${escapeHtml(lines.join('\n'))}</pre>
+         <button type="button" data-copy="${programme.id}"
+           class="mt-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Copy statement</button>`;
+
+  return `<details class="border-t border-line" ${answered === 0 ? '' : 'open'}>
+    <summary class="cursor-pointer px-4 py-2 text-xs">
+      Context statement
+      <span class="${answered === total ? 'text-emerald-700' : 'text-ink-muted'}">— ${answered} of ${total} filled in</span>
+    </summary>
+    <div class="grid gap-3 px-4 pb-4 sm:grid-cols-2">${inputs}</div>
+    <div class="mx-4 mb-4 rounded-lg border border-line bg-canvas/60 p-3">
+      <p class="mb-1 text-[0.7rem] font-semibold uppercase tracking-wider text-ink-muted">Generated statement</p>
+      ${statement}
+    </div>
+  </details>`;
 }
 
 function renderProgrammes() {
@@ -192,6 +266,8 @@ function renderProgrammes() {
           </label>
         </div>
 
+        ${contextSection(programme, template, weeks)}
+
         ${checklist}
 
         <div class="flex items-center justify-between border-t border-line px-4 py-2">
@@ -202,6 +278,49 @@ function renderProgrammes() {
       </article>`;
     })
     .join('');
+}
+
+/**
+ * Rewrites just the generated statement for one programme, leaving the form
+ * and its focus untouched.
+ */
+function refreshStatement(programme: Programme, card: HTMLElement) {
+  const template = templateFor(programme.template);
+  if (!template) return;
+
+  const weeks = totalWeeks(programme.startsOn, programme.endsOn);
+  const lines = template.contextFields
+    .map((field) => {
+      const value = programme.context[field.id]?.trim();
+      return value ? `${field.label}: ${value}` : null;
+    })
+    .filter((line): line is string => line !== null);
+  // Neutral wording: this line is generated for every template, and a
+  // professional-development year is not a placement.
+  if (weeks) lines.push(`Duration: ${weeks} weeks`);
+
+  const pre = card.querySelector<HTMLElement>(`[data-statement="${programme.id}"]`);
+  if (pre) {
+    pre.textContent = lines.join('\n');
+  } else {
+    // First answer on an empty statement: swap the placeholder for the real block.
+    const host = card.querySelector<HTMLElement>('details > div:last-of-type');
+    if (host && lines.length > 0) {
+      const block = document.createElement('pre');
+      block.dataset.statement = programme.id;
+      block.className = 'whitespace-pre-wrap break-words font-sans text-xs leading-relaxed';
+      block.textContent = lines.join('\n');
+      host.querySelector('p.text-ink-muted')?.remove();
+      host.appendChild(block);
+    }
+  }
+
+  const summary = card.querySelector<HTMLElement>('details > summary span');
+  const answered = template.contextFields.filter((f) => programme.context[f.id]?.trim()).length;
+  if (summary) {
+    summary.textContent = `— ${answered} of ${template.contextFields.length} filled in`;
+    summary.className = answered === template.contextFields.length ? 'text-emerald-700' : 'text-ink-muted';
+  }
 }
 
 async function refresh() {
@@ -250,6 +369,34 @@ export async function initProgrammes() {
         setStatus('Dates updated.');
       });
     }
+    if (target.dataset.context) {
+      const id = target.dataset.context;
+      const card = document.querySelector<HTMLElement>(`[data-programme="${id}"]`);
+      if (!card) return;
+
+      // Send the complete answer set, so clearing a field really clears it.
+      const answers: Record<string, string> = {};
+      // No generic parameter here: the Workers runtime types declare their own
+      // global `Element` (HTMLRewriter's), and a union of DOM input types fails
+      // its constraint. Cast inside the callback instead.
+      card.querySelectorAll('[data-context][data-field]').forEach((node) => {
+        const input = node as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+        const field = input.dataset.field;
+        if (field && input.value.trim()) answers[field] = input.value.trim();
+      });
+
+      return guard('Saving context', async () => {
+        await updateProgramme(id, { context: answers });
+        const programme = programmes.find((p) => p.id === id);
+        if (programme) {
+          programme.context = answers;
+          // Updated in place: a full re-render would close the form mid-edit.
+          refreshStatement(programme, card);
+        }
+        setStatus('Context saved.');
+      });
+    }
+
     if (target.dataset.ends) {
       const id = target.dataset.ends;
       return guard('Saving end date', async () => {
@@ -261,6 +408,19 @@ export async function initProgrammes() {
   });
 
   list?.addEventListener('click', async (event) => {
+    const copyId = (event.target as HTMLElement).closest('button')?.dataset.copy;
+    if (copyId) {
+      const text = document.querySelector<HTMLElement>(`[data-statement="${copyId}"]`)?.textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Statement copied.');
+      } catch {
+        // Clipboard access can be refused; selecting the text still works.
+        setStatus('Could not copy automatically — select the text and copy it.');
+      }
+      return;
+    }
+
     const id = (event.target as HTMLElement).closest('button')?.dataset.remove;
     if (!id) return;
     const programme = programmes.find((p) => p.id === id);

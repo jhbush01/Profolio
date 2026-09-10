@@ -13,6 +13,25 @@ export const finalPlacement: ProgrammeTemplate = {
   tagline: 'A sustained teaching sequence, evidenced end to end.',
   audience: 'Final-year pre-service teachers on professional experience.',
   defaultWeeks: 6,
+  // Facts about the setting. Generic placement context — nothing here is
+  // specific to one assessment task, and duration is derived from the
+  // programme's own date window rather than asked twice.
+  contextFields: [
+    { id: 'setting', label: 'School or centre', kind: 'text', hint: 'Optional. Left out if you would rather keep the setting unnamed.' },
+    { id: 'sector', label: 'Sector', kind: 'select', options: ['Government', 'Catholic', 'Independent', 'Other'] },
+    { id: 'phase', label: 'Education phase', kind: 'select', options: ['Early childhood', 'Primary', 'Secondary', 'Combined', 'Other'] },
+    { id: 'postcode', label: 'Postcode', kind: 'text', hint: 'Locates the setting without naming it.' },
+    { id: 'schoolSize', label: 'Students in the setting', kind: 'number' },
+    { id: 'classSize', label: 'Students in the class', kind: 'number' },
+    { id: 'yearBand', label: 'Phase of learning', kind: 'select', options: ['F–Year 3', 'Year 4–Year 6', 'Year 7–Year 10', 'Year 11–Year 12'] },
+    { id: 'yearLevel', label: 'Year level', kind: 'text', hint: 'For example: Year 8. For multi-age classes, the level of the individuals you tracked.' },
+    { id: 'learningArea', label: 'Learning area', kind: 'select', options: ['English', 'Health and Physical Education', 'Humanities and Social Sciences', 'Languages', 'Mathematics', 'Science', 'Technologies', 'The Arts', 'Other'] },
+    { id: 'inSpecialisation', label: 'Your specialisation or major?', kind: 'select', options: ['Yes', 'No'] },
+    { id: 'sequenceFocus', label: 'Focus of the learning sequence', kind: 'text', hint: 'For example: Number and algebra.' },
+    { id: 'framework', label: 'Pedagogical framework', kind: 'text', hint: 'Any whole-school approach you were teaching within.' },
+    { id: 'cohort', label: 'Class characteristics', kind: 'longtext', hint: 'Composition and learning needs, described without identifying anyone.' },
+    { id: 'community', label: 'Community context', kind: 'longtext', hint: 'Anything about the community that shaped your teaching.' },
+  ],
   items: [
     {
       id: 'context',

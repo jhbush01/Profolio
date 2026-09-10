@@ -13,6 +13,13 @@ export const professionalDevelopment: ProgrammeTemplate = {
   tagline: 'A year of professional learning, kept as you go.',
   audience: 'Registered teachers maintaining evidence between renewals.',
   defaultWeeks: 52,
+  // Far fewer questions than a placement, which is the point of declaring
+  // context per template rather than as columns on every programme.
+  contextFields: [
+    { id: 'setting', label: 'School or centre', kind: 'text' },
+    { id: 'role', label: 'Your role this period', kind: 'text', hint: 'For example: Year 5 classroom teacher.' },
+    { id: 'goals', label: 'Professional learning goals', kind: 'longtext', hint: 'What you set out to develop this period.' },
+  ],
   items: [
     {
       id: 'certificates',

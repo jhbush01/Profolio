@@ -134,6 +134,7 @@ export interface Programme {
   endsOn: string | null;
   createdAt: number;
   archived: boolean;
+  context: Record<string, string>;
 }
 
 export function loadProgrammes(): Promise<{ programmes: Programme[] }> {
@@ -155,7 +156,13 @@ export function createProgramme(input: {
 
 export function updateProgramme(
   id: string,
-  patch: { name?: string; startsOn?: string | null; endsOn?: string | null; archived?: boolean },
+  patch: {
+    name?: string;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    archived?: boolean;
+    context?: Record<string, string>;
+  },
 ): Promise<unknown> {
   return request(`/api/programmes/${id}`, {
     method: 'PATCH',

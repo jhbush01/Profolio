@@ -29,6 +29,22 @@ export interface ChecklistItem {
   matches: (evidence: Dimensions) => boolean;
 }
 
+/**
+ * One field of a programme's context record.
+ *
+ * Declared by the template, so a new programme type brings its own questions
+ * without touching the schema.
+ */
+export interface ContextField {
+  id: string;
+  label: string;
+  kind: 'text' | 'number' | 'select' | 'longtext';
+  /** Shown under the input. */
+  hint?: string;
+  /** For `select` only. */
+  options?: readonly string[];
+}
+
 export interface ProgrammeTemplate {
   key: string;
   name: string;
@@ -38,6 +54,8 @@ export interface ProgrammeTemplate {
   /** Suggested window length in weeks; pre-fills the end date. */
   defaultWeeks: number;
   items: ChecklistItem[];
+  /** Context questions for this programme. Empty means the section is hidden. */
+  contextFields: ContextField[];
 }
 
 /** Progress for one checklist item against a set of evidence. */

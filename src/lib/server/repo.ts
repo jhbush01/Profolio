@@ -42,6 +42,24 @@ export interface ProgrammeRow {
   endsOn: string | null;
   createdAt: number;
   archived: boolean;
+  /** Template-declared context answers, keyed by field id. */
+  context: Record<string, string>;
+}
+
+/** Tolerates null and malformed JSON rather than failing a whole page load. */
+function parseContext(raw: unknown): Record<string, string> {
+  if (typeof raw !== 'string' || raw.length === 0) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>)
+        .filter(([, value]) => typeof value === 'string')
+        .map(([key, value]) => [key, value as string]),
+    );
+  } catch {
+    return {};
+  }
 }
 
 /** Accepts only YYYY-MM-DD; anything else becomes null rather than corrupt data. */
@@ -435,7 +453,7 @@ export class Repo {
   async programmes(): Promise<ProgrammeRow[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT id, template, name, starts_on, ends_on, created_at, archived
+        `SELECT id, template, name, starts_on, ends_on, created_at, archived, context
            FROM programmes WHERE owner = ?1
           ORDER BY archived, created_at DESC`,
       )
@@ -450,6 +468,7 @@ export class Repo {
       endsOn: (row.ends_on as string | null) ?? null,
       createdAt: row.created_at as number,
       archived: Boolean(row.archived),
+      context: parseContext(row.context),
     }));
   }
 
@@ -467,6 +486,7 @@ export class Repo {
       endsOn: isoDateOrNull(input.endsOn),
       createdAt: Date.now(),
       archived: false,
+      context: {},
     };
 
     await this.db
@@ -485,7 +505,13 @@ export class Repo {
 
   async updateProgramme(
     id: string,
-    patch: { name?: string; startsOn?: string | null; endsOn?: string | null; archived?: boolean },
+    patch: {
+      name?: string;
+      startsOn?: string | null;
+      endsOn?: string | null;
+      archived?: boolean;
+      context?: Record<string, string>;
+    },
   ): Promise<void> {
     const owned = await this.db
       .prepare(`SELECT 1 AS ok FROM programmes WHERE id = ?1 AND owner = ?2`)
@@ -498,6 +524,11 @@ export class Repo {
     if (patch.startsOn !== undefined) columns.push(['starts_on', isoDateOrNull(patch.startsOn)]);
     if (patch.endsOn !== undefined) columns.push(['ends_on', isoDateOrNull(patch.endsOn)]);
     if (patch.archived !== undefined) columns.push(['archived', patch.archived ? 1 : 0]);
+    if (patch.context !== undefined) {
+      // Replaced wholesale: the client always sends the complete answer set,
+      // so a cleared field is a real clear rather than a missing key.
+      columns.push(['context', JSON.stringify(patch.context)]);
+    }
     if (columns.length === 0) return;
 
     const assignments = columns.map(([column], i) => `${column} = ?${i + 3}`).join(', ');

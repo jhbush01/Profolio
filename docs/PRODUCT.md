@@ -130,7 +130,11 @@ Ordered easiest-first within dependency order.
 4. **Generated data-collection profile.** The table a candidate currently
    rebuilds from memory.
 5. **Programme checklist with progress.** "By week 3, have I collected…".
-6. **Context statement form.** A fully enumerated form, so a fully generated page.
+6. **Context statement.** Shipped. The questions are declared by the template,
+   not stored as columns, and the answers live on the programme as JSON — a
+   placement wants sector, year level and class size; a professional-development
+   year wants almost none of that. Duration is derived from the programme's own
+   window rather than asked twice, and the generated statement is copyable.
 7. **Phone-first capture.** Camera → tag → done, in a corridor between lessons.
    Biggest adoption lever. Shipped: /capture, with the capture bar pinned to the
    thumb zone, `capture="environment"` for the rear camera, and large tap chips
