@@ -17,8 +17,8 @@ const hidden = path.startsWith('/capture') || path.startsWith('/present');
 const links = [
   { href: '/', label: 'Home', icon: 'house' },
   { href: '/programmes', label: 'Programmes', icon: 'calendar' },
-  { href: '/portfolio', label: 'Portfolio', icon: 'folder' },
-  { href: '/data-profile', label: 'Profile', icon: 'list-checks' },
+  { href: '/portfolio', label: 'Evidence', icon: 'folder' },
+  { href: '/export', label: 'Export', icon: 'download' },
 ];
 
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));

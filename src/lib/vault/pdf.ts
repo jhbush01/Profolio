@@ -82,12 +82,42 @@ export interface ExportProgress {
 /** Fetches one document's bytes. Injected so this module stays storage-agnostic. */
 export type LoadBytes = (doc: VaultDocument) => Promise<Uint8Array>;
 
+/**
+ * One programme's section of the document.
+ *
+ * Deliberately pre-resolved by the caller: the exporter knows nothing about
+ * templates, checklists or the programme registry, so adding a new programme
+ * type never touches this file.
+ */
+export interface ProgrammeSection {
+  name: string;
+  /** Rendered window, e.g. "20 Jul – 29 Aug 2026". Null when undated. */
+  window: string | null;
+  /** Pre-rendered "Label: value" lines. Empty to omit the statement page. */
+  contextLines: string[];
+  documents: VaultDocument[];
+}
+
+/**
+ * What goes in the document, when exporting by programme.
+ *
+ * Omit it entirely and the export falls back to the folder structure, which is
+ * still the right shape for evidence that belongs to no programme.
+ */
+export interface ExportPlan {
+  sections: ProgrammeSection[];
+  /** Chosen records belonging to none of the sections, as a closing section. */
+  unassigned: VaultDocument[];
+  includeProfileTable: boolean;
+}
+
 export async function buildPortfolioPdf(
   profile: VaultProfile,
   folders: VaultFolder[],
   documents: VaultDocument[],
   loadBytes: LoadBytes,
   onProgress: ExportProgress = () => {},
+  plan?: ExportPlan,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -127,9 +157,10 @@ export async function buildPortfolioPdf(
       month: 'long',
       year: 'numeric',
     });
-    const counts = `${documents.length} document${documents.length === 1 ? '' : 's'} in ${
-      folders.length
-    } folder${folders.length === 1 ? '' : 's'}`;
+    const sectionCount = plan ? plan.sections.length + (plan.unassigned.length > 0 ? 1 : 0) : folders.length;
+    const counts = plan
+      ? `${documents.length} record${documents.length === 1 ? '' : 's'} in ${sectionCount} section${sectionCount === 1 ? '' : 's'}`
+      : `${documents.length} document${documents.length === 1 ? '' : 's'} in ${folders.length} folder${folders.length === 1 ? '' : 's'}`;
     cover.drawLine({
       start: { x: MARGIN, y: 128 },
       end: { x: width - MARGIN, y: 128 },
@@ -155,8 +186,8 @@ export async function buildPortfolioPdf(
    * Rows come from the same builder the on-screen view uses, so the printed
    * table cannot disagree with the screen.
    */
-  function drawProfileTable(): number {
-    const rows = buildProfileRows(documents);
+  function drawProfileTable(subset: VaultDocument[] = documents): number {
+    const rows = buildProfileRows(subset);
     if (rows.length === 0) return -1;
 
     const pageWidth = A4_LANDSCAPE[0];
@@ -261,7 +292,15 @@ export async function buildPortfolioPdf(
 
   const unfiled = documents.filter((doc) => !doc.folderId);
   const toc: TocEntry[] = [];
-  const totalSteps = documents.length || 1;
+  // Counted as draws, not as records. A record assigned to two programmes is
+  // printed in both sections — each section has to stand on its own if someone
+  // hands over one of them — so the progress total is the sum of the sections,
+  // which is larger than the number of distinct documents.
+  const totalSteps =
+    (plan
+      ? plan.sections.reduce((sum, section) => sum + section.documents.length, 0) +
+        plan.unassigned.length
+      : documents.length) || 1;
   let step = 0;
 
   /** Page index relative to the finished document, before TOC insertion. */
@@ -352,6 +391,58 @@ export async function buildPortfolioPdf(
     }
   }
 
+  /**
+   * A programme's opening page: what it was, over what window, and how much it
+   * holds. The equivalent of a folder divider, but a programme carries dates
+   * and a folder does not.
+   */
+  function drawSectionDivider(name: string, window: string | null, count: number) {
+    const page = pdf.addPage(A4);
+    let y = A4[1] / 2 + 40;
+    page.drawRectangle({ x: MARGIN, y: y + 34, width: 54, height: 4, color: ACCENT });
+    for (const line of wrap(name, bold, 26, contentWidth)) {
+      page.drawText(line, { x: MARGIN, y, size: 26, font: bold, color: INK });
+      y -= 32;
+    }
+    y -= 4;
+    if (window) {
+      page.drawText(sanitize(window), { x: MARGIN, y, size: 11, font: regular, color: MUTED });
+      y -= 18;
+    }
+    page.drawText(sanitize(`${count} record${count === 1 ? '' : 's'}`), {
+      x: MARGIN,
+      y,
+      size: 10,
+      font: regular,
+      color: ACCENT,
+    });
+  }
+
+  /** The programme's own context statement, printed as given. */
+  function drawContextPage(name: string, lines: string[]) {
+    const page = pdf.addPage(A4);
+    let y = A4[1] - MARGIN - 10;
+    page.drawText('Context statement', { x: MARGIN, y, size: 20, font: bold, color: INK });
+    y -= 18;
+    page.drawText(sanitize(name), { x: MARGIN, y, size: 10, font: regular, color: MUTED });
+    y -= 14;
+    page.drawLine({
+      start: { x: MARGIN, y },
+      end: { x: width - MARGIN, y },
+      thickness: 1,
+      color: LINE,
+    });
+    y -= 28;
+
+    for (const line of lines) {
+      for (const wrapped of wrap(line, regular, 11, contentWidth)) {
+        page.drawText(wrapped, { x: MARGIN, y, size: 11, font: regular, color: INK });
+        y -= 17;
+      }
+      y -= 5;
+    }
+  }
+
   function drawDivider(folder: VaultFolder, depth: number, count: number) {
     const page = pdf.addPage(A4);
     let y = A4[1] / 2 + 40;
@@ -377,30 +468,58 @@ export async function buildPortfolioPdf(
     }
   }
 
-  const profileIndex = drawProfileTable();
-  if (profileIndex >= 0) {
-    toc.push({ label: 'Data collection profile', depth: 0, rawIndex: profileIndex });
-  }
+  if (plan) {
+    // By programme. Each one opens with its own divider, then whatever it
+    // produces, then its records — so a reader can hand over one section and
+    // have it stand on its own.
+    for (const section of plan.sections) {
+      toc.push({ label: section.name, depth: 0, rawIndex: rawIndex() });
+      drawSectionDivider(section.name, section.window, section.documents.length);
 
-  for (const { folder, depth } of ordered) {
-    const inside = documents.filter((doc) => doc.folderId === folder.id);
-    toc.push({ label: folder.name, depth, rawIndex: rawIndex() });
-    drawDivider(folder, depth, inside.length);
-    for (const doc of inside) await drawDocument(doc, depth);
-  }
+      if (section.contextLines.length > 0) {
+        toc.push({ label: 'Context statement', depth: 1, rawIndex: rawIndex() });
+        drawContextPage(section.name, section.contextLines);
+      }
 
-  if (unfiled.length > 0) {
-    const pseudo: VaultFolder = {
-      id: '',
-      name: 'Unfiled',
-      parentId: null,
-      note: 'Documents that have not been placed in a folder.',
-      createdAt: 0,
-      order: 0,
-    };
-    toc.push({ label: pseudo.name, depth: 0, rawIndex: rawIndex() });
-    drawDivider(pseudo, 0, unfiled.length);
-    for (const doc of unfiled) await drawDocument(doc, 0);
+      if (plan.includeProfileTable) {
+        const index = drawProfileTable(section.documents);
+        if (index >= 0) toc.push({ label: 'Data collection profile', depth: 1, rawIndex: index });
+      }
+
+      for (const doc of section.documents) await drawDocument(doc, 1);
+    }
+
+    if (plan.unassigned.length > 0) {
+      toc.push({ label: 'Other evidence', depth: 0, rawIndex: rawIndex() });
+      drawSectionDivider('Other evidence', null, plan.unassigned.length);
+      for (const doc of plan.unassigned) await drawDocument(doc, 1);
+    }
+  } else {
+    const profileIndex = drawProfileTable();
+    if (profileIndex >= 0) {
+      toc.push({ label: 'Data collection profile', depth: 0, rawIndex: profileIndex });
+    }
+
+    for (const { folder, depth } of ordered) {
+      const inside = documents.filter((doc) => doc.folderId === folder.id);
+      toc.push({ label: folder.name, depth, rawIndex: rawIndex() });
+      drawDivider(folder, depth, inside.length);
+      for (const doc of inside) await drawDocument(doc, depth);
+    }
+
+    if (unfiled.length > 0) {
+      const pseudo: VaultFolder = {
+        id: '',
+        name: 'Unfiled',
+        parentId: null,
+        note: 'Documents that have not been placed in a folder.',
+        createdAt: 0,
+        order: 0,
+      };
+      toc.push({ label: pseudo.name, depth: 0, rawIndex: rawIndex() });
+      drawDivider(pseudo, 0, unfiled.length);
+      for (const doc of unfiled) await drawDocument(doc, 0);
+    }
   }
 
   /* ----------------------------------------------------- contents pages */

@@ -1,0 +1,31 @@
+---
+/**
+ * Export — assembles the document from whichever programmes are chosen.
+ *
+ * The builder at /portfolio still exports the folder structure, which remains
+ * the right shape for evidence that belongs to no programme. This page is the
+ * one you use to hand over a placement.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+---
+
+<BaseLayout
+  title="Export"
+  description="Build one PDF from the programmes you choose, each with its own section and contents."
+>
+  <PageHeader
+    eyebrow="Export"
+    title="Build a document"
+    lead="Choose which programmes go in. Each becomes a section with its own opening page, in the order below."
+  />
+
+  <div id="export">
+    <div class="h-72 animate-pulse rounded-lg bg-canvas"></div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initExport } from '../lib/vault/export-ui';
+  initExport();
+</script>

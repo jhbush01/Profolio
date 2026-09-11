@@ -85,7 +85,7 @@ function headerBlock(profile: VaultProfile, email: string): string {
       <a href="/capture" class="flex-1 rounded-md bg-accent px-4 py-2 text-center text-sm font-medium text-white transition hover:opacity-90 sm:flex-none">
         Capture evidence
       </a>
-      <a href="/portfolio" class="flex-1 rounded-md border border-line bg-surface px-4 py-2 text-center text-sm font-medium transition hover:border-accent/40 sm:flex-none">
+      <a href="/export" class="flex-1 rounded-md border border-line bg-surface px-4 py-2 text-center text-sm font-medium transition hover:border-accent/40 sm:flex-none">
         Export
       </a>
     </div>
