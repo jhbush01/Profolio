@@ -14,28 +14,32 @@ import { portfolio } from '../lib/portfolio';
 
 const path = Astro.url.pathname;
 
+/**
+ * One flat list of the things the app actually does, in the order you use
+ * them, matching the phone bar exactly.
+ *
+ * The teaching-sequence pages underneath are a fixed sample built from
+ * src/data/*.json. They used to sit as peers of the real features, which read
+ * as though the app shipped with someone else's evidence already in it.
+ */
 const sections = [
   {
     label: null,
-    links: [{ href: '/', label: 'Home', hint: 'Start here' }],
-  },
-  {
-    label: 'Portfolio builder',
     links: [
-      { href: '/capture', label: 'Capture', hint: 'Quick, on your phone' },
-      { href: '/programmes', label: 'Programmes', hint: 'Templates and progress' },
-      { href: '/portfolio', label: 'My portfolio', hint: 'Upload and organise' },
-      { href: '/export', label: 'Export', hint: 'Build a PDF by programme' },
+      { href: '/', label: 'Your ProFolio', hint: 'Every project you are building' },
+      { href: '/capture', label: 'Capture', hint: 'Camera, photos or files' },
+      { href: '/programmes', label: 'Projects', hint: 'What you are collecting for' },
+      { href: '/portfolio', label: 'Evidence', hint: 'Everything you have captured' },
+      { href: '/export', label: 'Export', hint: 'Build a PDF by project' },
       { href: '/data-profile', label: 'Data collection profile', hint: 'Generated summary' },
     ],
   },
   {
-    label: 'Teaching portfolio',
+    label: 'Worked example',
     links: [
-      { href: '/sequence', label: 'Teaching sequence', hint: 'Weeks 1-5' },
-      { href: '/evidence', label: 'Evidence', hint: 'Artefacts by week' },
-      { href: '/standards', label: `${portfolio.framework} alignment`, hint: 'Coverage map' },
-      { href: '/present', label: 'Presentation mode', hint: 'Clean read-only view' },
+      { href: '/sequence', label: 'A teaching sequence', hint: 'Sample, not your evidence' },
+      { href: '/standards', label: `${portfolio.framework} alignment`, hint: 'Coverage of the sample' },
+      { href: '/present', label: 'Presentation mode', hint: 'How a finished one reads' },
     ],
   },
 ];

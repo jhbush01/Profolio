@@ -14,9 +14,12 @@
 const path = Astro.url.pathname;
 const hidden = path.startsWith('/capture') || path.startsWith('/present');
 
+// Deliberately the same labels, in the same order, as the drawer on wider
+// screens: two names for one destination is how navigation stops being
+// trusted.
 const links = [
-  { href: '/', label: 'Home', icon: 'house' },
-  { href: '/programmes', label: 'Programmes', icon: 'calendar' },
+  { href: '/', label: 'ProFolio', icon: 'house' },
+  { href: '/programmes', label: 'Projects', icon: 'calendar' },
   { href: '/portfolio', label: 'Evidence', icon: 'folder' },
   { href: '/export', label: 'Export', icon: 'download' },
 ];

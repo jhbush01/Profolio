@@ -1,10 +1,14 @@
 /**
- * The hub — what a signed-in practitioner lands on.
+ * Your ProFolio — what a signed-in practitioner lands on.
  *
- * Scaled to how much record exists rather than to a fixed layout. With one
- * placement running, career totals ("48 records held") say nothing useful, so
- * the live programme is the page and the rest is context. Years later the same
- * page is mostly the list of programmes.
+ * A grid of projects, the way a portfolio site presents work, because that is
+ * the shape people already know. The two things a portfolio site cannot do are
+ * what the cards carry: each one says what is still missing, and opening one
+ * shows the evidence organised inside it rather than a flat pile.
+ *
+ * "Project" is the word on screen for what the code calls a programme. The
+ * rename stops at the UI on purpose — routes, API and schema still say
+ * programme, and moving those is its own change.
  *
  * Read-only by design: every action here is a link to the page that owns it.
  */
@@ -70,7 +74,8 @@ function headerBlock(profile: VaultProfile, email: string): string {
         ${escapeHtml(initials(profile, email))}
       </div>
       <div class="min-w-0 flex-1">
-        <h1 class="font-display text-3xl font-normal tracking-[-0.02em] sm:text-5xl ${named ? '' : 'text-ink-faint'}">
+        <p class="pf-eyebrow text-ink-faint">Your ProFolio</p>
+        <h1 class="mt-1.5 font-display text-3xl font-normal tracking-[-0.02em] sm:text-5xl ${named ? '' : 'text-ink-faint'}">
           ${escapeHtml(named ? profile.name : 'Your name')}
         </h1>
         <p class="prose-body mt-1 text-sm">
@@ -92,64 +97,92 @@ function headerBlock(profile: VaultProfile, email: string): string {
   </div>`;
 }
 
-/** The live programme, given the whole page over to it while one is running. */
-function leadProgrammeBlock(programme: Programme, documents: VaultDocument[]): string {
+/**
+ * One project card.
+ *
+ * The grid is the page, the way a portfolio site's project grid is. What a
+ * portfolio site cannot put on a card is what is still missing — that is the
+ * checklist line, and it is the reason to open the app rather than admire it.
+ */
+function projectCard(programme: Programme, documents: VaultDocument[]): string {
   const template = templateFor(programme.template);
-  if (!template) return '';
-
   const assigned = documents.filter((doc) => doc.programmes.includes(programme.id));
-  const elapsed = elapsedFraction(programme.startsOn, programme.endsOn);
-  const progress = scoreProgramme(template, assigned, elapsed);
-  const done = progress.filter((p) => p.satisfied).length;
-  const overdue = progress.filter((p) => p.overdue).length;
-  const percent = progress.length > 0 ? Math.round((done / progress.length) * 100) : 0;
+  const closed = programme.closedAt !== null;
 
   const week = currentWeek(programme.startsOn, programme.endsOn);
   const weeks = totalWeeks(programme.startsOn, programme.endsOn);
-  const windowLabel =
+  const window =
     programme.startsOn && programme.endsOn
-      ? `${isoShortDate(programme.startsOn)} – ${isoShortDate(programme.endsOn)}${week && weeks ? ` · week ${week} of ${weeks}` : ''}`
+      ? `${isoShortDate(programme.startsOn)} – ${isoShortDate(programme.endsOn)}`
       : 'No dates set';
 
-  const sections = [...new Set(template.items.map((item) => item.section))];
-  const tiles = sections
-    .map((section) => {
-      // Items, not records — so the tiles add up to the count in the header.
-      const rows = progress.filter((p) => p.item.section === section);
-      const got = rows.filter((p) => p.satisfied).length;
-      const need = rows.length;
-      const behind = rows.some((p) => p.overdue);
-      return `<div class="flex flex-1 flex-col gap-1.5 rounded-md bg-canvas px-4 py-3">
-        <span class="pf-eyebrow text-ink-faint">${escapeHtml(section)}</span>
-        <span class="font-mono text-sm ${behind ? 'text-critical' : 'text-positive'}">${got} of ${need}</span>
-      </div>`;
-    })
-    .join('');
+  let progressLine = `${assigned.length} record${assigned.length === 1 ? '' : 's'}`;
+  let percent = 0;
+  let missing = '';
 
-  return `<section class="card flex flex-col gap-4 p-6 shadow-[0_1px_3px_rgba(77,51,22,0.07)]">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <p class="pf-eyebrow text-ink-faint">Collecting now</p>
-        <h2 class="mt-1.5 font-display text-3xl font-normal tracking-[-0.02em]">${escapeHtml(programme.name)}</h2>
-        <p class="mt-1.5 font-mono text-xs text-ink-muted">${escapeHtml(windowLabel)}</p>
+  if (template) {
+    const elapsed = closed ? null : elapsedFraction(programme.startsOn, programme.endsOn);
+    const progress = scoreProgramme(template, assigned, elapsed);
+    const done = progress.filter((p) => p.satisfied).length;
+    const overdue = progress.filter((p) => p.overdue);
+    percent = progress.length > 0 ? Math.round((done / progress.length) * 100) : 0;
+    progressLine = `${done} of ${progress.length} collected · ${assigned.length} record${assigned.length === 1 ? '' : 's'}`;
+
+    const next = overdue[0] ?? progress.find((p) => !p.satisfied);
+    if (overdue.length > 0) {
+      missing = `<p class="mt-2.5 text-xs font-medium text-critical">
+        Behind: ${escapeHtml(next!.item.label.toLowerCase())}${overdue.length > 1 ? ` and ${overdue.length - 1} more` : ''}
+      </p>`;
+    } else if (next) {
+      missing = `<p class="mt-2.5 text-xs text-ink-muted">Next: ${escapeHtml(next.item.label.toLowerCase())}</p>`;
+    } else {
+      missing = '<p class="mt-2.5 text-xs font-medium text-positive">Everything on the checklist is collected</p>';
+    }
+  }
+
+  return `<a href="/programmes"
+    class="card flex flex-col p-0 transition hover:border-accent/40 hover:shadow-[0_4px_14px_rgba(77,51,22,0.08)]">
+    <div class="flex items-start justify-between gap-3 border-b border-line-subtle px-5 py-4">
+      <div class="min-w-0">
+        <p class="pf-eyebrow text-ink-faint">${escapeHtml(template?.name ?? 'Project')}</p>
+        <h3 class="mt-1.5 text-lg font-semibold leading-snug">${escapeHtml(programme.name)}</h3>
       </div>
-      <div class="text-right">
-        <p>
-          <span class="font-display text-4xl font-normal">${done}</span>
-          <span class="text-sm text-ink-muted">of ${progress.length} collected</span>
-        </p>
-        <p class="text-xs text-ink-muted">${assigned.length} record${assigned.length === 1 ? '' : 's'} in this programme</p>
-        ${overdue > 0 ? `<p class="text-xs font-medium text-critical">${overdue} behind schedule</p>` : ''}
-      </div>
+      <span class="shrink-0 rounded-sm px-2 py-0.5 text-xs font-medium ${
+        closed ? 'bg-canvas text-ink-muted' : 'bg-selected text-positive'
+      }">${closed ? 'Closed' : 'Collecting'}</span>
     </div>
 
-    <div class="h-1.5 w-full overflow-hidden rounded-full bg-canvas">
-      <div class="h-full rounded-full bg-accent" style="width:${percent}%"></div>
+    <div class="flex flex-1 flex-col px-5 py-4">
+      <p class="font-mono text-xs text-ink-muted">${escapeHtml(window)}</p>
+      ${week && weeks && !closed ? `<p class="mt-1 font-mono text-xs text-ink-faint">week ${week} of ${weeks}</p>` : ''}
+
+      <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-canvas">
+        <div class="h-full rounded-full bg-accent" style="width:${percent}%"></div>
+      </div>
+      <p class="mt-2 text-xs text-ink-muted">${escapeHtml(progressLine)}</p>
+      ${missing}
     </div>
+  </a>`;
+}
 
-    <div class="flex flex-wrap gap-3">${tiles}</div>
+/** The grid, plus the tile that starts a new one. */
+function projectGrid(programmes: Programme[], documents: VaultDocument[]): string {
+  const cards = programmes.map((programme) => projectCard(programme, documents)).join('');
 
-    <a href="/programmes" class="text-sm font-medium text-accent hover:underline">Open this programme →</a>
+  return `<section class="flex flex-col gap-4">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 class="text-xl font-semibold">Your projects</h2>
+      <a href="/programmes" class="text-xs font-medium text-accent hover:underline">Manage</a>
+    </div>
+    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      ${cards}
+      <a href="/programmes"
+        class="flex min-h-44 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-canvas p-6 text-center transition hover:border-accent/50">
+        <span class="text-2xl leading-none text-ink-faint" aria-hidden="true">+</span>
+        <span class="text-sm font-medium text-ink-muted">Start a project</span>
+        <span class="max-w-[24ch] text-xs text-ink-faint">A placement, a registration year — it brings its own checklist.</span>
+      </a>
+    </div>
   </section>`;
 }
 
@@ -201,7 +234,7 @@ function attentionItems(documents: VaultDocument[], programmes: Programme[]): At
   if (unassigned.length > 0 && openProgrammes(programmes).length > 0) {
     items.push({
       tone: 'muted',
-      title: `${unassigned.length} record${unassigned.length === 1 ? '' : 's'} not in a programme`,
+      title: `${unassigned.length} record${unassigned.length === 1 ? '' : 's'} not in a project`,
       detail: 'Kept in your evidence, but counting toward nothing until you assign them.',
       href: '/portfolio',
       action: 'Assign',
@@ -283,7 +316,7 @@ function recentBlock(documents: VaultDocument[], programmes: Programme[]): strin
 
 /**
  * What the lead programme produces. A different template asks for different
- * things, which is the point — this is where a programme's own character shows.
+ * things, which is the point — this is where a project's own character shows.
  */
 function outputsBlock(programme: Programme | undefined, deidAcknowledged: boolean, documents: VaultDocument[]): string {
   if (!programme) return '';
@@ -325,8 +358,8 @@ function outputsBlock(programme: Programme | undefined, deidAcknowledged: boolea
   );
 
   return `<section class="card p-6">
-    <h3 class="text-base font-semibold">What this programme produces</h3>
-    <p class="prose-body mb-1.5 mt-1 text-xs">Another programme asks for different things.</p>
+    <h3 class="text-base font-semibold">What this project produces</h3>
+    <p class="prose-body mb-1.5 mt-1 text-xs">Another project asks for different things.</p>
     ${rows.join('')}
   </section>`;
 
@@ -342,39 +375,6 @@ function outputsBlock(programme: Programme | undefined, deidAcknowledged: boolea
   }
 }
 
-function programmesBlock(programmes: Programme[], documents: VaultDocument[]): string {
-  if (programmes.length === 0) return '';
-
-  const rows = programmes
-    .slice(0, 6)
-    .map((programme) => {
-      const count = documents.filter((doc) => doc.programmes.includes(programme.id)).length;
-      const closed = programme.closedAt !== null;
-      const window =
-        programme.startsOn && programme.endsOn
-          ? `${isoShortDate(programme.startsOn)} – ${isoShortDate(programme.endsOn)}`
-          : 'No dates set';
-      return `<div class="flex items-center gap-3 border-t border-line py-3">
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium">${escapeHtml(programme.name)}</p>
-          <p class="mt-0.5 font-mono text-xs text-ink-muted">${escapeHtml(window)} · ${count} record${count === 1 ? '' : 's'}</p>
-        </div>
-        <span class="shrink-0 rounded-sm px-2 py-0.5 text-xs font-medium ${
-          closed ? 'bg-canvas text-ink-muted' : 'bg-selected text-positive'
-        }">${closed ? 'Closed' : 'Collecting'}</span>
-      </div>`;
-    })
-    .join('');
-
-  return `<section class="card p-6">
-    <div class="flex items-baseline justify-between gap-4 pb-1.5">
-      <h3 class="text-base font-semibold">My programmes</h3>
-      <a href="/programmes" class="text-xs font-medium text-accent hover:underline">All</a>
-    </div>
-    ${rows}
-  </section>`;
-}
-
 /** Day one. Says what belongs here and offers the one action that fills it. */
 function emptyBlock(hasProgramme: boolean): string {
   return `<section class="flex flex-col items-center gap-4 rounded-lg border border-dashed border-line bg-canvas px-8 py-16 text-center">
@@ -382,19 +382,19 @@ function emptyBlock(hasProgramme: boolean): string {
     <p class="prose-body max-w-[52ch] text-sm">
       ${
         hasProgramme
-          ? 'Capture a piece of evidence and it appears here, dated and kept, counting toward the programme you are collecting for.'
-          : 'Start with what you are collecting for — a final placement, a registration year. Evidence you capture then has somewhere to go, and the programme tells you what is still missing while there is time to collect it.'
+          ? 'Capture a piece of evidence and it appears here, dated and kept, counting toward the project you are collecting for.'
+          : 'Start with what you are collecting for — a final placement, a registration year. Evidence you capture then has somewhere to go, and the project tells you what is still missing while there is time to collect it.'
       }
     </p>
     <div class="flex flex-wrap justify-center gap-2">
       ${
         hasProgramme
           ? `<a href="/capture" class="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90">Capture evidence</a>`
-          : `<a href="/programmes" class="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90">Start a programme</a>
+          : `<a href="/programmes" class="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90">Start a project</a>
              <a href="/capture" class="rounded-md border border-line bg-surface px-5 py-2.5 text-sm font-medium transition hover:border-accent/40">Capture evidence</a>`
       }
     </div>
-    <p class="text-xs text-ink-faint">You can capture first and assign it to a programme later.</p>
+    <p class="text-xs text-ink-faint">You can capture first and assign it to a project later.</p>
   </section>`;
 }
 
@@ -412,13 +412,13 @@ export async function initHome() {
     const lead = leadProgramme(programmes);
     const attention = attentionItems(documents, programmes);
 
-    // With nothing captured the page is a single empty state; the panels below
-    // would all be zeroes, which says less than one clear sentence does.
+    // With nothing captured and nothing started, the page is a single empty
+    // state; a grid of zeroes says less than one clear sentence does.
     const body =
-      documents.length === 0
-        ? emptyBlock(programmes.length > 0)
-        : `<div class="flex flex-col gap-7">
-            ${lead ? leadProgrammeBlock(lead, documents) : ''}
+      documents.length === 0 && programmes.length === 0
+        ? emptyBlock(false)
+        : `<div class="flex flex-col gap-8">
+            ${projectGrid(programmes, documents)}
             <div class="grid gap-7 lg:grid-cols-[1.6fr_1fr]">
               <div class="flex flex-col gap-5">
                 ${attentionBlock(attention)}
@@ -426,7 +426,6 @@ export async function initHome() {
               </div>
               <div class="flex flex-col gap-5">
                 ${outputsBlock(lead, deidAcknowledged, documents)}
-                ${programmesBlock(programmes, documents)}
               </div>
             </div>
           </div>`;
