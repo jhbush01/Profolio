@@ -29,14 +29,14 @@ const types = [...new Set(artefacts.map((artefact) => artefact.type))];
   showFilters && artefacts.length > 0 && (
     <div class="mb-5 flex flex-wrap items-center gap-2">
       <span class="text-xs font-medium text-ink-muted">Filter (placeholder):</span>
-      <button type="button" class="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+      <button type="button" class="rounded-sm bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
         All
       </button>
       {types.map((type) => (
         <button
           type="button"
           disabled
-          class="cursor-not-allowed rounded-full border border-line px-3 py-1 text-xs text-ink-muted opacity-60"
+          class="cursor-not-allowed rounded-sm border border-line px-3 py-1 text-xs text-ink-muted opacity-60"
         >
           {type}
         </button>
@@ -47,7 +47,7 @@ const types = [...new Set(artefacts.map((artefact) => artefact.type))];
 
 {
   artefacts.length === 0 ? (
-    <p class="rounded-xl border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
+    <p class="rounded-lg border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
       {emptyMessage}
     </p>
   ) : (

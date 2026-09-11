@@ -24,7 +24,7 @@ const { selected = [], legend = 'Tag against the standards' } = Astro.props;
 const domains = [...new Set(standards.map((standard) => standard.domain))];
 ---
 
-<fieldset class="rounded-xl border border-line bg-surface p-5">
+<fieldset class="rounded-lg border border-line bg-surface p-5">
   <legend class="px-1 text-sm font-medium">{legend}</legend>
   <p class="prose-body mb-4 text-xs">
     Placeholder — selections are not saved yet. Wire this to the artefact record
@@ -40,7 +40,7 @@ const domains = [...new Set(standards.map((standard) => standard.domain))];
             .filter((standard) => standard.domain === domain)
             .map((standard) => (
               <label
-                class="cursor-pointer rounded-full border border-line px-3 py-1 text-xs text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent hover:border-accent/40"
+                class="cursor-pointer rounded-sm border border-line px-3 py-1 text-xs text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent hover:border-accent/40"
                 title={standard.descriptor}
               >
                 <input

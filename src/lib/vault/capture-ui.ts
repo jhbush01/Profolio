@@ -91,7 +91,7 @@ function renderCaptured() {
 
   host.innerHTML = captured
     .map(
-      (doc) => `<article class="rounded-xl border border-line bg-surface p-3" data-capture="${doc.id}">
+      (doc) => `<article class="rounded-lg border border-line bg-surface p-3" data-capture="${doc.id}">
         <p class="truncate text-sm font-medium" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
 
         <p class="mt-3 text-xs font-medium text-ink-muted">Stage</p>

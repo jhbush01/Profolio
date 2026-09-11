@@ -27,7 +27,7 @@ const evidenced = coverage.filter((standard) => standard.artefactCount > 0).leng
     domains.map((domain) => (
       <section class="mb-10">
         <h2 class="mb-3 text-lg font-semibold">{domain}</h2>
-        <div class="overflow-hidden rounded-xl border border-line bg-surface">
+        <div class="overflow-hidden rounded-lg border border-line bg-surface">
           {coverage
             .filter((standard) => standard.domain === domain)
             .map((standard) => (

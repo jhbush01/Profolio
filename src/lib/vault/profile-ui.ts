@@ -38,7 +38,7 @@ export async function initProfileTable() {
     }
 
     if (rows.length === 0) {
-      host.innerHTML = `<p class="rounded-xl border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
+      host.innerHTML = `<p class="rounded-lg border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
         Nothing to summarise yet. Add evidence in the
         <a href="/portfolio" class="text-accent underline underline-offset-2">portfolio builder</a>,
         then come back.
@@ -69,7 +69,7 @@ export async function initProfileTable() {
               `<td class="border-b border-line px-3 py-2 align-top ${cell === BLANK ? 'text-ink-muted' : ''}">${escapeHtml(cell)}</td>`,
           )
           .join('');
-        return `<tr class="${row.complete ? '' : 'bg-amber-50/50'}">
+        return `<tr class="${row.complete ? '' : 'bg-caution-surface/50'}">
           <th scope="row" class="border-b border-line px-3 py-2 text-left align-top font-normal">
             <span class="block max-w-[16rem] truncate" title="${escapeHtml(row.documentName)}">${escapeHtml(row.documentName)}</span>
           </th>
@@ -78,7 +78,7 @@ export async function initProfileTable() {
       })
       .join('');
 
-    host.innerHTML = `<div class="overflow-x-auto rounded-xl border border-line bg-surface">
+    host.innerHTML = `<div class="overflow-x-auto rounded-lg border border-line bg-surface">
       <table class="w-full border-collapse text-xs">
         <thead class="bg-canvas text-ink">
           <tr>
@@ -94,7 +94,7 @@ export async function initProfileTable() {
       window.location.reload();
       return;
     }
-    host.innerHTML = `<p class="rounded-xl border border-line bg-surface p-6 text-sm text-red-700">
+    host.innerHTML = `<p class="rounded-lg border border-line bg-surface p-6 text-sm text-critical">
       Could not load your records: ${escapeHtml(error instanceof Error ? error.message : String(error))}
     </p>`;
   }

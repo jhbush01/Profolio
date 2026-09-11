@@ -16,8 +16,8 @@ import { artefactsForPhase, phases, portfolio } from '../lib/portfolio';
 
 <PresentationLayout title="Presentation mode">
   <header class="mb-20 border-b border-line pb-12 text-center">
-    <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-accent">{portfolio.role}</p>
-    <h1 class="font-display text-5xl font-semibold">{portfolio.title}</h1>
+    <p class="pf-eyebrow mb-3 text-accent">{portfolio.role}</p>
+    <h1 class="font-display text-5xl font-normal tracking-[-0.02em]">{portfolio.title}</h1>
     <p class="prose-body mx-auto mt-4 max-w-xl text-base">{portfolio.tagline}</p>
     <p class="mt-6 text-sm text-ink-muted">{portfolio.owner} · {portfolio.context}</p>
   </header>
@@ -27,10 +27,8 @@ import { artefactsForPhase, phases, portfolio } from '../lib/portfolio';
       const artefacts = artefactsForPhase(phase.slug);
       return (
         <section class="mb-20 break-inside-avoid">
-          <p class="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-accent">
-            Week {phase.number}
-          </p>
-          <h2 class="font-display text-3xl font-semibold">{phase.title}</h2>
+          <p class="pf-eyebrow mb-2 text-accent">Week {phase.number}</p>
+          <h2 class="font-display text-3xl font-normal tracking-[-0.02em]">{phase.title}</h2>
           <p class="prose-body mt-3 max-w-2xl text-base">{phase.summary}</p>
 
           <div class="mt-4 flex flex-wrap gap-1.5">
@@ -44,12 +42,12 @@ import { artefactsForPhase, phases, portfolio } from '../lib/portfolio';
               PDF first page, image thumbnail, or a rendered data chart. */}
           <div class="mt-6 grid gap-4 sm:grid-cols-2">
             {artefacts.length === 0 ? (
-              <div class="rounded-xl border border-dashed border-line p-10 text-center text-sm text-ink-muted sm:col-span-2">
+              <div class="rounded-lg border border-dashed border-line p-10 text-center text-sm text-ink-muted sm:col-span-2">
                 Artefact previews will render here.
               </div>
             ) : (
               artefacts.map((artefact) => (
-                <figure class="overflow-hidden rounded-xl border border-line">
+                <figure class="overflow-hidden rounded-lg border border-line">
                   <div class="flex aspect-[4/3] items-center justify-center bg-canvas text-xs text-ink-muted">
                     Preview placeholder · {artefact.fileName}
                   </div>

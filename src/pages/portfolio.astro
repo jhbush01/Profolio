@@ -24,8 +24,8 @@ import PageHeader from '../components/PageHeader.astro';
   />
 
   <!-- Who you are, and where the files actually live. -->
-  <div class="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-    <span class="inline-flex size-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
+  <div class="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+    <span class="inline-flex size-2 rounded-full bg-positive" aria-hidden="true"></span>
     <p>
       Signed in as <strong id="signed-in-as" class="font-medium">…</strong>
     </p>
@@ -59,25 +59,25 @@ import PageHeader from '../components/PageHeader.astro';
   <section
     id="deid-gate"
     hidden
-    class="mb-8 rounded-xl border border-amber-300/70 bg-amber-50 p-5"
+    class="mb-8 rounded-lg border border-caution/30 bg-caution-surface p-5"
   >
-    <h2 class="text-base font-semibold text-amber-900">Before you upload anything</h2>
-    <p class="mt-2 text-sm text-amber-900">
+    <h2 class="text-base font-semibold text-caution">Before you upload anything</h2>
+    <p class="mt-2 text-sm text-caution">
       Portfolio evidence often includes other people's work — including students'.
       That is the most sensitive material this app will ever hold.
     </p>
-    <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900">
+    <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-caution">
       <li>Remove names, student numbers, dates of birth and photographs of faces.</li>
       <li>Refer to individuals by a pseudonym or as Focus Student A, B and C.</li>
       <li>Check your school's and university's rules before storing anything about a student.</li>
       <li>Rename files too — a filename can identify someone just as easily.</li>
     </ul>
-    <p class="mt-3 text-xs text-amber-800">
+    <p class="mt-3 text-xs text-caution/90">
       We warn you if a filename looks like it contains an identifier, but that check
       is a safety net, not a substitute for looking.
     </p>
 
-    <label class="mt-4 flex items-start gap-2 text-sm text-amber-900">
+    <label class="mt-4 flex items-start gap-2 text-sm text-caution">
       <input id="deid-confirm" type="checkbox" class="mt-0.5" />
       <span>
         I understand, and I will de-identify student material before uploading it.
@@ -86,7 +86,7 @@ import PageHeader from '../components/PageHeader.astro';
     <button
       id="deid-accept"
       type="button"
-      class="mt-4 rounded-lg bg-amber-900 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+      class="mt-4 rounded-md bg-caution px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
     >
       Confirm and enable uploads
     </button>
@@ -104,7 +104,7 @@ import PageHeader from '../components/PageHeader.astro';
       Export PDF
     </button>
     <p id="export-status" role="status" aria-live="polite" class="text-xs text-ink-muted"></p>
-    <button id="clear-all" type="button" class="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-red-600">
+    <button id="clear-all" type="button" class="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-critical">
       Clear everything
     </button>
     <input id="file-input" type="file" multiple class="sr-only" />
@@ -125,7 +125,7 @@ import PageHeader from '../components/PageHeader.astro';
           <span
             id="pending-detail"
             hidden
-            class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+            class="rounded-sm bg-caution-surface px-2.5 py-0.5 text-xs font-medium text-caution"
           ></span>
           <p id="usage" class="text-xs text-ink-muted"></p>
         </div>
@@ -148,7 +148,7 @@ import PageHeader from '../components/PageHeader.astro';
     hidden
     class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-accent/10 backdrop-blur-[1px]"
   >
-    <p class="rounded-xl border-2 border-dashed border-accent bg-surface px-8 py-6 text-sm font-medium text-accent">
+    <p class="rounded-lg border-2 border-dashed border-accent bg-surface px-8 py-6 text-sm font-medium text-accent">
       Drop files to add them
     </p>
   </div>

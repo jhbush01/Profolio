@@ -156,7 +156,7 @@ function contextSection(
   return `<details class="border-t border-line" ${answered === 0 ? '' : 'open'}>
     <summary class="cursor-pointer px-4 py-2 text-xs">
       Context statement
-      <span class="${answered === total ? 'text-emerald-700' : 'text-ink-muted'}">— ${answered} of ${total} filled in</span>
+      <span class="${answered === total ? 'text-positive' : 'text-ink-muted'}">— ${answered} of ${total} filled in</span>
     </summary>
     <div class="grid gap-3 px-4 pb-4 sm:grid-cols-2">${inputs}</div>
     <div class="mx-4 mb-4 rounded-lg border border-line bg-canvas/60 p-3">
@@ -206,9 +206,9 @@ function renderProgrammes() {
             .filter((p) => p.item.section === section)
             .map((p) => {
               const tone = p.satisfied
-                ? 'text-emerald-700'
+                ? 'text-positive'
                 : p.overdue
-                  ? 'text-red-700'
+                  ? 'text-critical'
                   : 'text-ink-muted';
               const mark = p.satisfied ? '✓' : p.overdue ? '!' : '○';
               const count =
@@ -233,17 +233,17 @@ function renderProgrammes() {
         ? `${programme.startsOn} → ${programme.endsOn}${weeks ? ` · ${weeks} weeks` : ''}${week ? ` · currently week ${week}` : ''}`
         : 'No dates set — nothing will be flagged as overdue';
 
-      return `<article class="overflow-hidden rounded-xl border border-line bg-surface" data-programme="${programme.id}">
+      return `<article class="overflow-hidden rounded-lg border border-line bg-surface" data-programme="${programme.id}">
         <div class="flex flex-wrap items-start justify-between gap-3 p-4">
           <div class="min-w-0">
-            <p class="text-xs font-medium uppercase tracking-wider text-accent">${escapeHtml(template.name)}</p>
+            <p class="pf-eyebrow text-accent">${escapeHtml(template.name)}</p>
             <h3 class="mt-0.5 text-lg font-semibold">${escapeHtml(programme.name)}</h3>
             <p class="mt-1 text-xs text-ink-muted">${escapeHtml(windowLabel)}</p>
           </div>
           <div class="text-right">
-            <p class="font-display text-2xl font-semibold">${percent}%</p>
+            <p class="font-display text-2xl font-normal">${percent}%</p>
             <p class="text-xs text-ink-muted">${done} of ${progress.length} collected</p>
-            ${overdue > 0 ? `<p class="text-xs font-medium text-red-700">${overdue} behind schedule</p>` : ''}
+            ${overdue > 0 ? `<p class="text-xs font-medium text-critical">${overdue} behind schedule</p>` : ''}
           </div>
         </div>
 
@@ -273,7 +273,7 @@ function renderProgrammes() {
         <div class="flex items-center justify-between border-t border-line px-4 py-2">
           <a href="/portfolio" class="text-xs text-accent hover:underline">Add evidence →</a>
           <button type="button" data-remove="${programme.id}"
-            class="text-xs text-ink-muted underline underline-offset-2 hover:text-red-600">Remove programme</button>
+            class="text-xs text-ink-muted underline underline-offset-2 hover:text-critical">Remove programme</button>
         </div>
       </article>`;
     })
@@ -319,7 +319,7 @@ function refreshStatement(programme: Programme, card: HTMLElement) {
   const answered = template.contextFields.filter((f) => programme.context[f.id]?.trim()).length;
   if (summary) {
     summary.textContent = `— ${answered} of ${template.contextFields.length} filled in`;
-    summary.className = answered === template.contextFields.length ? 'text-emerald-700' : 'text-ink-muted';
+    summary.className = answered === template.contextFields.length ? 'text-positive' : 'text-ink-muted';
   }
 }
 

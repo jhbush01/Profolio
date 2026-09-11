@@ -98,13 +98,13 @@ function selectFor(
 function detailPanel(doc: VaultDocument): string {
   const gaps = missingDimensions(doc);
   const summary = gaps.length === 0
-    ? '<span class="text-emerald-700">Details complete</span>'
-    : `<span class="text-amber-700">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
+    ? '<span class="text-positive">Details complete</span>'
+    : `<span class="text-caution">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
 
   const standardChips = STANDARDS.map(
     (standard) => `<label
         title="${escapeHtml(standard.focus)}"
-        class="cursor-pointer rounded-full border border-line px-2 py-0.5 text-[0.7rem] text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent"
+        class="cursor-pointer rounded-sm border border-line px-2 py-0.5 font-mono text-[0.7rem] text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent"
       >
         <input
           type="checkbox"
@@ -189,7 +189,7 @@ function renderFolders() {
     <span class="flex items-center gap-0.5 pr-1.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
       <button type="button" data-subfolder="${folder.id}" title="Add subfolder" aria-label="Add subfolder in ${escapeHtml(folder.name)}" class="rounded p-1 text-ink-muted hover:bg-surface hover:text-accent">+</button>
       <button type="button" data-rename="${folder.id}" title="Rename" aria-label="Rename ${escapeHtml(folder.name)}" class="rounded p-1 text-xs text-ink-muted hover:bg-surface hover:text-accent">✎</button>
-      <button type="button" data-delete-folder="${folder.id}" title="Delete" aria-label="Delete ${escapeHtml(folder.name)}" class="rounded p-1 text-xs text-ink-muted hover:bg-surface hover:text-red-600">✕</button>
+      <button type="button" data-delete-folder="${folder.id}" title="Delete" aria-label="Delete ${escapeHtml(folder.name)}" class="rounded p-1 text-xs text-ink-muted hover:bg-surface hover:text-critical">✕</button>
     </span>`;
 
   let html = `<ul class="space-y-0.5">`;
@@ -232,7 +232,7 @@ function renderDocuments() {
 
   const items = visibleDocuments();
   if (items.length === 0) {
-    host.innerHTML = `<p class="rounded-xl border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
+    host.innerHTML = `<p class="rounded-lg border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
       Nothing here yet. Use <strong class="font-medium">Add files</strong> above, or drop files onto this page.
     </p>`;
     return;
@@ -272,12 +272,12 @@ function renderDocuments() {
               <span
                 data-needs-detail
                 ${isComplete(doc) ? 'hidden' : ''}
-                class="rounded bg-amber-100 px-1.5 py-0.5 text-[0.65rem] font-medium text-amber-800"
+                class="rounded bg-caution-surface px-1.5 py-0.5 text-[0.65rem] font-medium text-caution"
               >Needs detail</span>
             </p>
             </div>
           </div>
-          <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}" class="shrink-0 rounded p-1 text-xs text-ink-muted hover:text-red-600">✕</button>
+          <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}" class="shrink-0 rounded p-1 text-xs text-ink-muted hover:text-critical">✕</button>
         </div>
 
         <input
@@ -320,8 +320,8 @@ function refreshCardStatus(doc: VaultDocument) {
   if (summary) {
     summary.innerHTML =
       gaps.length === 0
-        ? '<span class="text-emerald-700">Details complete</span>'
-        : `<span class="text-amber-700">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
+        ? '<span class="text-positive">Details complete</span>'
+        : `<span class="text-caution">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
   }
 
   renderPendingCount();

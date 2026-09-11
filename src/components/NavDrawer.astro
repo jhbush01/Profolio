@@ -49,15 +49,13 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
       id="drawer-open"
       aria-controls="app-drawer"
       aria-expanded="false"
-      class="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
+      class="flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
     >
-      <svg viewBox="0 0 20 20" class="size-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <path d="M3 5h14M3 10h14M3 15h14" />
-      </svg>
+      <i data-lucide="menu" class="size-4" aria-hidden="true"></i>
       Menu
     </button>
 
-    <a href="/" class="font-display text-base font-semibold">Profolio</a>
+    <a href="/" class="font-display text-base font-normal">Profolio</a>
   </div>
 </header>
 
@@ -72,7 +70,7 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
 >
   <div class="flex items-center justify-between border-b border-line px-5 py-4">
     <div>
-      <p class="font-display text-lg font-semibold">Profolio</p>
+      <p class="font-display text-lg font-normal">Profolio</p>
       <p class="text-xs text-ink-muted">Professional evidence vault</p>
     </div>
     <button
@@ -81,9 +79,7 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
       aria-label="Close menu"
       class="rounded-md p-1.5 text-ink-muted transition hover:bg-canvas hover:text-ink"
     >
-      <svg viewBox="0 0 20 20" class="size-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <path d="M5 5l10 10M15 5L5 15" />
-      </svg>
+      <i data-lucide="x" class="size-5" aria-hidden="true"></i>
     </button>
   </div>
 
@@ -91,11 +87,7 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
     {
       sections.map((section) => (
         <div class="mb-5 last:mb-0">
-          {section.label && (
-            <p class="mb-1.5 px-2 text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-              {section.label}
-            </p>
-          )}
+          {section.label && <p class="pf-eyebrow mb-1.5 px-2 text-ink-faint">{section.label}</p>}
           <ul class="space-y-0.5">
             {section.links.map((link) => (
               <li>
