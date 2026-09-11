@@ -51,8 +51,14 @@ export function totalWeeks(startsOn: string | null, endsOn: string | null): numb
   return Math.ceil((end - start) / (7 * 24 * 60 * 60 * 1000));
 }
 
-/** True when `record` satisfies `item`. A bad predicate counts as no match. */
-function matches(item: { matches: (d: Dimensions) => boolean }, record: Dimensions): boolean {
+/**
+ * True when `record` satisfies `item`. A bad predicate counts as no match.
+ *
+ * Exported because the project view groups a programme's evidence under the
+ * checklist item each record answers — which is the whole reason the evidence
+ * inside a project reads as organised rather than as a pile of files.
+ */
+export function matchesItem(item: { matches: (d: Dimensions) => boolean }, record: Dimensions): boolean {
   try {
     return item.matches(record);
   } catch {
@@ -60,6 +66,8 @@ function matches(item: { matches: (d: Dimensions) => boolean }, record: Dimensio
     return false;
   }
 }
+
+const matches = matchesItem;
 
 /**
  * Scores every checklist item against the evidence supplied.

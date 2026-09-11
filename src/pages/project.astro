@@ -1,0 +1,25 @@
+---
+/**
+ * One project, opened from the grid on Your ProFolio.
+ *
+ * Identified by `?id=`, because project ids are per-user runtime data and a
+ * dynamic route would need either getStaticPaths (impossible here) or
+ * server rendering (a different pattern from every other page in the app).
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Project" description="One project: what it still needs, and the evidence inside it.">
+  <div id="project">
+    <div class="flex animate-pulse flex-col gap-5">
+      <div class="h-10 w-72 rounded-md bg-canvas"></div>
+      <div class="h-44 rounded-lg bg-canvas"></div>
+      <div class="h-44 rounded-lg bg-canvas"></div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initProject } from '../lib/vault/project-ui';
+  initProject();
+</script>

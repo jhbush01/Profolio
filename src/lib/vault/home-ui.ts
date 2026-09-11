@@ -140,9 +140,11 @@ function projectCard(programme: Programme, documents: VaultDocument[]): string {
     }
   }
 
-  return `<a href="/programmes"
+  return `<a href="/project?id=${encodeURIComponent(programme.id)}"
     class="card flex flex-col p-0 transition hover:border-accent/40 hover:shadow-[0_4px_14px_rgba(77,51,22,0.08)]">
-    <div class="flex items-start justify-between gap-3 border-b border-line-subtle px-5 py-4">
+    <!-- Fixed header height, so the rules line up across a row whether a
+         title runs to one line or two. -->
+    <div class="flex min-h-[6.25rem] items-start justify-between gap-3 border-b border-line-subtle px-5 py-4">
       <div class="min-w-0">
         <p class="pf-eyebrow text-ink-faint">${escapeHtml(template?.name ?? 'Project')}</p>
         <h3 class="mt-1.5 text-lg font-semibold leading-snug">${escapeHtml(programme.name)}</h3>
