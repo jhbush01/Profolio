@@ -39,6 +39,14 @@ function setStatus(message: string, busy = false) {
   host.classList.toggle('animate-pulse', busy);
 }
 
+/** The three pickers are gated together: none of them may run before the notice. */
+function setPickersEnabled(enabled: boolean) {
+  for (const id of ['capture-photo-button', 'capture-photos-button', 'capture-file-button']) {
+    const button = $<HTMLButtonElement>(id);
+    if (button) button.disabled = !enabled;
+  }
+}
+
 async function guard(label: string, action: () => Promise<unknown>) {
   try {
     await action();
@@ -67,9 +75,9 @@ function chipRow(
         type="button"
         data-${attribute}="${id}"
         data-value="${option.value}"
-        class="rounded-full border px-3 py-2 text-sm transition ${
+        class="min-h-11 rounded-sm border px-3 py-2 text-sm transition ${
           current === option.value
-            ? 'border-accent bg-accent text-white'
+            ? 'border-mint bg-selected font-medium text-positive'
             : 'border-line bg-surface text-ink-muted'
         }"
       >${escapeHtml(option.label)}</button>`,
@@ -142,10 +150,7 @@ export async function initCapture() {
     acknowledged = snapshot.deidAcknowledged;
     const gate = $('capture-gate');
     if (gate) gate.hidden = acknowledged;
-    for (const id of ['capture-photo-button', 'capture-file-button']) {
-      const button = $<HTMLButtonElement>(id);
-      if (button) button.disabled = !acknowledged;
-    }
+    setPickersEnabled(acknowledged);
   });
 
   $('capture-accept')?.addEventListener('click', async () => {
@@ -154,21 +159,20 @@ export async function initCapture() {
       acknowledged = true;
       const gate = $('capture-gate');
       if (gate) gate.hidden = true;
-      for (const id of ['capture-photo-button', 'capture-file-button']) {
-        const button = $<HTMLButtonElement>(id);
-        if (button) button.disabled = false;
-      }
+      setPickersEnabled(true);
       setStatus('Ready.');
     });
   });
 
   const photoInput = $<HTMLInputElement>('capture-photo');
+  const photosInput = $<HTMLInputElement>('capture-photos');
   const fileInput = $<HTMLInputElement>('capture-file');
 
   $('capture-photo-button')?.addEventListener('click', () => photoInput?.click());
+  $('capture-photos-button')?.addEventListener('click', () => photosInput?.click());
   $('capture-file-button')?.addEventListener('click', () => fileInput?.click());
 
-  for (const input of [photoInput, fileInput]) {
+  for (const input of [photoInput, photosInput, fileInput]) {
     input?.addEventListener('change', async () => {
       if (input.files) await handleFiles(input.files);
       // Cleared so capturing the same filename twice still fires a change.

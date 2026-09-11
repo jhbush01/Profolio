@@ -4,6 +4,7 @@
  * Presentation mode uses PresentationLayout instead (no nav, no footer).
  */
 import NavDrawer from '../components/NavDrawer.astro';
+import BottomNav from '../components/BottomNav.astro';
 import Footer from '../components/Footer.astro';
 import { site } from '../lib/portfolio';
 import '../styles/global.css';
@@ -41,9 +42,17 @@ const { title, description = site.tagline } = Astro.props;
       <slot />
     </main>
     <Footer />
+    <BottomNav />
     <script>
       // @ts-expect-error — lucide is loaded globally from the CDN script above.
       window.lucide?.createIcons();
+
+      // createIcons leaves the placeholder in place when the CDN is unreachable
+      // or a glyph name is unknown, which puts an empty box above every nav
+      // label. Drop the empties so those labels close up instead.
+      document.querySelectorAll('i[data-lucide]').forEach((icon) => {
+        if (!icon.firstElementChild) icon.remove();
+      });
     </script>
   </body>
 </html>

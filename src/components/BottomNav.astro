@@ -1,0 +1,75 @@
+---
+/**
+ * Phone navigation. Five slots along the bottom, with capture deliberately
+ * heaviest in the middle — it is the reason the app is on a phone at all
+ * (see docs/PRODUCT.md).
+ *
+ * Phone only: the drawer and top bar still serve every wider screen, and they
+ * stay reachable here too, so the four destinations below are a shortcut
+ * rather than the whole map.
+ *
+ * Hidden on /capture, which runs its own action bar along the bottom. Two
+ * stacked bars would put the camera under the nav instead of under a thumb.
+ */
+const path = Astro.url.pathname;
+const hidden = path.startsWith('/capture') || path.startsWith('/present');
+
+const links = [
+  { href: '/', label: 'Home', icon: 'house' },
+  { href: '/programmes', label: 'Programmes', icon: 'calendar' },
+  { href: '/portfolio', label: 'Portfolio', icon: 'folder' },
+  { href: '/data-profile', label: 'Profile', icon: 'list-checks' },
+];
+
+const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+---
+
+{
+  !hidden && (
+    <nav
+      class="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface sm:hidden"
+      style="padding-bottom: env(safe-area-inset-bottom, 0px)"
+      aria-label="Primary"
+    >
+      <div class="flex items-stretch gap-0.5 px-2 pb-1.5 pt-2">
+        {links.slice(0, 2).map((link) => (
+          <a
+            href={link.href}
+            aria-current={isActive(link.href) ? 'page' : undefined}
+            class:list={[
+              'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[0.7rem] transition',
+              isActive(link.href) ? 'font-medium text-accent' : 'text-ink-muted',
+            ]}
+          >
+            <i data-lucide={link.icon} class="size-5" aria-hidden="true" />
+            {link.label}
+          </a>
+        ))}
+
+        {/* Capture is a destination, not a floating button: the design system
+            rules out a FAB, so the emphasis is weight and fill, not lift. */}
+        <a
+          href="/capture"
+          class="flex min-h-14 flex-[1.35] flex-col items-center justify-center gap-1 rounded-lg bg-accent text-[0.75rem] font-semibold text-white shadow-[0_1px_3px_rgba(77,51,22,0.07)] transition"
+        >
+          <i data-lucide="camera" class="size-[1.4rem]" aria-hidden="true" />
+          Capture
+        </a>
+
+        {links.slice(2).map((link) => (
+          <a
+            href={link.href}
+            aria-current={isActive(link.href) ? 'page' : undefined}
+            class:list={[
+              'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[0.7rem] transition',
+              isActive(link.href) ? 'font-medium text-accent' : 'text-ink-muted',
+            ]}
+          >
+            <i data-lucide={link.icon} class="size-5" aria-hidden="true" />
+            {link.label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  )
+}
