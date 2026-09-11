@@ -51,26 +51,34 @@ export function totalWeeks(startsOn: string | null, endsOn: string | null): numb
   return Math.ceil((end - start) / (7 * 24 * 60 * 60 * 1000));
 }
 
+/** True when `record` satisfies `item`. A bad predicate counts as no match. */
+function matches(item: { matches: (d: Dimensions) => boolean }, record: Dimensions): boolean {
+  try {
+    return item.matches(record);
+  } catch {
+    // A bad predicate must not take the whole checklist down.
+    return false;
+  }
+}
+
 /**
  * Scores every checklist item against the evidence supplied.
+ *
+ * Pass only the records ASSIGNED to this programme. Scoring used to run over
+ * the whole vault, which meant a record captured years later could silently
+ * change what a submitted portfolio contained. Membership is explicit now, and
+ * `suggestForProgramme` is what surfaces the rest.
  *
  * `elapsed` is the fraction of the window that has passed; pass null for an
  * undated programme, and nothing is ever reported overdue.
  */
 export function scoreProgramme(
   template: ProgrammeTemplate,
-  evidence: Dimensions[],
+  assigned: Dimensions[],
   elapsed: number | null,
 ): ItemProgress[] {
   return template.items.map((item) => {
-    const matched = evidence.filter((record) => {
-      try {
-        return item.matches(record);
-      } catch {
-        // A bad predicate must not take the whole checklist down.
-        return false;
-      }
-    }).length;
+    const matched = assigned.filter((record) => matches(item, record)).length;
     const satisfied = matched >= item.requires;
     return {
       item,
@@ -79,4 +87,19 @@ export function scoreProgramme(
       overdue: !satisfied && elapsed !== null && elapsed >= item.dueBy,
     };
   });
+}
+
+/**
+ * Records that would satisfy something on this checklist but have not been
+ * assigned to it — the "3 records match this checklist" prompt.
+ *
+ * A suggestion is never acted on automatically. It is an offer, and on a closed
+ * programme it is not even that: the caller shows them as context and the
+ * programme has to be reopened before any of them can join.
+ */
+export function suggestForProgramme<T extends Dimensions>(
+  template: ProgrammeTemplate,
+  candidates: readonly T[],
+): T[] {
+  return candidates.filter((record) => template.items.some((item) => matches(item, record)));
 }

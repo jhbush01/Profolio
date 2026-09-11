@@ -18,10 +18,12 @@ import {
   currentWeek,
   elapsedFraction,
   scoreProgramme,
+  suggestForProgramme,
   templateFor,
   TEMPLATES,
   totalWeeks,
 } from '../programmes';
+import { updateDocument } from './db';
 import type { VaultDocument } from './types';
 import type { ContextField, ProgrammeTemplate } from '../programmes/types';
 
@@ -166,6 +168,87 @@ function contextSection(
   </details>`;
 }
 
+/**
+ * Records that would fit this checklist but are not in the programme.
+ *
+ * On an open programme these are offers, one tap each. On a closed one they are
+ * shown but inert — a closed programme's contents are fixed, so accepting a
+ * suggestion has to go through an explicit reopen.
+ */
+function suggestionSection(
+  programme: Programme,
+  suggestions: VaultDocument[],
+  closed: boolean,
+): string {
+  if (suggestions.length === 0) return '';
+
+  const rows = suggestions
+    .slice(0, 6)
+    .map(
+      (doc) => `<li class="flex items-center gap-3 py-1.5">
+        <span class="min-w-0 flex-1 truncate text-sm ${closed ? 'text-ink-muted' : ''}" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
+        ${
+          closed
+            ? ''
+            : `<button type="button" data-assign="${programme.id}" data-doc="${doc.id}"
+                 class="shrink-0 text-xs font-medium text-accent hover:underline">Add</button>`
+        }
+      </li>`,
+    )
+    .join('');
+
+  return `<div class="border-t border-line px-4 py-3">
+    <p class="text-sm font-medium">${suggestions.length} record${suggestions.length === 1 ? '' : 's'} match this checklist</p>
+    <p class="prose-body mt-0.5 text-xs">
+      ${
+        closed
+          ? 'This programme is closed, so nothing can join it. Reopen it below if this set needs to change.'
+          : 'Not in the programme yet. Nothing is counted until you add it.'
+      }
+    </p>
+    <ul class="mt-2">${rows}</ul>
+    ${suggestions.length > 6 ? `<p class="text-xs text-ink-muted">and ${suggestions.length - 6} more</p>` : ''}
+    ${
+      closed
+        ? ''
+        : `<button type="button" data-assign-all="${programme.id}"
+             class="mt-2 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Add all ${suggestions.length}</button>`
+    }
+  </div>`;
+}
+
+/**
+ * Closing freezes what the programme holds. The wording carries the
+ * consequence rather than the mechanism, because the consequence — an export
+ * that no longer matches what was handed in — is the part that matters.
+ */
+function closureSection(programme: Programme, assignedCount: number, closed: boolean): string {
+  if (closed) {
+    const on = programme.closedAt ? new Date(programme.closedAt).toLocaleDateString('en-AU') : '';
+    return `<div class="border-t border-line bg-canvas/40 px-4 py-3">
+      <p class="text-sm font-medium">Closed${on ? ` on ${escapeHtml(on)}` : ''}, holding ${assignedCount} record${assignedCount === 1 ? '' : 's'}</p>
+      <p class="prose-body mt-0.5 text-xs">
+        Nothing joins or leaves while it is closed, so an export made today matches the one you handed in.
+      </p>
+      <button type="button" data-reopen="${programme.id}"
+        class="mt-2 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Reopen to change what is in it</button>
+      ${
+        programme.reopenedAt
+          ? `<p class="mt-1 text-xs text-ink-muted">Last reopened ${escapeHtml(new Date(programme.reopenedAt).toLocaleDateString('en-AU'))}.</p>`
+          : ''
+      }
+    </div>`;
+  }
+
+  return `<div class="border-t border-line px-4 py-3">
+    <button type="button" data-close="${programme.id}"
+      class="rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Close this programme</button>
+    <p class="prose-body mt-1.5 text-xs">
+      Fixes what it holds, so the copy you export later is the copy you submitted. You can reopen it.
+    </p>
+  </div>`;
+}
+
 function renderProgrammes() {
   const host = $('programme-list');
   const empty = $('programme-empty');
@@ -194,7 +277,14 @@ function renderProgrammes() {
       const elapsed = elapsedFraction(programme.startsOn, programme.endsOn);
       const week = currentWeek(programme.startsOn, programme.endsOn);
       const weeks = totalWeeks(programme.startsOn, programme.endsOn);
-      const progress = scoreProgramme(template, documents, elapsed);
+      const closed = programme.closedAt !== null;
+
+      // Only assigned records score. Everything else that would fit is an
+      // offer, shown below, and never counted until the user accepts it.
+      const assigned = documents.filter((doc) => doc.programmes.includes(programme.id));
+      const unassigned = documents.filter((doc) => !doc.programmes.includes(programme.id));
+      const suggestions = suggestForProgramme(template, unassigned);
+      const progress = scoreProgramme(template, assigned, elapsed);
       const done = progress.filter((p) => p.satisfied).length;
       const overdue = progress.filter((p) => p.overdue).length;
       const percent = Math.round((done / progress.length) * 100);
@@ -243,7 +333,9 @@ function renderProgrammes() {
           <div class="text-right">
             <p class="font-display text-2xl font-normal">${percent}%</p>
             <p class="text-xs text-ink-muted">${done} of ${progress.length} collected</p>
-            ${overdue > 0 ? `<p class="text-xs font-medium text-critical">${overdue} behind schedule</p>` : ''}
+            <p class="text-xs text-ink-muted">${assigned.length} record${assigned.length === 1 ? '' : 's'} in this programme</p>
+            ${overdue > 0 && !closed ? `<p class="text-xs font-medium text-critical">${overdue} behind schedule</p>` : ''}
+            ${closed ? '<p class="mt-1 inline-block rounded-sm bg-canvas px-2 py-0.5 text-xs font-medium text-ink-muted">Closed</p>' : ''}
           </div>
         </div>
 
@@ -269,6 +361,10 @@ function renderProgrammes() {
         ${contextSection(programme, template, weeks)}
 
         ${checklist}
+
+        ${suggestionSection(programme, suggestions, closed)}
+
+        ${closureSection(programme, assigned.length, closed)}
 
         <div class="flex items-center justify-between border-t border-line px-4 py-2">
           <a href="/portfolio" class="text-xs text-accent hover:underline">Add evidence →</a>
@@ -408,7 +504,69 @@ export async function initProgrammes() {
   });
 
   list?.addEventListener('click', async (event) => {
-    const copyId = (event.target as HTMLElement).closest('button')?.dataset.copy;
+    const button = (event.target as HTMLElement).closest('button');
+
+    // Adding a record to a programme is a whole-set write: the server takes the
+    // complete membership list, not a delta.
+    const assignTo = button?.dataset.assign;
+    if (assignTo && button?.dataset.doc) {
+      const doc = documents.find((d) => d.id === button.dataset.doc);
+      if (!doc) return;
+      return guard('Adding to programme', async () => {
+        await updateDocument(doc.id, { programmes: [...doc.programmes, assignTo] });
+        await refresh();
+        setStatus('Added.');
+      });
+    }
+
+    const assignAll = button?.dataset.assignAll;
+    if (assignAll) {
+      const programme = programmes.find((p) => p.id === assignAll);
+      const template = programme && templateFor(programme.template);
+      if (!template) return;
+      const pending = suggestForProgramme(
+        template,
+        documents.filter((doc) => !doc.programmes.includes(assignAll)),
+      );
+      if (pending.length === 0) return;
+      return guard('Adding to programme', async () => {
+        for (const doc of pending) {
+          await updateDocument(doc.id, { programmes: [...doc.programmes, assignAll] });
+        }
+        await refresh();
+        setStatus(`Added ${pending.length} record${pending.length === 1 ? '' : 's'}.`);
+      });
+    }
+
+    const closeId = button?.dataset.close;
+    if (closeId) {
+      const programme = programmes.find((p) => p.id === closeId);
+      if (!window.confirm(`Close "${programme?.name}"? Nothing can be added to it until you reopen it.`)) return;
+      return guard('Closing programme', async () => {
+        await updateProgramme(closeId, { closed: true });
+        await refresh();
+        setStatus('Closed. What it holds is now fixed.');
+      });
+    }
+
+    const reopenId = button?.dataset.reopen;
+    if (reopenId) {
+      const programme = programmes.find((p) => p.id === reopenId);
+      if (
+        !window.confirm(
+          `Reopen "${programme?.name}"? Anything you export afterwards may differ from the version you submitted.`,
+        )
+      ) {
+        return;
+      }
+      return guard('Reopening programme', async () => {
+        await updateProgramme(reopenId, { closed: false });
+        await refresh();
+        setStatus('Reopened. The reopen is recorded on the programme.');
+      });
+    }
+
+    const copyId = button?.dataset.copy;
     if (copyId) {
       const text = document.querySelector<HTMLElement>(`[data-statement="${copyId}"]`)?.textContent ?? '';
       try {
@@ -421,7 +579,7 @@ export async function initProgrammes() {
       return;
     }
 
-    const id = (event.target as HTMLElement).closest('button')?.dataset.remove;
+    const id = button?.dataset.remove;
     if (!id) return;
     const programme = programmes.find((p) => p.id === id);
     if (!window.confirm(`Remove "${programme?.name}"? Your evidence is not deleted.`)) return;

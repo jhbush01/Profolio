@@ -64,8 +64,8 @@ programme overlay            GTPA final placement · registration renewal
 ```
 
 A programme owns:
-- a **checklist** of required evidence items, each auto-satisfied by evidence
-  whose dimensions match a predicate;
+- a **checklist** of required evidence items, each satisfied by assigned
+  evidence whose dimensions match a predicate;
 - a **date window**, so the checklist can say what should exist *by now*;
 - **generated outputs** (currently the data-collection profile).
 
@@ -81,10 +81,28 @@ professional-development years, then a renewal period — and each keeps its own
 name, window and progress. Storing "the chosen template" on the profile would
 mean starting a PD record silently destroyed the placement one.
 
-There is also **no foreign key from `documents` to `programmes`**. A programme
-selects evidence by predicate, so one artefact counts toward every programme it
-satisfies without being copied or moved: a compliance certificate is evidence
-for a placement *and* for that year's professional development.
+### Membership is assigned, not inferred
+
+Evidence joins a programme because the user put it there. This replaced pure
+predicate matching in `0006_programme_assignment.sql`, for a reason that only
+shows up at submission time: **predicate matching produced an unstable
+output**. A record captured in 2029 that happened to match a 2026 placement's
+checklist silently changed what that placement contained — and an export of a
+portfolio already handed in must not move.
+
+So `document_programmes` is a many-to-many join table, and predicates were
+demoted to a *suggester*: "3 records match this checklist but are not in it".
+Nothing joins a programme without the user accepting it.
+
+Many-to-many was the part worth keeping from the old model. A compliance
+certificate is evidence for a placement *and* for that year's professional
+development, and must not have to be uploaded twice.
+
+**Closing** (`closed_at`) fixes what a programme holds — no additions, and no
+removals either, enforced in `Repo.setDocumentProgrammes` rather than only in
+the UI. Reopening stamps `reopened_at` rather than clearing the record, so a
+portfolio whose contents changed after submission can be told apart from one
+that never moved.
 
 Implemented in `src/lib/programmes/`. Adding a template is a new file plus one
 entry in `index.ts` — no schema change, and nothing in the vault knows it

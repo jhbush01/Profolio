@@ -107,6 +107,8 @@ export interface DocumentPatch {
   subjectScope?: string | null;
   selfDesigned?: boolean | null;
   standards?: string[];
+  /** The complete set of programmes this record belongs to, not a delta. */
+  programmes?: string[];
 }
 
 /** Partial update — anything omitted is left untouched on the server. */
@@ -135,6 +137,9 @@ export interface Programme {
   createdAt: number;
   archived: boolean;
   context: Record<string, string>;
+  /** Set while closed: nothing joins or leaves until it is reopened. */
+  closedAt: number | null;
+  reopenedAt: number | null;
 }
 
 export function loadProgrammes(): Promise<{ programmes: Programme[] }> {
@@ -162,6 +167,7 @@ export function updateProgramme(
     endsOn?: string | null;
     archived?: boolean;
     context?: Record<string, string>;
+    closed?: boolean;
   },
 ): Promise<unknown> {
   return request(`/api/programmes/${id}`, {

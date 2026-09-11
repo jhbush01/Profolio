@@ -4,9 +4,9 @@
 -- a final placement, then professional development years, then a renewal
 -- period — and each keeps its own window and checklist.
 --
--- Deliberately NO foreign key from documents to programmes. A programme is a
--- lens over the vault, so one artefact can count toward several programmes
--- without being copied or moved. See docs/PRODUCT.md.
+-- SUPERSEDED by 0006_programme_assignment.sql, which adds document_programmes.
+-- Membership is assigned by the user now, not inferred by predicate; the
+-- many-to-many part was kept. See docs/PRODUCT.md.
 CREATE TABLE IF NOT EXISTS programmes (
   id         TEXT PRIMARY KEY,
   owner      TEXT NOT NULL,

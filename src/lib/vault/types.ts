@@ -39,6 +39,11 @@ export interface VaultDocument extends Dimensions {
   caption: string;
   addedAt: number;
   order: number;
+  /**
+   * Programmes this record has been assigned to, set by the user when tagging.
+   * Never inferred: a programme's contents must not change on its own.
+   */
+  programmes: string[];
 }
 
 /** Owner details printed on the exported PDF cover page. */

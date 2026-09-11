@@ -25,6 +25,8 @@ export interface DocumentRow extends Dimensions {
   caption: string;
   addedAt: number;
   order: number;
+  /** Programmes this record has been assigned to. Never inferred. */
+  programmes: string[];
 }
 
 export interface ProfileRow {
@@ -44,6 +46,10 @@ export interface ProgrammeRow {
   archived: boolean;
   /** Template-declared context answers, keyed by field id. */
   context: Record<string, string>;
+  /** Set while closed. Nothing joins or leaves a closed programme. */
+  closedAt: number | null;
+  /** Last time it was reopened, so a changed submission is traceable. */
+  reopenedAt: number | null;
 }
 
 /** Tolerates null and malformed JSON rather than failing a whole page load. */
@@ -148,7 +154,23 @@ export class Repo {
       .bind(this.who.email)
       .all<Record<string, unknown>>();
 
+    // One extra query rather than a join: a join would repeat every document
+    // row once per programme, and this list is already the biggest payload the
+    // vault returns.
+    const assignments = await this.db
+      .prepare(`SELECT document_id, programme_id FROM document_programmes WHERE owner = ?1`)
+      .bind(this.who.email)
+      .all<{ document_id: string; programme_id: string }>();
+
+    const byDocument = new Map<string, string[]>();
+    for (const row of assignments.results) {
+      const list = byDocument.get(row.document_id);
+      if (list) list.push(row.programme_id);
+      else byDocument.set(row.document_id, [row.programme_id]);
+    }
+
     return results.map((row) => ({
+      programmes: byDocument.get(row.id as string) ?? [],
       id: row.id as string,
       name: row.name as string,
       folderId: (row.folder_id as string | null) ?? null,
@@ -295,6 +317,11 @@ export class Repo {
 
     const statements = [
       ...docs.map((doc) =>
+        this.db
+          .prepare(`DELETE FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
+          .bind(doc.id, this.who.email),
+      ),
+      ...docs.map((doc) =>
         this.db.prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`).bind(doc.id, this.who.email),
       ),
       ...[...doomed].map((folderId) =>
@@ -346,6 +373,7 @@ export class Repo {
       subjectScope: null,
       selfDesigned: null,
       standards: [],
+      programmes: [],
     };
 
     await this.bucket.put(this.key(doc.id), file.stream(), {
@@ -453,7 +481,8 @@ export class Repo {
   async programmes(): Promise<ProgrammeRow[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT id, template, name, starts_on, ends_on, created_at, archived, context
+        `SELECT id, template, name, starts_on, ends_on, created_at, archived, context,
+                closed_at, reopened_at
            FROM programmes WHERE owner = ?1
           ORDER BY archived, created_at DESC`,
       )
@@ -469,6 +498,8 @@ export class Repo {
       createdAt: row.created_at as number,
       archived: Boolean(row.archived),
       context: parseContext(row.context),
+      closedAt: (row.closed_at as number | null) ?? null,
+      reopenedAt: (row.reopened_at as number | null) ?? null,
     }));
   }
 
@@ -487,6 +518,8 @@ export class Repo {
       createdAt: Date.now(),
       archived: false,
       context: {},
+      closedAt: null,
+      reopenedAt: null,
     };
 
     await this.db
@@ -538,21 +571,114 @@ export class Repo {
       .run();
   }
 
-  /** Removes the programme only. Evidence is never touched — it is a lens. */
-  async deleteProgramme(id: string): Promise<void> {
-    await this.db
-      .prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`)
+  /**
+   * Replaces the set of programmes a document belongs to.
+   *
+   * Closed programmes are immovable in both directions: a closed programme
+   * cannot gain a record, and cannot lose one either. Enforced here and not
+   * only in the UI, because "the export matches what I submitted" is the whole
+   * point of closing and a client must not be the only thing holding it.
+   */
+  async setDocumentProgrammes(documentId: string, programmeIds: string[]): Promise<string[]> {
+    if (!(await this.ownsDocument(documentId))) throw new HttpError(404, 'Document not found');
+
+    const all = await this.programmes();
+    const owned = new Map(all.map((programme) => [programme.id, programme]));
+    const wanted = [...new Set(programmeIds)].filter((id) => owned.has(id));
+
+    const { results } = await this.db
+      .prepare(`SELECT programme_id FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
+      .bind(documentId, this.who.email)
+      .all<{ programme_id: string }>();
+    const current = new Set(results.map((row) => row.programme_id));
+
+    const add = wanted.filter((id) => !current.has(id));
+    const remove = [...current].filter((id) => !wanted.includes(id));
+
+    for (const id of [...add, ...remove]) {
+      const programme = owned.get(id);
+      if (programme && programme.closedAt !== null) {
+        throw new HttpError(409, `"${programme.name}" is closed. Reopen it to change what it holds.`);
+      }
+    }
+
+    const now = Date.now();
+    const statements = [
+      ...add.map((id) =>
+        this.db
+          .prepare(
+            `INSERT INTO document_programmes (document_id, programme_id, owner, assigned_at)
+             VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING`,
+          )
+          .bind(documentId, id, this.who.email, now),
+      ),
+      ...remove.map((id) =>
+        this.db
+          .prepare(
+            `DELETE FROM document_programmes
+              WHERE document_id = ?1 AND programme_id = ?2 AND owner = ?3`,
+          )
+          .bind(documentId, id, this.who.email),
+      ),
+    ];
+    if (statements.length > 0) await this.db.batch(statements);
+
+    return wanted;
+  }
+
+  /**
+   * Closes or reopens a programme.
+   *
+   * Reopening stamps `reopened_at` rather than clearing the history, so a
+   * portfolio whose contents changed after submission can be told apart from
+   * one that never moved.
+   */
+  async setProgrammeClosed(id: string, closed: boolean): Promise<void> {
+    const owned = await this.db
+      .prepare(`SELECT closed_at FROM programmes WHERE id = ?1 AND owner = ?2`)
       .bind(id, this.who.email)
+      .first<{ closed_at: number | null }>();
+    if (!owned) throw new HttpError(404, 'Programme not found');
+
+    const now = Date.now();
+    if (closed) {
+      if (owned.closed_at !== null) return;
+      await this.db
+        .prepare(`UPDATE programmes SET closed_at = ?3 WHERE id = ?1 AND owner = ?2`)
+        .bind(id, this.who.email, now)
+        .run();
+      return;
+    }
+
+    if (owned.closed_at === null) return;
+    await this.db
+      .prepare(`UPDATE programmes SET closed_at = NULL, reopened_at = ?3 WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.email, now)
       .run();
+  }
+
+  /** Removes the programme and its assignments. Evidence itself is never touched. */
+  async deleteProgramme(id: string): Promise<void> {
+    // The assignments are deleted explicitly rather than left to the foreign
+    // key: a stale join row would make documents report a programme that no
+    // longer exists.
+    await this.db.batch([
+      this.db
+        .prepare(`DELETE FROM document_programmes WHERE programme_id = ?1 AND owner = ?2`)
+        .bind(id, this.who.email),
+      this.db.prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`).bind(id, this.who.email),
+    ]);
   }
 
   async deleteDocument(id: string): Promise<void> {
     if (!(await this.ownsDocument(id))) throw new HttpError(404, 'Document not found');
     await this.bucket.delete(this.key(id));
-    await this.db
-      .prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email)
-      .run();
+    await this.db.batch([
+      this.db
+        .prepare(`DELETE FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
+        .bind(id, this.who.email),
+      this.db.prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`).bind(id, this.who.email),
+    ]);
   }
 
   /** Streams a document's bytes back, for the PDF export and previews. */
@@ -572,6 +698,7 @@ export class Repo {
     const docs = await this.documents();
     if (docs.length > 0) await this.bucket.delete(docs.map((doc) => this.key(doc.id)));
     await this.db.batch([
+      this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.email),
       this.db.prepare(`DELETE FROM documents WHERE owner = ?1`).bind(this.who.email),
       this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.email),
       // Clears the cover details but keeps the acknowledgement on record.

@@ -13,8 +13,10 @@ import {
   acknowledgeDeid,
   addDocuments,
   ApiError,
+  loadProgrammes,
   loadVault,
   updateDocument,
+  type Programme,
 } from './db';
 import { CYCLE_PHASES, EVIDENCE_TYPES, PURPOSES, SUBJECT_SCOPES } from './dimensions';
 import { describeFindings, scanFiles } from './deidentify';
@@ -31,6 +33,8 @@ function escapeHtml(value: string): string {
 /** Ids captured in this session, newest first — the only thing this page lists. */
 let captured: VaultDocument[] = [];
 let acknowledged = false;
+/** Programmes still accepting evidence. A closed one cannot be assigned to. */
+let openProgrammes: Programme[] = [];
 
 function setStatus(message: string, busy = false) {
   const host = $('capture-status');
@@ -85,6 +89,38 @@ function chipRow(
     .join('');
 }
 
+/**
+ * Which programmes this record counts toward.
+ *
+ * First in the card, above the dimensions, because it is the question the
+ * capture was for: a record in no programme is kept but counts toward nothing.
+ */
+function programmeRow(doc: VaultDocument): string {
+  if (openProgrammes.length === 0) {
+    return `<p class="mt-2 text-xs text-ink-muted">
+      Not in a programme. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a> and this counts toward it.
+    </p>`;
+  }
+
+  const chips = openProgrammes
+    .map((programme) => {
+      const on = doc.programmes.includes(programme.id);
+      return `<button
+        type="button"
+        data-programme-toggle="${doc.id}"
+        data-programme="${programme.id}"
+        aria-pressed="${on}"
+        class="min-h-11 rounded-sm border px-3 py-2 text-sm transition ${
+          on ? 'border-mint bg-selected font-medium text-positive' : 'border-line bg-surface text-ink-muted'
+        }"
+      >${escapeHtml(programme.name)}</button>`;
+    })
+    .join('');
+
+  return `<p class="mt-3 text-xs font-medium text-ink-muted">Counts toward</p>
+    <div class="mt-1 flex flex-wrap gap-1.5">${chips}</div>`;
+}
+
 function renderCaptured() {
   const host = $('capture-list');
   const empty = $('capture-empty');
@@ -101,6 +137,8 @@ function renderCaptured() {
     .map(
       (doc) => `<article class="rounded-lg border border-line bg-surface p-3" data-capture="${doc.id}">
         <p class="truncate text-sm font-medium" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
+
+        ${programmeRow(doc)}
 
         <p class="mt-3 text-xs font-medium text-ink-muted">Stage</p>
         <div class="mt-1 flex flex-wrap gap-1.5">${chipRow('phase', doc.id, CYCLE_PHASES, doc.cyclePhase)}</div>
@@ -136,11 +174,48 @@ async function handleFiles(files: FileList | File[]) {
   setStatus(`Uploading ${list.length}…`, true);
   await guard('Upload', async () => {
     const result = await addDocuments(list, null);
+
+    // Pre-assign to whatever is being collected for right now, so the common
+    // case costs no taps at all. It is a chip the user can turn off, not a
+    // decision made for them.
+    const active = activeProgramme();
+    if (active) {
+      for (const doc of result.added) {
+        try {
+          await updateDocument(doc.id, { programmes: [active.id] });
+          doc.programmes = [active.id];
+        } catch {
+          // A failed assignment must not lose the capture: the file is already
+          // saved, and the chips below let them set it by hand.
+        }
+      }
+    }
+
     // Newest first, so the thing just captured is under the thumb.
     captured = [...result.added, ...captured];
     renderCaptured();
-    setStatus(`Saved. Tag it below, or just keep capturing.`);
+    setStatus(
+      active
+        ? `Saved to ${active.name}. Tag it below, or just keep capturing.`
+        : 'Saved. Tag it below, or just keep capturing.',
+    );
   });
+}
+
+/**
+ * The programme a capture most likely belongs to: the open one whose window
+ * covers today. With several, the one that started most recently wins; with
+ * none dated, a single open programme is still an obvious guess.
+ */
+function activeProgramme(): Programme | undefined {
+  if (openProgrammes.length === 1) return openProgrammes[0];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const running = openProgrammes
+    .filter((p) => p.startsOn && p.endsOn && p.startsOn <= today && today <= p.endsOn)
+    .sort((a, b) => (a.startsOn! < b.startsOn! ? 1 : -1));
+
+  return running[0];
 }
 
 export async function initCapture() {
@@ -152,6 +227,15 @@ export async function initCapture() {
     if (gate) gate.hidden = acknowledged;
     setPickersEnabled(acknowledged);
   });
+
+  // Separate from the vault load: a programmes failure should cost the chips,
+  // not the ability to capture.
+  try {
+    const { programmes } = await loadProgrammes();
+    openProgrammes = programmes.filter((p) => p.closedAt === null && !p.archived);
+  } catch {
+    openProgrammes = [];
+  }
 
   $('capture-accept')?.addEventListener('click', async () => {
     await guard('Recording acknowledgement', async () => {
@@ -182,6 +266,25 @@ export async function initCapture() {
 
   // One delegated handler for every tag chip.
   $('capture-list')?.addEventListener('click', async (event) => {
+    const toggle = (event.target as HTMLElement).closest<HTMLElement>('button[data-programme-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.programmeToggle!;
+      const programmeId = toggle.dataset.programme!;
+      const doc = captured.find((d) => d.id === id);
+      if (!doc) return;
+
+      const next = doc.programmes.includes(programmeId)
+        ? doc.programmes.filter((p) => p !== programmeId)
+        : [...doc.programmes, programmeId];
+
+      await guard('Saving programme', async () => {
+        await updateDocument(id, { programmes: next });
+        doc.programmes = next;
+        renderCaptured();
+      });
+      return;
+    }
+
     const button = (event.target as HTMLElement).closest<HTMLElement>('button[data-value]');
     if (!button) return;
 

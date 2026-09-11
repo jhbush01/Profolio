@@ -11,7 +11,7 @@ export const prerender = false;
  */
 export const PATCH: APIRoute = ({ request, params }) =>
   withRepo(request, async (repo) => {
-    const body = (await request.json()) as DocumentPatch;
+    const body = (await request.json()) as DocumentPatch & { programmes?: unknown };
 
     // Whitelist: never hand raw request keys to the column mapper.
     const patch: DocumentPatch = {};
@@ -33,7 +33,21 @@ export const PATCH: APIRoute = ({ request, params }) =>
     }
 
     await repo.updateDocument(params.id!, patch);
-    return Response.json({ ok: true });
+
+    // Assignment lives in its own table, so it is applied separately — but it
+    // rides the same request, because the user experiences it as one more thing
+    // they tagged the record with.
+    let programmes: string[] | undefined;
+    if ('programmes' in body) {
+      programmes = await repo.setDocumentProgrammes(
+        params.id!,
+        Array.isArray(body.programmes)
+          ? body.programmes.filter((id): id is string => typeof id === 'string')
+          : [],
+      );
+    }
+
+    return Response.json(programmes ? { ok: true, programmes } : { ok: true });
   });
 
 export const DELETE: APIRoute = ({ request, params }) =>

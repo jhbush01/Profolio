@@ -17,11 +17,13 @@ import {
   deleteDocument,
   deleteFolderDeep,
   documentBytes,
+  loadProgrammes,
   loadVault,
   saveOrder,
   saveProfile,
   updateDocument,
   updateFolder,
+  type Programme,
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
 import {
@@ -46,6 +48,8 @@ let profile: VaultProfile = { name: '', title: '', summary: '' };
 let selected: string = ALL;
 let signedInAs = '';
 let deidAcknowledged = false;
+/** Programmes still accepting evidence; closed ones offer no control. */
+let openProgrammes: Programme[] = [];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
@@ -92,6 +96,37 @@ function selectFor(
   return `<select data-${attribute}="${id}" class="w-full rounded-lg border border-line bg-surface px-2 py-1 text-xs">
     <option value=""${current ? '' : ' selected'}>${escapeHtml(placeholder)}</option>${items}
   </select>`;
+}
+
+/**
+ * Programme membership for one record.
+ *
+ * Closed programmes are left out: they cannot take new evidence, and offering
+ * a control the server will refuse is worse than not offering it.
+ */
+function programmeChips(doc: VaultDocument): string {
+  if (openProgrammes.length === 0) {
+    return `<p class="text-[0.7rem] text-ink-muted">
+      No open programme. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a> to give this record somewhere to count.
+    </p>`;
+  }
+
+  const chips = openProgrammes
+    .map((programme) => {
+      const on = doc.programmes.includes(programme.id);
+      return `<button
+        type="button"
+        data-programme-toggle="${doc.id}"
+        data-programme="${programme.id}"
+        aria-pressed="${on}"
+        class="rounded-sm border px-2 py-0.5 text-[0.7rem] transition ${
+          on ? 'border-mint bg-selected font-medium text-positive' : 'border-line text-ink-muted'
+        }"
+      >${escapeHtml(programme.name)}</button>`;
+    })
+    .join('');
+
+  return `<div class="flex flex-wrap gap-1">${chips}</div>`;
 }
 
 /** The evidence-dimension panel, collapsed by default so the list stays scannable. */
@@ -142,6 +177,10 @@ function detailPanel(doc: VaultDocument): string {
       <div class="sm:col-span-2">
         <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">APST focus areas</p>
         <div class="flex flex-wrap gap-1">${standardChips}</div>
+      </div>
+      <div class="sm:col-span-2">
+        <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">Counts toward</p>
+        ${programmeChips(doc)}
       </div>
     </div>
   </details>`;
@@ -345,6 +384,14 @@ function renderUsage() {
 
 async function refresh() {
   const snapshot = await loadVault();
+  // Programmes are a side concern here: a failure costs the membership chips,
+  // never the document list itself.
+  try {
+    const { programmes } = await loadProgrammes();
+    openProgrammes = programmes.filter((p) => p.closedAt === null && !p.archived);
+  } catch {
+    openProgrammes = [];
+  }
   folders = snapshot.folders;
   documents = snapshot.documents;
   profile = snapshot.profile;
@@ -667,6 +714,29 @@ export async function initVault() {
       await refresh();
     });
   });
+  list?.addEventListener('click', async (event) => {
+    const toggle = (event.target as HTMLElement).closest<HTMLElement>('button[data-programme-toggle]');
+    if (!toggle) return;
+
+    const id = toggle.dataset.programmeToggle!;
+    const programmeId = toggle.dataset.programme!;
+    const doc = documents.find((d) => d.id === id);
+    if (!doc) return;
+
+    const next = doc.programmes.includes(programmeId)
+      ? doc.programmes.filter((p) => p !== programmeId)
+      : [...doc.programmes, programmeId];
+
+    await guard('Saving programme', async () => {
+      await updateDocument(id, { programmes: next });
+      doc.programmes = next;
+      // Re-render just this card's chips, so an open <details> stays open.
+      const host = toggle.parentElement;
+      if (host) host.outerHTML = programmeChips(doc);
+      setStatus('Saved.');
+    });
+  });
+
   list?.addEventListener('change', async (event) => {
     const target = event.target as HTMLInputElement | HTMLSelectElement;
 

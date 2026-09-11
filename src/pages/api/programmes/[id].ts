@@ -32,6 +32,11 @@ export const PATCH: APIRoute = ({ request, params }) =>
     }
 
     await repo.updateProgramme(params.id!, patch);
+
+    // Closing is not a field on the row the user edits — it changes whether the
+    // programme accepts evidence at all, so it goes through its own path.
+    if ('closed' in body) await repo.setProgrammeClosed(params.id!, Boolean(body.closed));
+
     return Response.json({ ok: true });
   });
 
