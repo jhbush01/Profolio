@@ -48,10 +48,31 @@ const sections = [
 ];
 
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+
+// Every page but the ProFolio itself is somewhere you came from somewhere.
+// A link rather than history.back(), which sends a deep link or a refreshed
+// tab out of the app entirely.
+const showBack = path !== '/';
 ---
 
 <header class="no-print sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
   <div class="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
+    {
+      showBack && (
+        <a
+          href="/"
+          aria-label="Back to Your ProFolio"
+          class="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-ink-muted transition hover:bg-canvas hover:text-accent"
+        >
+          <i data-lucide="arrow-left" class="size-5" aria-hidden="true" />
+          {/* Always a word beside the arrow. The icon comes from a CDN, and
+              an icon-only back button on a phone is an invisible, unhittable
+              anchor on any network that blocks it. */}
+          <span class="sm:hidden">Back</span>
+          <span class="hidden sm:inline">Your ProFolio</span>
+        </a>
+      )
+    }
     <button
       type="button"
       id="drawer-open"
@@ -63,7 +84,17 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
       Menu
     </button>
 
-    <a href="/" class="font-display text-base font-normal">Profolio</a>
+    {/* The wordmark is only a link when nothing else in the bar already goes
+        home. With the back arrow present it is identity, not navigation —
+        two links to the same place, a thumb apart, is how a bar stops being
+        read. */}
+    {
+      showBack ? (
+        <span class="font-display text-base font-normal">Profolio</span>
+      ) : (
+        <a href="/" class="font-display text-base font-normal">Profolio</a>
+      )
+    }
   </div>
 </header>
 

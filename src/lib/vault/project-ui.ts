@@ -401,12 +401,6 @@ function render() {
   }
 
   host.innerHTML = `
-    <nav class="mb-5 flex items-center gap-2 text-xs text-ink-faint" aria-label="Breadcrumb">
-      <a href="/" class="text-accent hover:underline">Your ProFolio</a>
-      <span aria-hidden="true">/</span>
-      <span>${escapeHtml(programme.name)}</span>
-    </nav>
-
     <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start">
       <div class="min-w-0 flex-1">
         <p class="pf-eyebrow text-ink-faint">${escapeHtml(template?.name ?? 'Project')}</p>
