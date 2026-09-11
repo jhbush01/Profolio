@@ -11,6 +11,7 @@
  */
 import {
   ApiError,
+  deleteProgramme,
   loadProgrammes,
   loadVault,
   updateDocument,
@@ -53,7 +54,35 @@ let programme: Programme | undefined;
 let template: ProgrammeTemplate | undefined;
 let documents: VaultDocument[] = [];
 
+const TABS = [
+  { id: 'checklist', label: 'Checklist' },
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'context', label: 'Context' },
+  { id: 'settings', label: 'Settings' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
+
+/**
+ * Which tab is open, kept in the URL so a project view can be linked to and
+ * survives a refresh — and so the browser's own back button works inside a
+ * project, rather than throwing you out to the grid.
+ */
+let tab: TabId = 'checklist';
+
 const projectId = () => new URLSearchParams(window.location.search).get('id') ?? '';
+
+function readTab(): TabId {
+  const raw = new URLSearchParams(window.location.search).get('tab');
+  return TABS.some((t) => t.id === raw) ? (raw as TabId) : 'checklist';
+}
+
+function setTab(next: TabId) {
+  tab = next;
+  const params = new URLSearchParams(window.location.search);
+  params.set('tab', next);
+  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+}
 
 function assigned(): VaultDocument[] {
   return programme ? documents.filter((doc) => doc.programmes.includes(programme!.id)) : [];
@@ -243,6 +272,77 @@ function contextBlock(): string {
   </section>`;
 }
 
+/** Everything in the project, flat and dated — the "what have I actually got" view. */
+function evidenceTab(closed: boolean): string {
+  const records = [...assigned()].sort((a, b) => b.addedAt - a.addedAt);
+
+  if (records.length === 0) {
+    return `<section class="rounded-lg border border-dashed border-line bg-canvas px-8 py-14 text-center">
+      <h2 class="text-lg font-semibold">Nothing in this project yet</h2>
+      <p class="prose-body mx-auto mt-2 max-w-[48ch] text-sm">
+        Capture something and add it here, or open the checklist to see what would fit.
+      </p>
+      <a href="/capture" class="mt-4 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-white">Capture evidence</a>
+    </section>`;
+  }
+
+  const incomplete = records.filter((doc) => !isComplete(doc)).length;
+
+  return `<section class="card p-6">
+    <div class="flex flex-wrap items-baseline justify-between gap-3 pb-1">
+      <h2 class="text-lg font-semibold">${records.length} record${records.length === 1 ? '' : 's'}</h2>
+      ${
+        incomplete > 0
+          ? `<span class="text-xs text-caution">${incomplete} missing detail</span>`
+          : '<span class="text-xs text-positive">All details filled in</span>'
+      }
+    </div>
+    <ul>${records.map((doc) => evidenceRow(doc, closed)).join('')}</ul>
+  </section>`;
+}
+
+/** Dates, closing, and removing — the things that change the project itself. */
+function settingsTab(closed: boolean): string {
+  if (!programme) return '';
+
+  return `<div class="flex flex-col gap-5">
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Window</h2>
+      <p class="prose-body mb-3 mt-1 text-xs">
+        What the checklist measures "by now" against. Leave them unset and nothing is ever
+        flagged as behind.
+      </p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">Start date</span>
+          <input type="date" id="project-starts" value="${programme.startsOn ?? ''}" ${closed ? 'disabled' : ''}
+            class="min-h-11 rounded-md border border-line bg-surface px-3 text-sm disabled:opacity-50" />
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">End date</span>
+          <input type="date" id="project-ends" value="${programme.endsOn ?? ''}" ${closed ? 'disabled' : ''}
+            class="min-h-11 rounded-md border border-line bg-surface px-3 text-sm disabled:opacity-50" />
+        </label>
+      </div>
+      ${closed ? '<p class="mt-2 text-xs text-ink-muted">Reopen the project to change its dates.</p>' : ''}
+    </section>
+
+    ${closureBlock(closed)}
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Remove this project</h2>
+      <p class="prose-body mt-1 text-sm">
+        The project and its checklist go. Your evidence does not — every record stays in your
+        vault, and in any other project it belongs to.
+      </p>
+      <button type="button" data-remove-project
+        class="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:border-critical/40 hover:text-critical">
+        Remove project
+      </button>
+    </section>
+  </div>`;
+}
+
 function closureBlock(closed: boolean): string {
   if (!programme) return '';
   const count = assigned().length;
@@ -330,14 +430,36 @@ function render() {
       </div>
     </div>
 
+    <!-- Everything this project can do, flat and in one row. The drawer is for
+         moving around the ProFolio; this is for working inside one project. -->
+    <nav class="-mx-5 mb-6 overflow-x-auto border-b border-line px-5" aria-label="Project">
+      <div class="flex min-w-max gap-1">
+        ${TABS.map(
+          (t) => `<button type="button" data-tab="${t.id}"
+            aria-current="${t.id === tab ? 'page' : 'false'}"
+            class="min-h-11 border-b-2 px-4 text-sm transition ${
+              t.id === tab
+                ? 'border-accent font-semibold text-accent'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }">${t.label}${
+              t.id === 'evidence' ? ` <span class="font-mono text-xs">${records.length}</span>` : ''
+            }</button>`,
+        ).join('')}
+      </div>
+    </nav>
+
     <p id="project-status" role="status" aria-live="polite" class="mb-4 text-xs text-ink-muted"></p>
 
     <div class="flex flex-col gap-5">
-      ${contextBlock()}
-      ${checklistBlock(closed)}
-      ${extraBlock(closed)}
-      ${suggestionBlock(closed)}
-      ${closureBlock(closed)}
+      ${
+        tab === 'checklist'
+          ? `${checklistBlock(closed)}${extraBlock(closed)}${suggestionBlock(closed)}`
+          : tab === 'evidence'
+            ? evidenceTab(closed)
+            : tab === 'context'
+              ? contextBlock()
+              : settingsTab(closed)
+      }
     </div>`;
 }
 
@@ -380,10 +502,51 @@ export async function initProject() {
 
   render();
 
+  // Dates are written on change rather than behind a Save button: there are two
+  // of them, and a form that needs saving is one more thing to forget.
+  host.addEventListener('change', async (event) => {
+    const target = event.target as HTMLInputElement;
+    if (!programme) return;
+    if (target.id !== 'project-starts' && target.id !== 'project-ends') return;
+
+    const patch =
+      target.id === 'project-starts'
+        ? { startsOn: target.value || null }
+        : { endsOn: target.value || null };
+
+    await guard('Saving dates', async () => {
+      await updateProgramme(programme!.id, patch);
+      await refresh();
+      render();
+      setStatus('Dates updated.');
+    });
+  });
+
   host.addEventListener('click', async (event) => {
     const button = (event.target as HTMLElement).closest<HTMLElement>('button');
     if (!button || !programme) return;
     const id = programme.id;
+
+    const nextTab = button.dataset.tab;
+    if (nextTab) {
+      setTab(nextTab as TabId);
+      render();
+      return;
+    }
+
+    if (button.dataset.removeProject !== undefined) {
+      if (
+        !window.confirm(
+          `Remove "${programme.name}"? The project goes; your evidence stays in your vault.`,
+        )
+      ) {
+        return;
+      }
+      return guard('Removing project', async () => {
+        await deleteProgramme(id);
+        window.location.href = '/';
+      });
+    }
 
     const add = button.dataset.assign;
     if (add) {

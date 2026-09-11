@@ -15,8 +15,12 @@ import { portfolio } from '../lib/portfolio';
 const path = Astro.url.pathname;
 
 /**
- * One flat list of the things the app actually does, in the order you use
- * them, matching the phone bar exactly.
+ * Moving around the ProFolio, and nothing else.
+ *
+ * Working inside one project — its checklist, its evidence, its dates, closing
+ * it — belongs to that project's own tab bar. A drawer that also carried
+ * project actions meant two places to look for the same thing, and the drawer
+ * always lost, because it is the one you have to open first.
  *
  * The teaching-sequence pages underneath are a fixed sample built from
  * src/data/*.json. They used to sit as peers of the real features, which read
@@ -28,8 +32,7 @@ const sections = [
     links: [
       { href: '/', label: 'Your ProFolio', hint: 'Every project you are building' },
       { href: '/capture', label: 'Capture', hint: 'Camera, photos or files' },
-      { href: '/programmes', label: 'Projects', hint: 'What you are collecting for' },
-      { href: '/portfolio', label: 'Evidence', hint: 'Everything you have captured' },
+      { href: '/portfolio', label: 'All evidence', hint: 'Across every project' },
       { href: '/export', label: 'Export', hint: 'Build a PDF by project' },
       { href: '/data-profile', label: 'Data collection profile', hint: 'Generated summary' },
     ],
