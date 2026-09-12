@@ -524,7 +524,7 @@ export async function buildPortfolioPdf(
     return tableIndexes;
   }
 
-  function drawDivider(folder: VaultFolder, depth: number, count: number) {
+  function drawDivider(folder: VaultFolder, _depth: number, count: number) {
     const page = pdf.addPage(A4);
     let y = A4[1] / 2 + 40;
     page.drawRectangle({ x: MARGIN, y: y + 34, width: 54, height: 4, color: ACCENT });

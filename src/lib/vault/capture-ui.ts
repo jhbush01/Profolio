@@ -27,6 +27,7 @@ import { CYCLE_PHASES, EVIDENCE_TYPES, PURPOSES, SUBJECT_SCOPES } from './dimens
 import { describeFindings, scanFiles } from './deidentify';
 import standardsJson from '../../data/standards.json';
 import type { VaultDocument } from './types';
+import { renderKindFor } from './types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
@@ -37,6 +38,25 @@ function escapeHtml(value: string): string {
 }
 
 const STANDARDS = standardsJson as Array<{ code: string; focus: string; domain: string }>;
+
+/**
+ * Object URLs for the files being reviewed, made from the File objects the
+ * picker handed over.
+ *
+ * The preview is drawn from the local file, never fetched back from R2. The
+ * bytes are already in the browser — they were a moment ago being uploaded from
+ * it — so the picture appears the instant the picker closes instead of after a
+ * round trip to a bucket. Revoked when the record leaves the queue.
+ */
+const previews = new Map<string, string>();
+
+function releasePreview(id: string) {
+  const url = previews.get(id);
+  if (url) {
+    URL.revokeObjectURL(url);
+    previews.delete(id);
+  }
+}
 
 /** Uploaded and stored, but not yet reviewed. The front of this is on screen. */
 let queue: VaultDocument[] = [];
@@ -172,14 +192,13 @@ function reviewCard(): string {
   }).join('');
 
   return `<section class="card flex flex-col gap-5 p-5">
-    <div class="flex items-start gap-3 border-b border-line-subtle pb-4">
-      <div class="min-w-0 flex-1">
-        <p class="pf-eyebrow text-ink-faint">Review${escapeHtml(position)}</p>
-        <p class="mt-1.5 truncate text-base font-semibold" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
-        <p class="mt-0.5 text-xs text-ink-muted">
-          Saved to your evidence. Not in a project until you add it below.
-        </p>
-      </div>
+    <div class="border-b border-line-subtle pb-4">
+      <p class="pf-eyebrow text-ink-faint">Review${escapeHtml(position)}</p>
+      ${previewBlock(doc)}
+      <p class="mt-3 truncate text-base font-semibold" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
+      <p class="mt-0.5 text-xs text-ink-muted">
+        Saved to your evidence. Not in a project until you add it below.
+      </p>
     </div>
 
     ${fieldBlock('Add to project', projectChips)}
@@ -225,6 +244,39 @@ function reviewCard(): string {
       </button>
     </div>
   </section>`;
+}
+
+/**
+ * What you just captured, shown before you are asked anything about it.
+ *
+ * Straight from the local file, so it paints immediately: the point of looking
+ * at a photograph before tagging it is checking you got the whiteboard in
+ * frame, and a preview that arrives two seconds later has missed the moment.
+ *
+ * Video gets a real player. A lesson recording is the one capture where "is
+ * this the right clip" cannot be answered from a still.
+ */
+function previewBlock(doc: VaultDocument): string {
+  const url = previews.get(doc.id);
+  const kind = renderKindFor(doc.mime, doc.name);
+
+  if (!url || kind === 'unsupported') {
+    return `<div class="mt-2 flex h-24 items-center justify-center rounded-md bg-canvas text-xs text-ink-muted">
+      ${escapeHtml(doc.mime || 'File')}
+    </div>`;
+  }
+
+  if (kind === 'image') {
+    return `<img src="${url}" alt="" class="mt-2 max-h-64 w-full rounded-md bg-canvas object-contain" />`;
+  }
+  if (kind === 'video') {
+    return `<video src="${url}" controls playsinline preload="metadata"
+      class="mt-2 max-h-64 w-full rounded-md bg-ink"></video>`;
+  }
+  if (kind === 'audio') {
+    return `<audio src="${url}" controls preload="metadata" class="mt-2 w-full"></audio>`;
+  }
+  return `<iframe src="${url}" title="" class="mt-2 h-64 w-full rounded-md border-0 bg-white"></iframe>`;
 }
 
 function savedList(): string {
@@ -287,6 +339,12 @@ async function handleFiles(files: FileList | File[]) {
   setStatus(`Uploading ${list.length}…`, true);
   await guard('Upload', async () => {
     const result = await addDocuments(list, null);
+    // The server returns them in the order they were sent, so index pairs the
+    // stored record with the File still sitting in this tab.
+    result.added.forEach((doc, index) => {
+      const source = list[index];
+      if (source) previews.set(doc.id, URL.createObjectURL(source));
+    });
     // Stored, and nothing more: no project, no dimensions, until it is reviewed.
     queue = [...queue, ...result.added];
     render();
@@ -319,6 +377,7 @@ async function saveDraft() {
       programmes: pending.programmes,
     });
 
+    releasePreview(doc.id);
     saved = [{ ...doc, ...pending }, ...saved];
     queue = queue.slice(1);
     draft = queue.length > 0 ? freshDraft() : null;
@@ -337,6 +396,7 @@ async function discardDraft() {
 
   await guard('Discarding', async () => {
     await deleteDocument(doc.id);
+    releasePreview(doc.id);
     queue = queue.slice(1);
     draft = queue.length > 0 ? freshDraft() : null;
     render();

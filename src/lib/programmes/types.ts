@@ -72,6 +72,19 @@ export interface ProgrammeTemplate {
    * practitioner's thinking rather than a form letter.
    */
   reportOutline?: readonly ReportHeading[];
+
+  /**
+   * Files this programme holds are filed automatically, by stage of the cycle.
+   *
+   * Maps a `cyclePhase` value to a folder name. The folders are created the
+   * first time one is needed, inside a folder named after the project, so two
+   * placements never share a "Practice 1" drawer. A record that already sits in
+   * a folder someone chose is left alone.
+   *
+   * Omit it and nothing is filed automatically, which is right for a template
+   * whose evidence has no natural running order.
+   */
+  autoFolderByPhase?: Readonly<Record<string, string>>;
 }
 
 export interface ReportHeading {
@@ -84,6 +97,18 @@ export interface ReportHeading {
   prompts: readonly string[];
   /** Checklist sections whose evidence is gathered under this heading. */
   sections?: readonly string[];
+  /**
+   * Keys this heading's text may have been stored under before. Read only as a
+   * fallback, so retitling or re-sectioning a heading never hides what somebody
+   * has already written.
+   */
+  legacyKeys?: readonly string[];
+  /**
+   * Required length, as [min, max] words. Shown as a live count while writing
+   * and, when the assessment sets one, the difference between a submission
+   * that is accepted and one that is handed back.
+   */
+  wordRange?: readonly [number, number];
   /** Render the project's context statement fields here, editable. */
   includesContext?: boolean;
   /** Render the generated data collection table here. */

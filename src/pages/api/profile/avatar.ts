@@ -6,10 +6,19 @@ export const prerender = false;
 /**
  * The profile picture: one object, one owner, one URL.
  *
- * GET is cacheable in the viewer's own browser but nowhere shared — it is a
- * picture of a person, so `private`. Callers append the stored timestamp as a
- * query string, which is what makes a replacement appear at once despite that
- * cache.
+ * NOT CACHED, and that is the point of this comment.
+ *
+ * This used to be `private, max-age=300, must-revalidate`, which is a
+ * cross-account leak. Every account asks for the same URL, so after signing out
+ * and signing in as somebody else, the browser answered from its own cache with
+ * the previous account's face — under the new account's name — for the next
+ * five minutes. On a shared staffroom device that is one person's photograph
+ * presented as another person's.
+ *
+ * `Vary: Cookie` says the same thing to anything in between: this response
+ * depends on the Access cookie, so it is never one shared answer. Callers still
+ * append the stored timestamp, which costs nothing and keeps a replacement
+ * instant if some cache ignores all of this.
  */
 export const GET: APIRoute = ({ request }) =>
   withRepo(request, async (repo) => {
@@ -18,7 +27,8 @@ export const GET: APIRoute = ({ request }) =>
     return new Response(found.body, {
       headers: {
         'Content-Type': found.mime,
-        'Cache-Control': 'private, max-age=300, must-revalidate',
+        'Cache-Control': 'private, no-store',
+        Vary: 'Cookie',
       },
     });
   });

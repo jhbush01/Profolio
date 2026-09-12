@@ -351,6 +351,18 @@ const AVATAR_EDGE = 512;
 async function shrinkImage(file: File): Promise<File> {
   try {
     const bitmap = await createImageBitmap(file);
+
+    // Already a JPEG within bounds — which is what the cropper hands us — so
+    // re-encoding would only cost quality for nothing.
+    if (
+      file.type === 'image/jpeg' &&
+      bitmap.width <= AVATAR_EDGE &&
+      bitmap.height <= AVATAR_EDGE
+    ) {
+      bitmap.close();
+      return file;
+    }
+
     const scale = Math.min(1, AVATAR_EDGE / Math.max(bitmap.width, bitmap.height));
     const width = Math.round(bitmap.width * scale);
     const height = Math.round(bitmap.height * scale);

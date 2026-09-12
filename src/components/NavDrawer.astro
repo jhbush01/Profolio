@@ -27,25 +27,28 @@ const path = Astro.url.pathname;
  * src/data/*.json. They used to sit as peers of the real features, which read
  * as though the app shipped with someone else's evidence already in it.
  */
+/**
+ * Names, not explanations. A drawer where every line carries a subtitle is a
+ * drawer you have to read rather than scan, and a teacher does not need to be
+ * told what "Projects" is.
+ */
 interface NavLink {
   href: string;
   label: string;
-  /** Omitted where the group heading already says what these are. */
-  hint?: string;
 }
 
 const sections: { label: string | null; links: NavLink[] }[] = [
   {
     label: null,
     links: [
-      { href: '/', label: 'Home', hint: 'Your projects at a glance' },
-      { href: '/programmes', label: 'Projects', hint: 'Start, manage and close them' },
-      { href: '/capture', label: 'Capture', hint: 'Camera or upload' },
-      { href: '/portfolio', label: 'All artefacts', hint: 'Search across every project' },
-      { href: '/export', label: 'Export', hint: 'Build a PDF' },
-      { href: '/data-profile', label: 'Data collection profile', hint: 'Generated summary' },
-      { href: '/account', label: 'Account', hint: 'Cover details and your data' },
-      { href: '/privacy', label: 'Privacy', hint: 'What is stored, and deleting it' },
+      { href: '/', label: 'Home' },
+      { href: '/programmes', label: 'Projects' },
+      { href: '/capture', label: 'Capture' },
+      { href: '/portfolio', label: 'Artefacts' },
+      { href: '/export', label: 'Export' },
+      { href: '/pedagogy', label: 'My pedagogy' },
+      { href: '/account', label: 'Account' },
+      { href: '/privacy', label: 'Privacy' },
     ],
   },
   {
@@ -61,15 +64,17 @@ const sections: { label: string | null; links: NavLink[] }[] = [
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 
 /**
- * The same four destinations the phone bar carries, as a row on wider screens.
+ * The workflow, as a row on wider screens and a bar under a thumb on phones.
  *
- * One workflow, two shapes: a bar along the bottom under a thumb, a row along
- * the top under a cursor. The drawer stays the full map on both.
+ * Artefacts is here on desktop and not on the phone bar: the phone bar has four
+ * thumb-sized targets and Capture has to be one of them, while a cursor can
+ * reach a fifth without anything getting smaller.
  */
 const primary = [
   { href: '/', label: 'Home' },
   { href: '/programmes', label: 'Projects', also: ['/project'] },
   { href: '/capture', label: 'Capture' },
+  { href: '/portfolio', label: 'Artefacts' },
   { href: '/export', label: 'Export' },
 ];
 
@@ -122,7 +127,7 @@ const showBack = path !== '/';
     }
 
     {/* Desktop only: the phone bar's workflow, in the top bar. */}
-    <nav class="ml-2 hidden items-center gap-1 sm:flex" aria-label="Primary">
+    <nav class="ml-2 hidden items-center gap-1 sm:flex" aria-label="Primary, desktop">
       {primary.map((link) => (
         <a
           href={link.href}
@@ -161,10 +166,7 @@ const showBack = path !== '/';
   aria-hidden="true"
 >
   <div class="flex items-center justify-between border-b border-line px-5 py-4">
-    <div>
-      <p class="font-display text-lg font-normal">Profolio</p>
-      <p class="text-xs text-ink-muted">Professional evidence vault</p>
-    </div>
+    <p class="font-display text-lg font-normal">Profolio</p>
     <button
       type="button"
       id="drawer-close"
@@ -194,7 +196,6 @@ const showBack = path !== '/';
                   ]}
                 >
                   <span class="block text-sm font-medium">{link.label}</span>
-                  {link.hint && <span class="block text-xs text-ink-muted">{link.hint}</span>}
                 </a>
               </li>
             ))}
@@ -204,8 +205,10 @@ const showBack = path !== '/';
     }
   </nav>
 
+  {/* Kept: where the files physically are is a fair thing for someone
+      uploading children's work to be able to find without hunting. */}
   <p class="border-t border-line px-5 py-3 text-[0.7rem] leading-relaxed text-ink-muted">
-    Portfolio documents are stored in Cloudflare R2. Export a PDF for an offline copy.
+    Files are stored in Cloudflare R2. <a href="/privacy" class="underline hover:text-accent">Privacy</a>
   </p>
 </aside>
 

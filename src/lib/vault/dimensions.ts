@@ -15,6 +15,11 @@ export const CYCLE_PHASES = [
   { value: 'appraise', label: 'Appraising impact' },
 ] as const;
 
+export const SUBJECT_SCOPES = [
+  { value: 'cohort', label: 'Whole class' },
+  { value: 'individual', label: 'Student' },
+] as const;
+
 export const EVIDENCE_TYPES = [
   { value: 'plan', label: 'Plan or unit' },
   { value: 'work-sample', label: 'Work sample' },
@@ -32,11 +37,6 @@ export const PURPOSES = [
   { value: 'formative', label: 'Formative' },
   { value: 'summative', label: 'Summative' },
   { value: 'other', label: 'Other' },
-] as const;
-
-export const SUBJECT_SCOPES = [
-  { value: 'cohort', label: 'Whole class or cohort' },
-  { value: 'individual', label: 'One individual' },
 ] as const;
 
 type Option = { readonly value: string; readonly label: string };

@@ -13,15 +13,10 @@ import { portfolio, standardCoverage } from '../lib/portfolio';
 
 const coverage = standardCoverage();
 const domains = [...new Set(coverage.map((standard) => standard.domain))];
-const evidenced = coverage.filter((standard) => standard.artefactCount > 0).length;
 ---
 
 <BaseLayout title={`${portfolio.framework} alignment`} width="reading">
-  <PageHeader
-    eyebrow={portfolio.frameworkName}
-    title={`${portfolio.framework} alignment`}
-    lead={`${evidenced} of ${coverage.length} tracked standards currently have at least one artefact attached.`}
-  />
+  <PageHeader title={`${portfolio.framework} alignment`} />
 
   {
     domains.map((domain) => (

@@ -7,7 +7,7 @@
  */
 import type { Programme } from './db';
 import type { ReportEntry } from './pdf';
-import { outlineFor, templateFor, writtenFor } from '../programmes';
+import { outlineFor, templateFor, totalWeeks, writtenFor } from '../programmes';
 
 interface EntryOptions {
   /** False drops the context lines from wherever the outline puts them. */
@@ -45,14 +45,26 @@ export function reportEntries(programme: Programme, options: EntryOptions = {}):
     );
 }
 
-/** The context statement as "Label: value" lines, unanswered fields dropped. */
+/**
+ * The context statement as "Label: value" lines, unanswered fields dropped.
+ *
+ * Placement duration is worked out from the project's own dates rather than
+ * asked for. It is a required field, and a required field that can disagree
+ * with the dates beside it is a field that will.
+ */
 export function contextLines(programme: Programme): string[] {
   const template = templateFor(programme.template);
   if (!template) return [];
-  return template.contextFields
+
+  const lines = template.contextFields
     .map((field) => {
       const value = programme.context[field.id]?.trim();
       return value ? `${field.label}: ${value}` : null;
     })
     .filter((line): line is string => line !== null);
+
+  const weeks = totalWeeks(programme.startsOn, programme.endsOn);
+  if (weeks) lines.unshift(`Placement duration: ${weeks} week${weeks === 1 ? '' : 's'}`);
+
+  return lines;
 }

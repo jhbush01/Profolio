@@ -81,15 +81,22 @@ export function buildProfileRows(documents: Sourceish[]): ProfileTableRow[] {
     }));
 }
 
-/** Column headings, in order, shared by both renderers. */
+/**
+ * Column headings, in order, shared by both renderers.
+ *
+ * Worded as the submission's own table words them. This table is a mandatory
+ * inclusion with a fixed shape; a generated table with columns of our own
+ * invention would have to be retyped into the real one, which is the opposite
+ * of the point.
+ */
 export const PROFILE_COLUMNS = [
-  'Stage of the cycle',
-  'Type of evidence',
+  'Timing in the teaching and learning cycle',
+  'Type of data',
   'Purpose',
   'Source',
-  'APST',
+  'Relevant APST',
   'Level of use',
-  'Designed by me',
+  'Designed by preservice teacher',
 ] as const;
 
 /** The cell values for one row, matching PROFILE_COLUMNS. */

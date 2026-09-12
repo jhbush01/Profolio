@@ -47,14 +47,9 @@
       <p id="account-email" class="mt-0.5 break-all text-sm font-medium">Checking…</p>
     </div>
 
-    <a href="/account" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">
-      Account
-      <span class="block text-xs text-ink-muted">Cover details, storage and your data</span>
-    </a>
-    <a href="/privacy" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">
-      Privacy
-      <span class="block text-xs text-ink-muted">What is stored, and for how long</span>
-    </a>
+    <a href="/account" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">Account</a>
+    <a href="/pedagogy" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">My pedagogy</a>
+    <a href="/privacy" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">Privacy</a>
 
     <!-- A real navigation, not fetch(): Access has to set cookies and redirect. -->
     <a
@@ -122,12 +117,11 @@
         if (emailField) emailField.textContent = email;
         if (initialsField) initialsField.textContent = initialsOf(email);
 
-        // The picture, if there is one. No cache-buster here on purpose: this
-        // badge is on every page, and asking /api/me for the timestamp would
-        // cost a database read per page view to keep a 24px square current.
-        // The endpoint's five-minute max-age is close enough for a corner of
-        // the chrome; the account page, where you actually change it, does
-        // carry the stamp and updates at once.
+        // The picture, if there is one. No cache-buster, and none needed: the
+        // endpoint is `no-store`, so this badge cannot show a picture belonging
+        // to whoever was signed in before. It used to be cached for five
+        // minutes against one shared URL, which is exactly how one account's
+        // face turned up on another account's badge.
         const picture = new Image();
         picture.onload = () => {
           if (!initialsField) return;

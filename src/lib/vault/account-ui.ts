@@ -167,8 +167,19 @@ export async function initAccount() {
     // Cleared first, so choosing the same file twice still fires a change.
     avatarInput.value = '';
     if (!file) return;
+
+    // Choose the square before it is sent. A landscape photo used to be
+    // squashed to fit, which turned a picture of a person into a strip of
+    // classroom with a head somewhere in it.
+    const { cropToSquare } = await import('./avatar-crop');
+    const square = await cropToSquare(file);
+    if (!square) {
+      setStatus('Picture not changed.');
+      return;
+    }
+
     await guard('Saving your picture', async () => {
-      await uploadAvatar(file);
+      await uploadAvatar(square);
       setStatus('Picture saved.');
       await load();
     });

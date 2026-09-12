@@ -7,7 +7,6 @@
  * top of the page you open to find one artefact.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
-import PageHeader from '../components/PageHeader.astro';
 ---
 
 <BaseLayout
@@ -15,11 +14,7 @@ import PageHeader from '../components/PageHeader.astro';
   description="Your cover details, storage, and how to remove your data."
   width="reading"
 >
-  <PageHeader
-    eyebrow="Account"
-    title="Your account"
-    lead="How your ProFolio presents itself, and what to do when you are finished with it."
-  />
+  <h1 class="mb-4 font-display text-3xl font-normal tracking-[-0.02em] sm:text-4xl">Account</h1>
 
   <p id="account-status" role="status" aria-live="polite" class="mb-4 text-xs text-ink-muted"></p>
 
@@ -33,9 +28,6 @@ import PageHeader from '../components/PageHeader.astro';
     <!-- Printed on the PDF cover page, and shown at the top of Home. -->
     <section class="card p-6">
       <h2 class="text-base font-semibold">Cover details</h2>
-      <p class="prose-body mb-4 mt-1 text-xs">
-        These head your Home page and print on the front page of every export.
-      </p>
 
       <div class="mb-5 flex items-center gap-4 border-b border-line-subtle pb-5">
         <!-- Initials until there is a picture, so the slot is never empty. -->
@@ -47,10 +39,6 @@ import PageHeader from '../components/PageHeader.astro';
         </div>
         <div class="min-w-0">
           <p class="text-xs font-medium">Your picture</p>
-          <p class="prose-body mt-0.5 text-xs">
-            Optional. Scaled down in your browser before it is sent, so a photo
-            straight off a phone is fine.
-          </p>
           <div class="mt-2 flex flex-wrap gap-2">
             <button
               id="avatar-choose"
@@ -103,24 +91,19 @@ import PageHeader from '../components/PageHeader.astro';
 
     <section class="card p-6">
       <h2 class="text-base font-semibold">Teaching philosophy</h2>
-      <p class="prose-body mb-3 mt-1 text-xs">
-        Your statement of practice, in your own words. It follows the cover page on export.
+      <p class="prose-body mt-1 text-sm">
+        Now on its own page, with what your evidence says about the practice it describes.
       </p>
-      <textarea
-        id="profile-philosophy"
-        rows="10"
-        placeholder="What you believe about teaching and learning, and how that shows up in your classroom."
-        class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed"></textarea>
-      <p class="prose-body mt-2 text-xs">
-        Nobody drafts this for you. It is the one part of a portfolio that has to be yours.
-      </p>
+      <a href="/pedagogy" class="mt-3 inline-block rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent">
+        My pedagogy
+      </a>
+      <!-- Kept in the DOM, hidden, so the account controller still loads and
+           saves it without a second code path. -->
+      <textarea id="profile-philosophy" hidden></textarea>
     </section>
 
     <section class="card p-6">
-      <h2 class="text-base font-semibold">Contact details</h2>
-      <p class="prose-body mb-4 mt-1 text-xs">
-        Printed on the cover page so whoever reads your portfolio can reach you. All optional.
-      </p>
+      <h2 class="mb-4 text-base font-semibold">Contact details</h2>
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
           <span class="text-xs font-medium">Email</span>
@@ -169,10 +152,9 @@ import PageHeader from '../components/PageHeader.astro';
     <section id="your-data" class="scroll-mt-24">
       <h2 class="text-lg font-semibold">Your data</h2>
       <p class="prose-body mt-1 text-sm">
-        Everything here belongs to you and is visible only to you.{' '}
         <a href="/privacy" class="text-accent underline underline-offset-2">
           What is stored, and for how long
-        </a>.
+        </a>
       </p>
 
       <div class="mt-4 flex flex-col gap-3 sm:flex-row">

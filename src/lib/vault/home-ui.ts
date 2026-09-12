@@ -18,7 +18,6 @@
  * of them here.
  */
 import { describeError, isAuthError, loadProgrammes, loadVault, reloadForAuth, type Programme } from './db';
-import { currentWeek, elapsedFraction, scoreProgramme, templateFor, totalWeeks } from '../programmes';
 import { projectCard } from './project-card';
 import type { VaultDocument, VaultProfile } from './types';
 
@@ -30,16 +29,6 @@ function escapeHtml(value: string): string {
   );
 }
 
-/** `14 Aug 2026` — the form the design system uses in lists. */
-function shortDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function isoShortDate(iso: string): string {
-  const parsed = Date.parse(`${iso}T00:00:00Z`);
-  return Number.isFinite(parsed) ? shortDate(parsed) : iso;
-}
-
 function initials(profile: VaultProfile, email: string): string {
   const source = profile.name.trim() || email;
   const parts = source.split(/[\s.@_-]+/).filter(Boolean);
@@ -48,6 +37,13 @@ function initials(profile: VaultProfile, email: string): string {
 
 /* --------------------------------------------------------------- sections */
 
+/**
+ * Who this belongs to.
+ *
+ * "Home" in the navigation, because that is what a nav link is for. "Your
+ * ProFolio" here, because that is what the page is — the two words do different
+ * jobs and do not have to match.
+ */
 function headerBlock(profile: VaultProfile, email: string): string {
   const named = profile.name.trim().length > 0;
   const role = [profile.title.trim(), profile.summary.trim()].filter(Boolean).join(' · ');
@@ -65,13 +61,11 @@ function headerBlock(profile: VaultProfile, email: string): string {
         }
       </div>
       <div class="min-w-0 flex-1">
-        <p class="pf-eyebrow text-ink-faint">Home</p>
+        <p class="pf-eyebrow text-ink-faint">Your ProFolio</p>
         <h1 class="mt-1.5 font-display text-3xl font-normal tracking-[-0.02em] sm:text-5xl ${named ? '' : 'text-ink-faint'}">
           ${escapeHtml(named ? profile.name : 'Your name')}
         </h1>
-        <p class="prose-body mt-1 text-sm">
-          ${role ? escapeHtml(role) : 'Shown on the cover of every export.'}
-        </p>
+        ${role ? `<p class="prose-body mt-1 text-sm">${escapeHtml(role)}</p>` : ''}
         <a href="/account" class="mt-1 inline-block text-xs font-medium text-accent hover:underline">
           ${named ? 'Edit cover details' : 'Add cover details'}
         </a>

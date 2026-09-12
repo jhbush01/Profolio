@@ -6,6 +6,7 @@
  */
 import { HttpError } from './access';
 import type { Identity } from './accounts';
+import { templateFor } from '../programmes';
 import type { Dimensions } from '../vault/dimensions';
 
 export interface FolderRow {
@@ -548,6 +549,13 @@ export class Repo {
       // exactly as it refuses it anywhere else. The document itself is already
       // stored and stays stored: the upload succeeded, the assignment did not.
       doc.programmes = await this.setDocumentProgrammes(doc.id, [programmeId]);
+      // Assignment may have filed it. Report where it actually landed, or the
+      // page that just uploaded it renders the row in the wrong folder.
+      const row = await this.db
+        .prepare(`SELECT folder_id FROM documents WHERE id = ?1 AND owner = ?2`)
+        .bind(doc.id, this.who.accountId)
+        .first<{ folder_id: string | null }>();
+      doc.folderId = row?.folder_id ?? doc.folderId;
     }
 
     return doc;
@@ -588,6 +596,86 @@ export class Repo {
       .prepare(`UPDATE documents SET ${assignments} WHERE id = ?1 AND owner = ?2`)
       .bind(id, this.who.accountId, ...columns.map(([, value]) => value))
       .run();
+
+    // Setting the stage of the cycle is what tells us which practice a record
+    // belongs to, so it is also the moment it can be filed. Never when the
+    // caller set the folder in the same breath — that is a choice, and a choice
+    // wins over a rule.
+    if (patch.cyclePhase !== undefined && patch.folderId === undefined) {
+      await this.autoFile(id);
+    }
+  }
+
+  /* -------------------------------------------------------- auto-filing */
+
+  /**
+   * Files a record into the folder its project says it belongs in.
+   *
+   * The rule comes from the template (`autoFolderByPhase`), keyed on the stage
+   * of the cycle the record is set to. Folders are made the first time one is
+   * needed, nested inside a folder named after the project, so two placements
+   * never share a "Practice 1" drawer.
+   *
+   * Server-side rather than in the page that happens to be open, because a
+   * record's details can be filled in from capture, from the artefacts page or
+   * from inside a project, and a rule that only fires on one of those is a rule
+   * nobody can rely on.
+   *
+   * Deliberately quiet about three things. A record already in a folder is left
+   * where it is — somebody put it there. A record in several projects is filed
+   * by the first one with a rule, because a file has one folder and guessing
+   * between two is worse than picking. And any failure here is swallowed: the
+   * detail the user actually asked to save is already saved, and losing that to
+   * a tidying step would be absurd.
+   */
+  private async autoFile(documentId: string): Promise<void> {
+    try {
+      const row = await this.db
+        .prepare(`SELECT folder_id, cycle_phase FROM documents WHERE id = ?1 AND owner = ?2`)
+        .bind(documentId, this.who.accountId)
+        .first<{ folder_id: string | null; cycle_phase: string | null }>();
+      if (!row || row.folder_id || !row.cycle_phase) return;
+
+      const { results } = await this.db
+        .prepare(
+          `SELECT p.id, p.template, p.name
+             FROM document_programmes dp JOIN programmes p ON p.id = dp.programme_id
+            WHERE dp.document_id = ?1 AND dp.owner = ?2
+            ORDER BY dp.assigned_at`,
+        )
+        .bind(documentId, this.who.accountId)
+        .all<{ id: string; template: string; name: string }>();
+
+      for (const programme of results) {
+        const folderName = templateFor(programme.template)?.autoFolderByPhase?.[row.cycle_phase];
+        if (!folderName) continue;
+
+        const parent = await this.folderNamed(programme.name, null);
+        const target = await this.folderNamed(folderName, parent);
+        await this.db
+          .prepare(`UPDATE documents SET folder_id = ?3 WHERE id = ?1 AND owner = ?2`)
+          .bind(documentId, this.who.accountId, target)
+          .run();
+        return;
+      }
+    } catch {
+      // Filing is a convenience. The save it follows is not.
+    }
+  }
+
+  /** The id of this account's folder with that name and parent, created if absent. */
+  private async folderNamed(name: string, parentId: string | null): Promise<string> {
+    const existing = await this.db
+      .prepare(
+        `SELECT id FROM folders
+          WHERE owner = ?1 AND name = ?2 AND ((?3 IS NULL AND parent_id IS NULL) OR parent_id = ?3)
+          LIMIT 1`,
+      )
+      .bind(this.who.accountId, name, parentId)
+      .first<{ id: string }>();
+    if (existing) return existing.id;
+
+    return (await this.createFolder(name, parentId)).id;
   }
 
   /**
@@ -780,6 +868,10 @@ export class Repo {
       ),
     ];
     if (statements.length > 0) await this.db.batch(statements);
+
+    // Joining a project is the other moment a record can be filed: it may have
+    // had its stage of the cycle set weeks ago and had nowhere to go until now.
+    if (add.length > 0) await this.autoFile(documentId);
 
     return wanted;
   }

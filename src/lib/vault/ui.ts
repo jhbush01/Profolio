@@ -21,7 +21,6 @@ import {
   emptyProfile,
   loadProgrammes,
   loadVault,
-  saveOrder,
   updateDocument,
   updateFolder,
   type Programme,
@@ -31,23 +30,29 @@ import {
   CYCLE_PHASES,
   EVIDENCE_TYPES,
   isComplete,
-  labelFor,
   missingDimensions,
   PURPOSES,
   SUBJECT_SCOPES,
 } from './dimensions';
 import standardsJson from '../../data/standards.json';
+import {
+  breadcrumbHtml,
+  childFolders,
+  fileSize,
+  folderCounts,
+  folderRow,
+  kindLabel,
+  shortDate,
+  type BrowserOptions,
+} from './file-browser';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
-import { renderKindFor } from './types';
 import { wireViewer } from './viewer';
-
-const ALL = '__all__';
-const UNFILED = '__unfiled__';
 
 let folders: VaultFolder[] = [];
 let documents: VaultDocument[] = [];
 let profile: VaultProfile = emptyProfile;
-let selected: string = ALL;
+/** The open folder, null for the top level. */
+let cursor: string | null = null;
 /** Free-text filter applied on top of the folder selection. */
 let search = '';
 let deidAcknowledged = false;
@@ -68,16 +73,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function kindBadge(doc: VaultDocument): string {
-  const kind = renderKindFor(doc.mime, doc.name);
-  const label = kind === 'pdf' ? 'PDF' : kind === 'image' ? 'Image' : 'File';
-  const tone =
-    kind === 'unsupported'
-      ? 'bg-canvas text-ink-muted'
-      : 'bg-accent-soft text-accent';
-  return `<span class="rounded px-1.5 py-0.5 text-[0.65rem] font-medium ${tone}">${label}</span>`;
 }
 
 const STANDARDS = standardsJson as Array<{ code: string; focus: string; domain: string }>;
@@ -137,9 +132,10 @@ function programmeChips(doc: VaultDocument): string {
 /** The evidence-dimension panel, collapsed by default so the list stays scannable. */
 function detailPanel(doc: VaultDocument): string {
   const gaps = missingDimensions(doc);
-  const summary = gaps.length === 0
-    ? '<span class="text-positive">Details complete</span>'
-    : `<span class="text-caution">Missing ${escapeHtml(gaps.join(', '))}</span>`;
+  const summary =
+    gaps.length === 0
+      ? '<span class="text-ink-muted">Details</span> <span class="text-positive">· complete</span>'
+      : `<span class="text-ink-muted">Details</span> <span class="text-caution">· missing ${escapeHtml(gaps.join(', '))}</span>`;
 
   const standardChips = STANDARDS.map(
     (standard) => `<label
@@ -157,9 +153,35 @@ function detailPanel(doc: VaultDocument): string {
   ).join('');
 
   const designed = doc.selfDesigned;
-  return `<details class="rounded-lg border border-line">
+
+  // The folder list, so a file can be moved from the panel that already holds
+  // everything else about it.
+  const folderOptions = (() => {
+    const opts = [`<option value="">Top level</option>`];
+    const walk = (parentId: string | null, depth: number) => {
+      for (const folder of childFolders(folders, parentId)) {
+        opts.push(
+          `<option value="${folder.id}"${doc.folderId === folder.id ? ' selected' : ''}>${escapeHtml(
+            `${'— '.repeat(depth)}${folder.name}`,
+          )}</option>`,
+        );
+        walk(folder.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    return opts.join('');
+  })();
+
+  return `<details class="mb-2.5 rounded-lg border border-line">
     <summary class="cursor-pointer px-3 py-2 text-xs">${summary}</summary>
     <div class="grid gap-2 border-t border-line p-3 sm:grid-cols-2">
+      <input
+        type="text"
+        data-caption="${doc.id}"
+        value="${escapeHtml(doc.caption)}"
+        placeholder="Caption, printed under this file in the export"
+        class="rounded-lg border border-line bg-surface px-2 py-1 text-xs sm:col-span-2"
+      />
       ${selectFor('phase', doc.id, CYCLE_PHASES, doc.cyclePhase, 'Stage of the cycle…')}
       ${selectFor('etype', doc.id, EVIDENCE_TYPES, doc.evidenceType, 'Evidence type…')}
       ${selectFor('purpose', doc.id, PURPOSES, doc.purpose, 'Purpose…')}
@@ -187,6 +209,12 @@ function detailPanel(doc: VaultDocument): string {
         <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">Counts toward</p>
         ${programmeChips(doc)}
       </div>
+      <label class="flex items-center gap-2 text-xs text-ink-muted sm:col-span-2">
+        <span>Folder</span>
+        <select data-move="${doc.id}" class="flex-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs">
+          ${folderOptions}
+        </select>
+      </label>
     </div>
   </details>`;
 }
@@ -200,14 +228,13 @@ function detailPanel(doc: VaultDocument): string {
  * IMG_4032.jpeg, which is what the phone called it.
  */
 function visibleDocuments(): VaultDocument[] {
-  const inFolder =
-    selected === ALL
-      ? documents
-      : selected === UNFILED
-        ? documents.filter((doc) => !doc.folderId)
-        : documents.filter((doc) => doc.folderId === selected);
-
+  // Searching reaches across every folder. A search that only looked inside the
+  // folder you happen to have open is a search that cannot find anything you
+  // have lost, which is the only reason to search.
   const needle = search.trim().toLowerCase();
+  const inFolder = needle
+    ? documents
+    : documents.filter((doc) => (doc.folderId ?? null) === cursor);
   if (!needle) return inFolder;
 
   const programmeName = new Map(openProgrammes.map((p) => [p.id, p.name.toLowerCase()]));
@@ -236,144 +263,88 @@ function folderPath(id: string | null): string {
 
 /* --------------------------------------------------------------- rendering */
 
-function renderFolders() {
-  const host = $('folder-tree');
-  if (!host) return;
-
-  const counts = (id: string | null) => documents.filter((doc) => doc.folderId === id).length;
-
-  const row = (id: string, label: string, count: number, depth: number, extra = '') => {
-    const active = selected === id;
-    return `<li>
-      <div class="group flex items-center gap-1 rounded-lg ${active ? 'bg-accent-soft' : 'hover:bg-canvas'}">
-        <button type="button" data-select="${id}" class="flex-1 truncate px-3 py-2 text-left text-sm ${active ? 'font-medium text-accent' : ''}" style="padding-left:${12 + depth * 14}px">
-          ${escapeHtml(label)}
-          <span class="ml-1 text-xs text-ink-muted">${count}</span>
-        </button>
-        ${extra}
-      </div>
-    </li>`;
+function browserOptions(): BrowserOptions {
+  return {
+    folders,
+    allDocuments: documents,
+    scoped: documents,
+    cursor,
+    frozen: false,
+    // Every record is in scope here, so "from other projects" is meaningless.
+    showElsewhere: false,
   };
-
-  const controls = (folder: VaultFolder) => `
-    <span class="flex items-center gap-0.5 pr-1.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
-      <button type="button" data-subfolder="${folder.id}" title="Add subfolder" aria-label="Add subfolder in ${escapeHtml(folder.name)}" class="rounded p-1 text-ink-muted hover:bg-surface hover:text-accent">+</button>
-      <button type="button" data-rename="${folder.id}" title="Rename" aria-label="Rename ${escapeHtml(folder.name)}" class="rounded p-1 text-xs text-ink-muted hover:bg-surface hover:text-accent">✎</button>
-      <button type="button" data-delete-folder="${folder.id}" title="Delete" aria-label="Delete ${escapeHtml(folder.name)}" class="rounded p-1 text-xs text-ink-muted hover:bg-surface hover:text-critical">✕</button>
-    </span>`;
-
-  let html = `<ul class="space-y-0.5">`;
-  html += row(ALL, 'All documents', documents.length, 0);
-  html += row(UNFILED, 'Unfiled', documents.filter((doc) => !doc.folderId).length, 0);
-  html += `</ul><div class="my-3 border-t border-line"></div><ul class="space-y-0.5">`;
-
-  const walk = (parentId: string | null, depth: number) => {
-    for (const folder of folders.filter((f) => f.parentId === parentId)) {
-      html += row(folder.id, folder.name, counts(folder.id), depth, controls(folder));
-      walk(folder.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  html += `</ul>`;
-
-  if (folders.length === 0) {
-    html += `<p class="px-3 py-4 text-xs text-ink-muted">No folders yet. Folders group your documents and become the sections of the exported PDF.</p>`;
-  }
-
-  host.innerHTML = html;
 }
 
+/**
+ * The folder browser, where a grid of cards used to be.
+ *
+ * The cards were tiles two to a row, each carrying a caption box, a folder
+ * dropdown and a collapsed detail panel. Twenty artefacts filled three screens
+ * and finding one meant scrolling past the other nineteen. This is the same
+ * filing cabinet the projects use: a breadcrumb, the folders at this level,
+ * then the files, one line each, with the details a click away on the line
+ * itself.
+ */
 function renderDocuments() {
   const host = $('document-list');
-  const heading = $('list-heading');
   const noteWrap = $('folder-note-wrap');
   const noteField = $<HTMLTextAreaElement>('folder-note');
-  if (!host || !heading) return;
+  if (!host) return;
 
-  const current = folders.find((folder) => folder.id === selected);
-  heading.textContent =
-    selected === ALL ? 'All documents' : selected === UNFILED ? 'Unfiled' : folderPath(selected);
-
-  // The section note only applies to a real folder.
+  const current = folders.find((folder) => folder.id === cursor);
   if (noteWrap && noteField) {
     noteWrap.hidden = !current;
     if (current) noteField.value = current.note;
   }
 
+  const crumbs = $('folder-crumbs');
+  if (crumbs) crumbs.innerHTML = breadcrumbHtml(folders, cursor, 'All artefacts');
+
+  const searching = search.trim().length > 0;
   const items = visibleDocuments();
-  if (items.length === 0) {
-    host.innerHTML = `<p class="rounded-lg border border-dashed border-line bg-surface p-8 text-center text-sm text-ink-muted">
-      Nothing here yet. Use <strong class="font-medium">Add files</strong> above, or drop files onto this page.
+  const subfolders = searching ? [] : childFolders(folders, cursor);
+
+  if (items.length === 0 && subfolders.length === 0) {
+    host.innerHTML = `<p class="rounded-lg border border-dashed border-line bg-canvas px-4 py-8 text-center text-sm text-ink-muted">
+      ${searching ? 'Nothing matches that.' : 'Nothing here yet.'}
     </p>`;
     return;
   }
 
-  const options = (doc: VaultDocument) => {
-    const opts = [`<option value="">Unfiled</option>`];
-    const walk = (parentId: string | null, depth: number) => {
-      for (const folder of folders.filter((f) => f.parentId === parentId)) {
-        const label = `${'  '.repeat(depth)}${folder.name}`;
-        opts.push(
-          `<option value="${folder.id}"${doc.folderId === folder.id ? ' selected' : ''}>${escapeHtml(label)}</option>`,
-        );
-        walk(folder.id, depth + 1);
-      }
-    };
-    walk(null, 0);
-    return opts.join('');
-  };
+  const options = browserOptions();
+  host.innerHTML = `<ul>${subfolders.map((folder) => folderRow(options, folder)).join('')}${items
+    .map((doc) => artefactRow(doc, searching))
+    .join('')}</ul>`;
+}
 
-  host.innerHTML = items
-    .map(
-      (doc) => `
-      <article class="card flex flex-col gap-3" draggable="true" data-doc-id="${doc.id}">
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex min-w-0 items-start gap-2">
-            <span
-              aria-hidden="true"
-              title="Drag to reorder"
-              class="mt-0.5 cursor-grab select-none text-ink-muted"
-            >⠿</span>
-          <div class="min-w-0">
-            <h3 class="truncate text-sm font-semibold">
-              <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
-                class="max-w-full truncate text-left transition hover:text-accent hover:underline">
-                ${escapeHtml(doc.name)}
-              </button>
-            </h3>
-            <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-              ${kindBadge(doc)} ${formatBytes(doc.size)}
-              ${doc.folderId ? `· ${escapeHtml(folderPath(doc.folderId))}` : ''}
-              <span
-                data-needs-detail
-                ${isComplete(doc) ? 'hidden' : ''}
-                class="rounded bg-caution-surface px-1.5 py-0.5 text-[0.65rem] font-medium text-caution"
-              >Needs detail</span>
-            </p>
-            </div>
-          </div>
-          <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}" class="shrink-0 rounded p-1 text-xs text-ink-muted hover:text-critical">✕</button>
-        </div>
+/**
+ * One artefact: a line, with its details folded away underneath it.
+ *
+ * The details panel is the same one the cards carried — it was the good part of
+ * them. What changed is that it is closed until you want it, so a folder of
+ * thirty files is thirty lines rather than thirty forms.
+ */
+function artefactRow(doc: VaultDocument, searching: boolean): string {
+  const where = doc.folderId ? folderPath(doc.folderId) : 'Top level';
 
-        <input
-          type="text"
-          data-caption="${doc.id}"
-          value="${escapeHtml(doc.caption)}"
-          placeholder="Caption (appears under this document in the PDF)"
-          class="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs"
-        />
-
-        ${detailPanel(doc)}
-
-        <label class="flex items-center gap-2 text-xs text-ink-muted">
-          Folder
-          <select data-move="${doc.id}" class="flex-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-            ${options(doc)}
-          </select>
-        </label>
-      </article>`,
-    )
-    .join('');
+  return `<li class="border-t border-line-subtle" data-doc-id="${doc.id}">
+    <div class="flex items-center gap-3 py-2.5">
+      <span class="min-w-0 flex-1">
+        <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
+          class="block max-w-full truncate text-left text-sm font-medium transition hover:text-accent hover:underline">
+          ${escapeHtml(doc.name)}
+        </button>
+        <span class="mt-0.5 block text-xs text-ink-faint">
+          <span class="font-mono">${escapeHtml(kindLabel(doc))} · ${escapeHtml(fileSize(doc.size))} · ${escapeHtml(shortDate(doc.addedAt))}</span>
+          ${searching ? `· ${escapeHtml(where)}` : ''}
+          <span data-needs-detail ${isComplete(doc) ? 'hidden' : ''} class="text-caution">· needs detail</span>
+        </span>
+      </span>
+      <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}"
+        class="shrink-0 rounded p-1 text-xs text-ink-faint hover:text-critical">✕</button>
+    </div>
+    ${detailPanel(doc)}
+  </li>`;
 }
 
 /**
@@ -395,8 +366,8 @@ function refreshCardStatus(doc: VaultDocument) {
   if (summary) {
     summary.innerHTML =
       gaps.length === 0
-        ? '<span class="text-positive">Details complete</span>'
-        : `<span class="text-caution">Missing ${escapeHtml(gaps.join(', '))}</span>`;
+        ? '<span class="text-ink-muted">Details</span> <span class="text-positive">· complete</span>'
+        : `<span class="text-ink-muted">Details</span> <span class="text-caution">· missing ${escapeHtml(gaps.join(', '))}</span>`;
   }
 
   renderPendingCount();
@@ -464,10 +435,7 @@ async function refresh() {
     if (button) button.disabled = !deidAcknowledged;
   }
 
-  if (selected !== ALL && selected !== UNFILED && !folders.some((f) => f.id === selected)) {
-    selected = ALL;
-  }
-  renderFolders();
+  if (cursor && !folders.some((f) => f.id === cursor)) cursor = null;
   renderDocuments();
   renderUsage();
   renderPendingCount();
@@ -501,7 +469,6 @@ async function handleFiles(files: FileList | File[]) {
     return;
   }
 
-  const target = selected === ALL || selected === UNFILED ? null : selected;
   const list = Array.from(files);
 
   // Warn — never silently block — on filenames that look like identifiers.
@@ -512,7 +479,7 @@ async function handleFiles(files: FileList | File[]) {
   }
   setStatus(`Uploading ${list.length} file${list.length === 1 ? '' : 's'}…`, true);
   await guard('Upload', async () => {
-    await addDocuments(list, target);
+    await addDocuments(list, cursor);
     await refresh();
     setStatus(`Uploaded ${list.length} file${list.length === 1 ? '' : 's'}.`);
   });
@@ -570,69 +537,17 @@ async function exportPdf() {
 
 /* --------------------------------------------------------------- reordering */
 
-/**
- * Native HTML5 drag and drop — no library. Order is written back immediately,
- * because the exported PDF follows it and a lost reorder is invisible until
- * someone opens the finished document.
+/*
+ * Drag-to-reorder is gone with the cards.
  *
- * Bound ONCE from initVault, not per render: #document-list persists and only
- * its innerHTML is replaced, so re-binding would stack duplicate handlers and
- * fire one save per past render.
+ * It never worked: any drag anywhere on the page — including picking a card up
+ * to move it — tripped a window-level dragenter that threw a full-screen "Drop
+ * files to add them" panel over everything, with a depth counter that did not
+ * survive the crossings and so left the panel stuck until something was
+ * dropped. The reorder it was fighting for is also not the control it looked
+ * like: export order is section order now, and inside a section it is the
+ * folder you filed the record in.
  */
-function enableDocumentDragging() {
-  const list = $('document-list');
-  if (!list) return;
-
-  let dragging: HTMLElement | null = null;
-
-  list.addEventListener('dragstart', (event) => {
-    const card = (event.target as HTMLElement).closest<HTMLElement>('[data-doc-id]');
-    if (!card) return;
-    dragging = card;
-    card.classList.add('opacity-40');
-    event.dataTransfer?.setData('text/plain', card.dataset.docId ?? '');
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-  });
-
-  list.addEventListener('dragend', () => {
-    dragging?.classList.remove('opacity-40');
-    dragging = null;
-  });
-
-  list.addEventListener('dragover', (event) => {
-    if (!dragging) return;
-    // Only handle reordering here; the page-level handler deals with files.
-    event.preventDefault();
-    event.stopPropagation();
-
-    const over = (event.target as HTMLElement).closest<HTMLElement>('[data-doc-id]');
-    if (!over || over === dragging) return;
-
-    const cards = [...list.querySelectorAll<HTMLElement>('[data-doc-id]')];
-    const from = cards.indexOf(dragging);
-    const to = cards.indexOf(over);
-    if (from < 0 || to < 0) return;
-    over.insertAdjacentElement(from < to ? 'afterend' : 'beforebegin', dragging);
-  });
-
-  list.addEventListener('drop', async (event) => {
-    if (!dragging) return;
-    event.preventDefault();
-    event.stopPropagation();
-
-    const ids = [...list.querySelectorAll<HTMLElement>('[data-doc-id]')]
-      .map((card) => card.dataset.docId!)
-      .filter(Boolean);
-
-    // Keep the on-screen order optimistically; reconcile from the server after.
-    setStatus('Saving order…', true);
-    await guard('Saving order', async () => {
-      await saveOrder({ documents: ids });
-      await refresh();
-      setStatus('Order saved.');
-    });
-  });
-}
 
 /* ------------------------------------------------------------------- wiring */
 
@@ -641,8 +556,8 @@ export async function initVault() {
     const name = window.prompt('Folder name');
     if (!name?.trim()) return;
     await guard('Creating folder', async () => {
-      const folder = await createFolder(name.trim(), null);
-      selected = folder.id;
+      const folder = await createFolder(name.trim(), cursor);
+      cursor = folder.id;
       await refresh();
     });
   });
@@ -680,44 +595,33 @@ export async function initVault() {
   });
 
   $<HTMLTextAreaElement>('folder-note')?.addEventListener('change', async (event) => {
-    if (selected === ALL || selected === UNFILED) return;
+    const folderId = cursor;
+    if (!folderId) return;
     const note = (event.target as HTMLTextAreaElement).value;
     await guard('Saving note', async () => {
-      await updateFolder(selected, { note });
+      await updateFolder(folderId, { note });
       await refresh();
     });
   });
 
-  // Folder tree actions (delegated, because the tree is re-rendered wholesale).
-  $('folder-tree')?.addEventListener('click', async (event) => {
-    const button = (event.target as HTMLElement).closest('button');
+  // Folder actions, delegated on the list, because the list is where the
+  // folders now are.
+  $('document-list')?.addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>('button');
     if (!button) return;
 
-    const select = button.dataset.select;
-    if (select) {
-      selected = select;
-      renderFolders();
+    const open = button.dataset.openFolder;
+    if (open !== undefined) {
+      cursor = open || null;
       renderDocuments();
       return;
     }
 
-    const sub = button.dataset.subfolder;
-    if (sub) {
-      const name = window.prompt('Subfolder name');
-      if (!name?.trim()) return;
-      await guard('Creating folder', async () => {
-        const folder = await createFolder(name.trim(), sub);
-        selected = folder.id;
-        await refresh();
-      });
-      return;
-    }
-
-    const rename = button.dataset.rename;
+    const rename = button.dataset.renameFolder;
     if (rename) {
       const folder = folders.find((f) => f.id === rename);
       const name = window.prompt('Rename folder', folder?.name ?? '');
-      if (!name?.trim()) return;
+      if (!name?.trim() || name.trim() === folder?.name) return;
       await guard('Renaming', async () => {
         await updateFolder(rename, { name: name.trim() });
         await refresh();
@@ -728,16 +632,28 @@ export async function initVault() {
     const remove = button.dataset.deleteFolder;
     if (remove) {
       const folder = folders.find((f) => f.id === remove);
-      const inside = documents.filter((doc) => doc.folderId === remove).length;
-      const warning = inside
-        ? `Delete "${folder?.name}" and the ${inside} document${inside === 1 ? '' : 's'} inside it?`
-        : `Delete "${folder?.name}"?`;
-      if (!window.confirm(warning)) return;
+      const inside = folderCounts(browserOptions(), remove).total;
+      if (
+        !window.confirm(
+          `Delete "${folder?.name ?? 'this folder'}" and everything inside it?\n\n` +
+            `${inside} file${inside === 1 ? '' : 's'} will be permanently deleted. This cannot be undone.`,
+        )
+      ) {
+        return;
+      }
       await guard('Deleting folder', async () => {
         await deleteFolderDeep(remove);
         await refresh();
       });
     }
+  });
+
+  // The breadcrumb sits outside the list, so it needs its own listener.
+  $('folder-crumbs')?.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>('button[data-open-folder]');
+    if (!button) return;
+    cursor = button.dataset.openFolder || null;
+    renderDocuments();
   });
 
   // Document actions.
@@ -844,26 +760,31 @@ export async function initVault() {
     }
   });
 
-  enableDocumentDragging();
 
-  // Drag and drop anywhere on the page.
-  const dropHint = $('drop-hint');
-  let dragDepth = 0;
-  window.addEventListener('dragenter', (event) => {
+  // Dropping onto the zone, and only onto the zone. This used to be bound to
+  // the window with a full-screen overlay; see the note above enableDocument-
+  // Dragging for why that was worse than nothing.
+  const zoneOf = (event: Event) => (event.target as HTMLElement)?.closest?.('[data-drop]');
+
+  document.addEventListener('dragover', (event) => {
+    const zone = zoneOf(event);
+    if (!zone) return;
+    // Files only. A drag carrying text or an element is not an upload, and
+    // lighting up for one is how the old overlay earned its reputation.
+    if (!(event as DragEvent).dataTransfer?.types.includes('Files')) return;
     event.preventDefault();
-    dragDepth += 1;
-    if (dropHint) dropHint.hidden = false;
+    zone.classList.add('border-accent', 'bg-accent-soft');
   });
-  window.addEventListener('dragover', (event) => event.preventDefault());
-  window.addEventListener('dragleave', () => {
-    dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0 && dropHint) dropHint.hidden = true;
+  document.addEventListener('dragleave', (event) => {
+    zoneOf(event)?.classList.remove('border-accent', 'bg-accent-soft');
   });
-  window.addEventListener('drop', async (event) => {
+  document.addEventListener('drop', async (event) => {
+    const zone = zoneOf(event);
+    if (!zone) return;
     event.preventDefault();
-    dragDepth = 0;
-    if (dropHint) dropHint.hidden = true;
-    if (event.dataTransfer?.files?.length) await handleFiles(event.dataTransfer.files);
+    zone.classList.remove('border-accent', 'bg-accent-soft');
+    const files = (event as DragEvent).dataTransfer?.files;
+    if (files?.length) await handleFiles(files);
   });
 
   await guard('Loading your artefacts', refresh);

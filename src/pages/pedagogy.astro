@@ -1,0 +1,48 @@
+---
+/**
+ * My pedagogy — the statement of practice, on its own page.
+ *
+ * It used to be a textarea two thirds of the way down the account page, next to
+ * storage usage and the button that deletes everything. That is the wrong
+ * company for the one piece of a portfolio that is entirely the practitioner's
+ * own voice, and it is the piece an assessor reads first.
+ *
+ * Reading width, because it is prose.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="My pedagogy"
+  description="Your teaching philosophy, in your own words."
+  width="reading"
+>
+  <h1 class="font-display text-3xl font-normal tracking-[-0.02em] sm:text-4xl">My pedagogy</h1>
+  <p id="pedagogy-status" role="status" aria-live="polite" class="mt-2 text-xs text-ink-muted"></p>
+
+  <div class="mt-6 flex flex-col gap-6">
+    <section class="card p-6">
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 class="text-base font-semibold">Teaching philosophy</h2>
+        <p id="philosophy-count" class="font-mono text-xs text-ink-faint"></p>
+      </div>
+      <textarea
+        id="pedagogy-philosophy"
+        rows="16"
+        placeholder="What you believe about teaching and learning, and how that shows up in your classroom."
+        class="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed"></textarea>
+      <p class="prose-body mt-2 text-xs">
+        Prints after the cover page of every export. Nothing here is written for you.
+      </p>
+    </section>
+
+    <!-- Filled by the controller: what the evidence says about the practice the
+         statement describes. A philosophy with nothing behind it is a wish. -->
+    <section id="pedagogy-evidence" class="card p-6"></section>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initPedagogy } from '../lib/vault/pedagogy-ui';
+  initPedagogy();
+</script>

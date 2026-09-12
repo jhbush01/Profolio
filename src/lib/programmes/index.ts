@@ -50,21 +50,23 @@ export function outlineFor(template: ProgrammeTemplate): readonly ReportHeading[
 /**
  * What someone wrote under one heading.
  *
- * Falls back to the heading's first checklist-section name, which is the key the
- * report was stored under before headings had ids. Without this, shipping the
- * outline would have silently hidden text people had already written.
+ * Falls back to the keys this heading's text may have been stored under before
+ * it was retitled or re-sectioned. Without this, changing a heading would
+ * silently hide work somebody had already done, which is the one thing a
+ * portfolio must never do.
  */
-export function writtenFor(
-  report: Record<string, string>,
-  heading: ReportHeading,
-): string {
-  const direct = report[heading.id];
-  if (direct !== undefined) return direct;
-  for (const section of heading.sections ?? []) {
-    const legacy = report[section];
-    if (legacy !== undefined) return legacy;
+export function writtenFor(report: Record<string, string>, heading: ReportHeading): string {
+  for (const key of [heading.id, ...(heading.legacyKeys ?? []), ...(heading.sections ?? [])]) {
+    const found = report[key];
+    if (found !== undefined) return found;
   }
   return '';
+}
+
+/** Words in a written response, for a count against a required length. */
+export function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
 /** How far through its window a programme is, 0–1. Null when undated. */

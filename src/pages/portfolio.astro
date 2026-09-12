@@ -1,30 +1,20 @@
 ---
 /**
- * The generic portfolio builder — industry-neutral.
+ * Every artefact, filed.
  *
- * The page shell is still prerendered; the data comes from /api/* at runtime.
- * Documents live in R2, their metadata in D1, and access is gated by
- * Cloudflare Access — see src/lib/server/access.ts.
- *
- * PDF assembly still happens in the browser: bytes are streamed down from R2
- * one document at a time and never round-trip back up.
+ * The same folder browser a project's Evidence tab uses, over the whole vault
+ * rather than one project's records. The shell is prerendered; the data comes
+ * from /api/* at runtime, and PDF assembly happens in the browser.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
-import PageHeader from '../components/PageHeader.astro';
 ---
 
-<BaseLayout
-  title="All artefacts"
-  description="Every artefact you have captured, across every project, in one searchable list."
->
-  <PageHeader
-    eyebrow="All artefacts"
-    title="Everything you have captured"
-    lead="Every artefact across every project. Evidence lives inside the project it was assigned to; this is where you search the lot."
-  />
+<BaseLayout title="Artefacts" description="Every file you have captured, across every project.">
+  <h1 class="mb-6 font-display text-3xl font-normal tracking-[-0.02em] sm:text-4xl">Artefacts</h1>
 
   <!-- De-identification gate. Hidden by the controller once acknowledged;
-       server-side, uploads are refused until the record exists. -->
+       server-side, uploads are refused until the record exists. This one stays
+       in full: it is the recorded acknowledgement that the warning was given. -->
   <section
     id="deid-gate"
     hidden
@@ -61,75 +51,63 @@ import PageHeader from '../components/PageHeader.astro';
     </button>
   </section>
 
-  <!-- Toolbar -->
-  <div class="mb-6 flex flex-wrap items-center gap-2">
-    <button id="add-files" type="button" disabled class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+  <div class="mb-5 flex flex-wrap items-center gap-2">
+    <button id="add-files" type="button" disabled class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
       Add files
     </button>
-    <button id="new-folder" type="button" class="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
+    <button id="new-folder" type="button" class="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
       New folder
     </button>
-    <button id="export-pdf" type="button" disabled class="rounded-lg border border-accent bg-accent-soft px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+    <button id="export-pdf" type="button" disabled class="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50">
       Export PDF
     </button>
     <p id="export-status" role="status" aria-live="polite" class="text-xs text-ink-muted"></p>
     <input id="file-input" type="file" multiple class="sr-only" />
   </div>
 
-  <div class="mb-6">
+  <div class="mb-5">
     <label for="doc-search" class="sr-only">Search artefacts</label>
     <input
       id="doc-search"
       type="search"
-      placeholder="Search by file name, caption, source or project…"
+      placeholder="Search every folder by name, caption, source or project…"
       autocomplete="off"
       class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
     />
     <p id="search-summary" class="mt-1.5 text-xs text-ink-muted"></p>
   </div>
 
-  <div class="grid gap-6 lg:grid-cols-[16rem_1fr]">
-    <!-- Folder tree -->
-    <aside class="card h-fit p-3">
-      <p class="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Folders</p>
-      <div id="folder-tree"></div>
-    </aside>
-
-    <!-- Documents in the selected folder -->
-    <section>
-      <div class="mb-3 flex items-baseline justify-between gap-3">
-        <h2 id="list-heading" class="text-lg font-semibold">All documents</h2>
-        <div class="flex items-center gap-2">
-          <span
-            id="pending-detail"
-            hidden
-            class="rounded-sm bg-caution-surface px-2.5 py-0.5 text-xs font-medium text-caution"
-          ></span>
-          <p id="usage" class="text-xs text-ink-muted"></p>
-        </div>
-      </div>
-
-      <div id="folder-note-wrap" class="mb-4" hidden>
-        <label class="flex flex-col gap-1.5">
-          <span class="text-xs font-medium">Section note</span>
-          <textarea id="folder-note" rows="2" placeholder="Optional. Introduces this section on its divider page in the PDF." class="rounded-lg border border-line bg-surface px-3 py-2 text-xs"></textarea>
-        </label>
-      </div>
-
-      <div id="document-list" class="grid gap-4 sm:grid-cols-2"></div>
-    </section>
-  </div>
-
-  <!-- Full-page drop target hint, shown while dragging. -->
+  <!-- Scoped drop target. Never the whole window: an overlay that appeared on
+       any drag, including a drag inside the page, had no way out. -->
   <div
-    id="drop-hint"
-    hidden
-    class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-accent/10 backdrop-blur-[1px]"
+    data-drop
+    class="mb-5 rounded-lg border border-dashed border-line bg-canvas px-4 py-4 text-center text-sm text-ink-muted transition"
   >
-    <p class="rounded-lg border-2 border-dashed border-accent bg-surface px-8 py-6 text-sm font-medium text-accent">
-      Drop files to add them
-    </p>
+    Drop files here
   </div>
+
+  <section class="card p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <nav id="folder-crumbs" class="-ml-1 flex flex-wrap items-center gap-1 text-sm text-ink-muted" aria-label="Folder"></nav>
+      <div class="flex items-center gap-2">
+        <span
+          id="pending-detail"
+          hidden
+          class="rounded-sm bg-caution-surface px-2.5 py-0.5 text-xs font-medium text-caution"
+        ></span>
+        <p id="usage" class="text-xs text-ink-muted"></p>
+      </div>
+    </div>
+
+    <div id="folder-note-wrap" class="mt-3" hidden>
+      <label class="flex flex-col gap-1.5">
+        <span class="text-xs font-medium">Section note</span>
+        <textarea id="folder-note" rows="2" placeholder="Optional. Introduces this section on its divider page in the export." class="rounded-lg border border-line bg-surface px-3 py-2 text-xs"></textarea>
+      </label>
+    </div>
+
+    <div id="document-list" class="mt-2"></div>
+  </section>
 </BaseLayout>
 
 <script>

@@ -1,5 +1,12 @@
 ---
-/** Consistent page title block. */
+/**
+ * A page title.
+ *
+ * `lead` and `eyebrow` still exist for the two pages that carry something a
+ * reader genuinely needs — a legal notice, a generated count. Everywhere else
+ * they are gone: a paragraph under every heading explaining what "Projects"
+ * means is a paragraph nobody reads twice and everybody scrolls past once.
+ */
 interface Props {
   eyebrow?: string;
   title: string;
@@ -9,9 +16,9 @@ interface Props {
 const { eyebrow, title, lead } = Astro.props;
 ---
 
-<div class="mb-8">
+<div class="mb-6">
   {eyebrow && <p class="pf-eyebrow mb-2 text-accent">{eyebrow}</p>}
-  <h1 class="font-display text-4xl font-normal tracking-[-0.02em] sm:text-5xl">{title}</h1>
+  <h1 class="font-display text-3xl font-normal tracking-[-0.02em] sm:text-4xl">{title}</h1>
   {lead && <p class="prose-body mt-3 max-w-2xl text-base">{lead}</p>}
   <slot />
 </div>
