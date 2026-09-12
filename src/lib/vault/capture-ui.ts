@@ -178,7 +178,7 @@ function reviewCard(): string {
         <p class="pf-eyebrow text-ink-faint">Review${escapeHtml(position)}</p>
         <p class="mt-1.5 truncate text-base font-semibold" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
         <p class="mt-0.5 text-xs text-ink-muted">
-          Saved to your evidence. It counts toward nothing until you add it below.
+          Saved to your evidence. Not in a project until you add it below.
         </p>
       </div>
     </div>
@@ -255,7 +255,7 @@ function render() {
   const empty =
     queue.length === 0 && saved.length === 0
       ? `<p class="rounded-lg border border-dashed border-line bg-canvas p-8 text-center text-sm text-ink-muted">
-           Nothing captured yet. Use the buttons below.
+           Nothing captured yet.
          </p>`
       : '';
 

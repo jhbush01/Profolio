@@ -26,23 +26,30 @@ const path = Astro.url.pathname;
  * src/data/*.json. They used to sit as peers of the real features, which read
  * as though the app shipped with someone else's evidence already in it.
  */
-const sections = [
+interface NavLink {
+  href: string;
+  label: string;
+  /** Omitted where the group heading already says what these are. */
+  hint?: string;
+}
+
+const sections: { label: string | null; links: NavLink[] }[] = [
   {
     label: null,
     links: [
-      { href: '/', label: 'Your ProFolio', hint: 'Every project you are building' },
+      { href: '/', label: 'Your ProFolio', hint: 'All your projects' },
       { href: '/capture', label: 'Capture', hint: 'Camera, photos or files' },
-      { href: '/portfolio', label: 'All evidence', hint: 'Across every project' },
-      { href: '/export', label: 'Export', hint: 'Build a PDF by project' },
+      { href: '/portfolio', label: 'All evidence', hint: 'Every record you have saved' },
+      { href: '/export', label: 'Export', hint: 'Build a PDF' },
       { href: '/data-profile', label: 'Data collection profile', hint: 'Generated summary' },
     ],
   },
   {
     label: 'Worked example',
     links: [
-      { href: '/sequence', label: 'A teaching sequence', hint: 'Sample, not your evidence' },
-      { href: '/standards', label: `${portfolio.framework} alignment`, hint: 'Coverage of the sample' },
-      { href: '/present', label: 'Presentation mode', hint: 'How a finished one reads' },
+      { href: '/sequence', label: 'A teaching sequence' },
+      { href: '/standards', label: `${portfolio.framework} alignment` },
+      { href: '/present', label: 'Presentation mode' },
     ],
   },
 ];
@@ -141,7 +148,7 @@ const showBack = path !== '/';
                   ]}
                 >
                   <span class="block text-sm font-medium">{link.label}</span>
-                  <span class="block text-xs text-ink-muted">{link.hint}</span>
+                  {link.hint && <span class="block text-xs text-ink-muted">{link.hint}</span>}
                 </a>
               </li>
             ))}

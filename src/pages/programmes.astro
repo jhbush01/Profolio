@@ -12,13 +12,13 @@ import PageHeader from '../components/PageHeader.astro';
 ---
 
 <BaseLayout
-  title="Programmes"
-  description="Track your evidence against a template — a final placement, a year of professional development — with a date window and a checklist."
+  title="Projects"
+  description="Track evidence against a template, such as a final placement or a year of professional development, with a date window and a checklist."
 >
   <PageHeader
-    eyebrow="Programmes"
-    title="What are you collecting for?"
-    lead="Pick a template and set your dates, then assign evidence to it as you capture. The checklist scores what you have put in, so you can see what is still missing while there is time to collect it."
+    eyebrow="Projects"
+    title="Projects"
+    lead="Pick a template and set your dates, then assign evidence as you capture it. The checklist shows what is still missing."
   />
 
   <p id="programme-status" role="status" aria-live="polite" class="mb-4 text-xs text-ink-muted"></p>
@@ -30,14 +30,14 @@ import PageHeader from '../components/PageHeader.astro';
     hidden
     class="mb-10 rounded-lg border border-dashed border-line bg-surface p-6 text-center text-sm text-ink-muted"
   >
-    No programme yet. Start one below, and anything already in your vault that fits its checklist is offered for you to add.
+    No projects yet. Start one below. Evidence already in your vault that fits its checklist is offered for you to add.
   </p>
 
   <section>
     <h2 class="mb-1 text-xl font-semibold">Available templates</h2>
     <p class="prose-body mb-4 text-sm">
-      You can run more than one at a time, and one record can sit in several — a certificate
-      counts toward a placement and that year's professional development without being
+      You can run more than one at a time, and one record can sit in several. A certificate
+      can count toward a placement and that year's professional development without being
       uploaded twice.
     </p>
     <div id="template-list" class="grid gap-4 sm:grid-cols-2"></div>

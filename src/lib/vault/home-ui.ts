@@ -79,7 +79,7 @@ function headerBlock(profile: VaultProfile, email: string): string {
           ${escapeHtml(named ? profile.name : 'Your name')}
         </h1>
         <p class="prose-body mt-1 text-sm">
-          ${role ? escapeHtml(role) : 'Your name and role print on the front page of every export.'}
+          ${role ? escapeHtml(role) : 'Shown on the cover of every export.'}
         </p>
         <a href="/portfolio" class="mt-1 inline-block text-xs font-medium text-accent hover:underline">
           ${named ? 'Edit cover details' : 'Add cover details'}
@@ -126,7 +126,7 @@ function projectCard(programme: Programme, documents: VaultDocument[]): string {
     const done = progress.filter((p) => p.satisfied).length;
     const overdue = progress.filter((p) => p.overdue);
     percent = progress.length > 0 ? Math.round((done / progress.length) * 100) : 0;
-    progressLine = `${done} of ${progress.length} collected · ${assigned.length} record${assigned.length === 1 ? '' : 's'}`;
+    progressLine = `${done} of ${progress.length} items · ${assigned.length} record${assigned.length === 1 ? '' : 's'}`;
 
     const next = overdue[0] ?? progress.find((p) => !p.satisfied);
     if (overdue.length > 0) {
@@ -136,7 +136,7 @@ function projectCard(programme: Programme, documents: VaultDocument[]): string {
     } else if (next) {
       missing = `<p class="mt-2.5 text-xs text-ink-muted">Next: ${escapeHtml(next.item.label.toLowerCase())}</p>`;
     } else {
-      missing = '<p class="mt-2.5 text-xs font-medium text-positive">Everything on the checklist is collected</p>';
+      missing = '<p class="mt-2.5 text-xs font-medium text-positive">Checklist complete</p>';
     }
   }
 
@@ -167,24 +167,30 @@ function projectCard(programme: Programme, documents: VaultDocument[]): string {
   </a>`;
 }
 
-/** The grid, plus the tile that starts a new one. */
+/**
+ * The grid of projects.
+ *
+ * Starting one is a button in the section header, not a dashed tile in the
+ * grid. A tile that is not a project should not be sitting in the row of
+ * projects at project size, and /programmes is where both starting and
+ * managing happen anyway.
+ */
 function projectGrid(programmes: Programme[], documents: VaultDocument[]): string {
   const cards = programmes.map((programme) => projectCard(programme, documents)).join('');
 
   return `<section class="flex flex-col gap-4">
-    <div class="flex items-baseline justify-between gap-4">
+    <div class="flex items-center justify-between gap-4">
       <h2 class="text-xl font-semibold">Your projects</h2>
-      <a href="/programmes" class="text-xs font-medium text-accent hover:underline">Manage</a>
-    </div>
-    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-      ${cards}
       <a href="/programmes"
-        class="flex min-h-44 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-canvas p-6 text-center transition hover:border-accent/50">
-        <span class="text-2xl leading-none text-ink-faint" aria-hidden="true">+</span>
-        <span class="text-sm font-medium text-ink-muted">Start a project</span>
-        <span class="max-w-[24ch] text-xs text-ink-faint">A placement, a registration year — it brings its own checklist.</span>
+        class="shrink-0 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent">
+        New project
       </a>
     </div>
+    ${
+      programmes.length === 0
+        ? '<p class="prose-body text-sm">No projects yet.</p>'
+        : `<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">${cards}</div>`
+    }
   </section>`;
 }
 
@@ -226,7 +232,7 @@ function attentionItems(documents: VaultDocument[], programmes: Programme[]): At
     items.push({
       tone: 'caution',
       title: `${incomplete.length} record${incomplete.length === 1 ? '' : 's'} missing detail`,
-      detail: `Starting with ${escapeHtml(gap)}. Records without it are left out of your data collection profile.`,
+      detail: `Missing ${escapeHtml(gap)}. Left out of the data collection profile until it is filled in.`,
       href: '/portfolio',
       action: 'Review',
     });
@@ -237,7 +243,7 @@ function attentionItems(documents: VaultDocument[], programmes: Programme[]): At
     items.push({
       tone: 'muted',
       title: `${unassigned.length} record${unassigned.length === 1 ? '' : 's'} not in a project`,
-      detail: 'Kept in your evidence, but counting toward nothing until you assign them.',
+      detail: 'Not counted toward any project yet.',
       href: '/portfolio',
       action: 'Assign',
     });
@@ -361,7 +367,6 @@ function outputsBlock(programme: Programme | undefined, deidAcknowledged: boolea
 
   return `<section class="card p-6">
     <h3 class="text-base font-semibold">What this project produces</h3>
-    <p class="prose-body mb-1.5 mt-1 text-xs">Another project asks for different things.</p>
     ${rows.join('')}
   </section>`;
 
@@ -384,8 +389,8 @@ function emptyBlock(hasProgramme: boolean): string {
     <p class="prose-body max-w-[52ch] text-sm">
       ${
         hasProgramme
-          ? 'Capture a piece of evidence and it appears here, dated and kept, counting toward the project you are collecting for.'
-          : 'Start with what you are collecting for — a final placement, a registration year. Evidence you capture then has somewhere to go, and the project tells you what is still missing while there is time to collect it.'
+          ? 'Capture evidence and it appears here, dated and assigned to the project you are collecting for.'
+          : 'Start a project first: a final placement, a registration year. It comes with a checklist, and evidence you capture has somewhere to go.'
       }
     </p>
     <div class="flex flex-wrap justify-center gap-2">
@@ -396,7 +401,7 @@ function emptyBlock(hasProgramme: boolean): string {
              <a href="/capture" class="rounded-md border border-line bg-surface px-5 py-2.5 text-sm font-medium transition hover:border-accent/40">Capture evidence</a>`
       }
     </div>
-    <p class="text-xs text-ink-faint">You can capture first and assign it to a project later.</p>
+    <p class="text-xs text-ink-faint">You can capture now and assign later.</p>
   </section>`;
 }
 
@@ -442,7 +447,7 @@ export async function initHome() {
       return;
     }
     host.innerHTML = `<p class="card p-6 text-sm text-critical">
-      Could not load your record: ${escapeHtml(error instanceof Error ? error.message : String(error))}
+      Could not load your ProFolio: ${escapeHtml(error instanceof Error ? error.message : String(error))}
     </p>`;
   }
 }

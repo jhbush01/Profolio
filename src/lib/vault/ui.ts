@@ -107,7 +107,7 @@ function selectFor(
 function programmeChips(doc: VaultDocument): string {
   if (openProgrammes.length === 0) {
     return `<p class="text-[0.7rem] text-ink-muted">
-      No open programme. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a> to give this record somewhere to count.
+      No open projects. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a> to assign this record.
     </p>`;
   }
 
@@ -134,7 +134,7 @@ function detailPanel(doc: VaultDocument): string {
   const gaps = missingDimensions(doc);
   const summary = gaps.length === 0
     ? '<span class="text-positive">Details complete</span>'
-    : `<span class="text-caution">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
+    : `<span class="text-caution">Missing ${escapeHtml(gaps.join(', '))}</span>`;
 
   const standardChips = STANDARDS.map(
     (standard) => `<label
@@ -246,7 +246,7 @@ function renderFolders() {
   html += `</ul>`;
 
   if (folders.length === 0) {
-    html += `<p class="px-3 py-4 text-xs text-ink-muted">No folders yet. Create one to group your documents — folders become the sections of the exported PDF.</p>`;
+    html += `<p class="px-3 py-4 text-xs text-ink-muted">No folders yet. Folders group your documents and become the sections of the exported PDF.</p>`;
   }
 
   host.innerHTML = html;
@@ -360,7 +360,7 @@ function refreshCardStatus(doc: VaultDocument) {
     summary.innerHTML =
       gaps.length === 0
         ? '<span class="text-positive">Details complete</span>'
-        : `<span class="text-caution">Add detail — missing ${escapeHtml(gaps.join(', '))}</span>`;
+        : `<span class="text-caution">Missing ${escapeHtml(gaps.join(', '))}</span>`;
   }
 
   renderPendingCount();
@@ -624,7 +624,7 @@ export async function initVault() {
     await guard('Recording acknowledgement', async () => {
       await acknowledgeDeid();
       await refresh();
-      setStatus('Thanks — uploads are now enabled.');
+      setStatus('Uploads are now enabled.');
     });
   });
 
@@ -727,7 +727,7 @@ export async function initVault() {
       ? doc.programmes.filter((p) => p !== programmeId)
       : [...doc.programmes, programmeId];
 
-    await guard('Saving programme', async () => {
+    await guard('Saving project', async () => {
       await updateDocument(id, { programmes: next });
       doc.programmes = next;
       // Re-render just this card's chips, so an open <details> stays open.

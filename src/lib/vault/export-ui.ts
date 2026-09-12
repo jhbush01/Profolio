@@ -189,28 +189,28 @@ function render() {
   host.innerHTML = `<div class="grid items-start gap-7 lg:grid-cols-[1.6fr_1fr]">
     <div class="flex flex-col gap-5">
       <section class="card p-6">
-        <h2 class="pb-1.5 text-xl font-semibold">Programmes</h2>
+        <h2 class="pb-1.5 text-xl font-semibold">Projects</h2>
         ${
           programmes.length > 0
             ? programmeRows
             : `<p class="prose-body border-t border-line pt-4 text-sm">
-                 No programmes yet. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a>, or export everything below.
+                 No projects yet. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a>, or export everything below.
                </p>`
         }
         <button type="button" data-toggle-option="unassigned" aria-pressed="${includeUnassigned}"
           class="flex w-full items-center gap-3.5 border-t border-line pt-4 text-left">
           ${checkbox(includeUnassigned)}
           <span class="min-w-0 flex-1">
-            <span class="block text-base font-semibold">Evidence not in a programme</span>
+            <span class="block text-base font-semibold">Evidence not in a project</span>
             <span class="mt-0.5 block text-xs text-ink-muted">${leftovers} record${leftovers === 1 ? '' : 's'}, as a closing section.</span>
           </span>
         </button>
       </section>
 
       <section class="card p-6">
-        <h2 class="text-xl font-semibold">Include with each programme</h2>
+        <h2 class="text-xl font-semibold">Include with each project</h2>
         <p class="prose-body mb-1.5 mt-1 text-xs">
-          A programme only offers what it produces, so this list changes with what you tick.
+          Each project only offers what it produces, so this list changes with your selection.
         </p>
         ${options}
       </section>
@@ -238,7 +238,7 @@ function render() {
           Export PDF
         </button>
         <p id="export-state" role="status" aria-live="polite" class="text-xs text-ink-muted">
-          ${printed.length === 0 ? 'Choose at least one programme, or include evidence that is not in one.' : 'Built in your browser. Documents are read one at a time and never sent anywhere else.'}
+          ${printed.length === 0 ? 'Choose at least one project, or include evidence that is not in one.' : 'Built in your browser. Documents are read one at a time and never sent anywhere else.'}
         </p>
       </section>
     </div>

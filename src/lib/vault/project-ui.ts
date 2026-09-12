@@ -199,8 +199,8 @@ function extraBlock(closed: boolean): string {
   return `<section class="card p-6">
     <h2 class="text-lg font-semibold">Also in this project</h2>
     <p class="prose-body mb-1 mt-1 text-xs">
-      In the project and in the export, but answering nothing on the checklist. Often that is just a
-      record whose details are not filled in yet.
+      In the project and in the export, but not matched to a checklist item. Usually this means
+      the record's details are not filled in yet.
     </p>
     <ul>${records.map((doc) => evidenceRow(doc, closed)).join('')}</ul>
   </section>`;
@@ -232,8 +232,8 @@ function suggestionBlock(closed: boolean): string {
     <p class="prose-body mb-1 mt-1 text-xs">
       ${
         closed
-          ? 'This project is closed, so nothing can join it. Reopen it below if what it holds needs to change.'
-          : 'Not in the project yet. Nothing counts until you add it.'
+          ? 'This project is closed. Reopen it below to change what it holds.'
+          : 'Not in this project yet.'
       }
     </p>
     <ul>${rows}</ul>
@@ -266,7 +266,7 @@ function contextBlock(): string {
              ${lines.map((line) => `<span class="text-sm">${escapeHtml(line)}</span>`).join('')}
            </div>`
         : `<p class="prose-body mt-2 text-sm">
-             Not answered yet. It prints at the front of this project's section when you export.
+             Not answered yet. Prints at the front of this project's section on export.
            </p>`
     }
   </section>`;
@@ -280,7 +280,7 @@ function evidenceTab(closed: boolean): string {
     return `<section class="rounded-lg border border-dashed border-line bg-canvas px-8 py-14 text-center">
       <h2 class="text-lg font-semibold">Nothing in this project yet</h2>
       <p class="prose-body mx-auto mt-2 max-w-[48ch] text-sm">
-        Capture something and add it here, or open the checklist to see what would fit.
+        Capture something and add it here, or open the checklist to see what fits.
       </p>
       <a href="/capture" class="mt-4 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-white">Capture evidence</a>
     </section>`;
@@ -309,8 +309,7 @@ function settingsTab(closed: boolean): string {
     <section class="card p-6">
       <h2 class="text-lg font-semibold">Window</h2>
       <p class="prose-body mb-3 mt-1 text-xs">
-        What the checklist measures "by now" against. Leave them unset and nothing is ever
-        flagged as behind.
+        Used to work out what is due by now. Leave unset and nothing is flagged as behind.
       </p>
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
@@ -332,8 +331,8 @@ function settingsTab(closed: boolean): string {
     <section class="card p-6">
       <h2 class="text-lg font-semibold">Remove this project</h2>
       <p class="prose-body mt-1 text-sm">
-        The project and its checklist go. Your evidence does not — every record stays in your
-        vault, and in any other project it belongs to.
+        The project and its checklist are deleted. Your evidence is not: every record stays
+        in your vault, and in any other project it belongs to.
       </p>
       <button type="button" data-remove-project
         class="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:border-critical/40 hover:text-critical">
@@ -353,7 +352,7 @@ function closureBlock(closed: boolean): string {
       <h2 class="text-lg font-semibold">Closed and fixed</h2>
       <p class="prose-body mt-1 text-sm">
         Closed${on ? ` on <span class="font-mono">${escapeHtml(on)}</span>` : ''}, holding ${count} record${count === 1 ? '' : 's'}.
-        Nothing joins or leaves, so an export made today matches the one you handed in.
+        Nothing joins or leaves while it is closed.
       </p>
       <button type="button" data-reopen
         class="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent/40">Reopen to change what is in it</button>
@@ -368,7 +367,7 @@ function closureBlock(closed: boolean): string {
   return `<section class="card p-6">
     <h2 class="text-lg font-semibold">Finished with it?</h2>
     <p class="prose-body mt-1 text-sm">
-      Closing fixes what this project holds, so the copy you export later is the copy you submitted.
+      Closing fixes what this project holds, so a later export matches what you submitted.
       You can reopen it.
     </p>
     <button type="button" data-close
@@ -578,7 +577,7 @@ export async function initProject() {
         await updateDocument(doc.id, { programmes: doc.programmes.filter((p) => p !== id) });
         await refresh();
         render();
-        setStatus('Removed from this project. The record itself is untouched.');
+        setStatus('Removed from this project. The record is untouched.');
       });
     }
 
@@ -604,7 +603,7 @@ export async function initProject() {
         await updateProgramme(id, { closed: false });
         await refresh();
         render();
-        setStatus('Reopened. The reopen is recorded on the project.');
+        setStatus('Reopened. This is recorded on the project.');
       });
     }
   });

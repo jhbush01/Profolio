@@ -150,7 +150,7 @@ function contextSection(
 
   const statement =
     lines.length === 0
-      ? '<p class="text-xs text-ink-muted">Fill in the fields above and your statement appears here.</p>'
+      ? '<p class="text-xs text-ink-muted">Fill in the fields above to build your statement.</p>'
       : `<pre data-statement="${programme.id}" class="whitespace-pre-wrap break-words font-sans text-xs leading-relaxed">${escapeHtml(lines.join('\n'))}</pre>
          <button type="button" data-copy="${programme.id}"
            class="mt-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Copy statement</button>`;
@@ -158,7 +158,7 @@ function contextSection(
   return `<details class="border-t border-line" ${answered === 0 ? '' : 'open'}>
     <summary class="cursor-pointer px-4 py-2 text-xs">
       Context statement
-      <span class="${answered === total ? 'text-positive' : 'text-ink-muted'}">— ${answered} of ${total} filled in</span>
+      <span class="${answered === total ? 'text-positive' : 'text-ink-muted'}">${answered} of ${total} filled in</span>
     </summary>
     <div class="grid gap-3 px-4 pb-4 sm:grid-cols-2">${inputs}</div>
     <div class="mx-4 mb-4 rounded-lg border border-line bg-canvas/60 p-3">
@@ -202,8 +202,8 @@ function suggestionSection(
     <p class="prose-body mt-0.5 text-xs">
       ${
         closed
-          ? 'This programme is closed, so nothing can join it. Reopen it below if this set needs to change.'
-          : 'Not in the programme yet. Nothing is counted until you add it.'
+          ? 'This project is closed. Reopen it below to change what it holds.'
+          : 'Not in this project yet.'
       }
     </p>
     <ul class="mt-2">${rows}</ul>
@@ -228,7 +228,7 @@ function closureSection(programme: Programme, assignedCount: number, closed: boo
     return `<div class="border-t border-line bg-canvas/40 px-4 py-3">
       <p class="text-sm font-medium">Closed${on ? ` on ${escapeHtml(on)}` : ''}, holding ${assignedCount} record${assignedCount === 1 ? '' : 's'}</p>
       <p class="prose-body mt-0.5 text-xs">
-        Nothing joins or leaves while it is closed, so an export made today matches the one you handed in.
+        Nothing joins or leaves while it is closed.
       </p>
       <button type="button" data-reopen="${programme.id}"
         class="mt-2 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Reopen to change what is in it</button>
@@ -242,9 +242,9 @@ function closureSection(programme: Programme, assignedCount: number, closed: boo
 
   return `<div class="border-t border-line px-4 py-3">
     <button type="button" data-close="${programme.id}"
-      class="rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Close this programme</button>
+      class="rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40">Close this project</button>
     <p class="prose-body mt-1.5 text-xs">
-      Fixes what it holds, so the copy you export later is the copy you submitted. You can reopen it.
+      Fixes what it holds, so a later export matches what you submitted. You can reopen it.
     </p>
   </div>`;
 }
@@ -268,7 +268,7 @@ function renderProgrammes() {
         return `<article class="card">
           <h3 class="text-base font-semibold">${escapeHtml(programme.name)}</h3>
           <p class="prose-body mt-1 text-sm">
-            This programme uses a template that is no longer available
+            This project uses a template that is no longer available
             (<code class="text-xs">${escapeHtml(programme.template)}</code>).
           </p>
         </article>`;
@@ -321,7 +321,7 @@ function renderProgrammes() {
 
       const windowLabel = programme.startsOn && programme.endsOn
         ? `${programme.startsOn} → ${programme.endsOn}${weeks ? ` · ${weeks} weeks` : ''}${week ? ` · currently week ${week}` : ''}`
-        : 'No dates set — nothing will be flagged as overdue';
+        : 'No dates set. Nothing is flagged as overdue.';
 
       return `<article class="overflow-hidden rounded-lg border border-line bg-surface" data-programme="${programme.id}">
         <div class="flex flex-wrap items-start justify-between gap-3 p-4">
@@ -332,8 +332,8 @@ function renderProgrammes() {
           </div>
           <div class="text-right">
             <p class="font-display text-2xl font-normal">${percent}%</p>
-            <p class="text-xs text-ink-muted">${done} of ${progress.length} collected</p>
-            <p class="text-xs text-ink-muted">${assigned.length} record${assigned.length === 1 ? '' : 's'} in this programme</p>
+            <p class="text-xs text-ink-muted">${done} of ${progress.length} items</p>
+            <p class="text-xs text-ink-muted">${assigned.length} record${assigned.length === 1 ? '' : 's'} in this project</p>
             ${overdue > 0 && !closed ? `<p class="text-xs font-medium text-critical">${overdue} behind schedule</p>` : ''}
             ${closed ? '<p class="mt-1 inline-block rounded-sm bg-canvas px-2 py-0.5 text-xs font-medium text-ink-muted">Closed</p>' : ''}
           </div>
@@ -369,7 +369,7 @@ function renderProgrammes() {
         <div class="flex items-center justify-between border-t border-line px-4 py-2">
           <a href="/portfolio" class="text-xs text-accent hover:underline">Add evidence →</a>
           <button type="button" data-remove="${programme.id}"
-            class="text-xs text-ink-muted underline underline-offset-2 hover:text-critical">Remove programme</button>
+            class="text-xs text-ink-muted underline underline-offset-2 hover:text-critical">Remove project</button>
         </div>
       </article>`;
     })
@@ -414,7 +414,7 @@ function refreshStatement(programme: Programme, card: HTMLElement) {
   const summary = card.querySelector<HTMLElement>('details > summary span');
   const answered = template.contextFields.filter((f) => programme.context[f.id]?.trim()).length;
   if (summary) {
-    summary.textContent = `— ${answered} of ${template.contextFields.length} filled in`;
+    summary.textContent = `${answered} of ${template.contextFields.length} filled in`;
     summary.className = answered === template.contextFields.length ? 'text-positive' : 'text-ink-muted';
   }
 }
@@ -441,7 +441,7 @@ export async function initProgrammes() {
     if (!name?.trim()) return;
 
     const startsOn = todayIso();
-    await guard('Starting programme', async () => {
+    await guard('Starting project', async () => {
       await createProgramme({
         template: key,
         name: name.trim(),
@@ -450,7 +450,7 @@ export async function initProgrammes() {
         endsOn: windowEnd(startsOn, template.defaultWeeks),
       });
       await refresh();
-      setStatus('Programme started. Check the dates are right.');
+      setStatus('Project started. Check the dates are right.');
     });
   });
 
@@ -562,7 +562,7 @@ export async function initProgrammes() {
       return guard('Reopening programme', async () => {
         await updateProgramme(reopenId, { closed: false });
         await refresh();
-        setStatus('Reopened. The reopen is recorded on the programme.');
+        setStatus('Reopened. This is recorded on the project.');
       });
     }
 
@@ -574,7 +574,7 @@ export async function initProgrammes() {
         setStatus('Statement copied.');
       } catch {
         // Clipboard access can be refused; selecting the text still works.
-        setStatus('Could not copy automatically — select the text and copy it.');
+        setStatus('Could not copy. Select the text and copy it.');
       }
       return;
     }
@@ -586,9 +586,9 @@ export async function initProgrammes() {
     await guard('Removing programme', async () => {
       await deleteProgramme(id);
       await refresh();
-      setStatus('Programme removed. Evidence untouched.');
+      setStatus('Project removed. Evidence untouched.');
     });
   });
 
-  await guard('Loading programmes', refresh);
+  await guard('Loading projects', refresh);
 }
