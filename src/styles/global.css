@@ -60,6 +60,11 @@
   }
 
   body {
+    /* Working surfaces get the screen. 90rem still stops a 27" monitor from
+       stretching a row of cards into a smear, but on the laptops and tablets
+       this is actually used on it means no dead gutter. */
+    --pf-shell: 90rem;
+
     /* Paper page background — one step lighter than the sunken --color-canvas
        used for chips and panels, per the design system's "two backgrounds
        per artefact" ceiling. */
@@ -67,6 +72,12 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Pages that are mostly prose keep a reading measure instead. Long lines of
+     body text do not get easier to read by being wider. */
+  body[data-shell='reading'] {
+    --pf-shell: 64rem;
   }
 
   :focus-visible {
@@ -90,6 +101,16 @@
      not sans, not mono — the label should read as cut into the page. */
   .pf-eyebrow {
     @apply font-display text-xs font-medium uppercase tracking-[0.14em];
+  }
+
+  /* The one measure every band of the page agrees on: top bar, content and
+     footer all sit on it, so their left edges line up down the whole screen.
+     Width comes from --pf-shell on <body> rather than a class per band, so a
+     page changes its measure once (BaseLayout's `width` prop) instead of in
+     three components that can drift apart. */
+  .pf-shell {
+    @apply mx-auto w-full px-5 sm:px-8;
+    max-width: var(--pf-shell, 90rem);
   }
 }
 

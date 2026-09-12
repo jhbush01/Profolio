@@ -16,7 +16,7 @@ const domains = [...new Set(coverage.map((standard) => standard.domain))];
 const evidenced = coverage.filter((standard) => standard.artefactCount > 0).length;
 ---
 
-<BaseLayout title={`${portfolio.framework} alignment`}>
+<BaseLayout title={`${portfolio.framework} alignment`} width="reading">
   <PageHeader
     eyebrow={portfolio.frameworkName}
     title={`${portfolio.framework} alignment`}

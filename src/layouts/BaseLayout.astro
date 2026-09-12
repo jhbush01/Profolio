@@ -12,9 +12,15 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description?: string;
+  /**
+   * 'app' — working surfaces (your ProFolio, a project, evidence, export).
+   * These are grids and tables, and they should use the screen they are on.
+   * 'reading' — pages that are mostly prose, held to a reading measure.
+   */
+  width?: 'app' | 'reading';
 }
 
-const { title, description = site.tagline } = Astro.props;
+const { title, description = site.tagline, width = 'app' } = Astro.props;
 ---
 
 <html lang="en-AU">
@@ -36,9 +42,9 @@ const { title, description = site.tagline } = Astro.props;
     <title>{title} · {site.name}</title>
     <script src="https://unpkg.com/lucide@0.544.0/dist/umd/lucide.js"></script>
   </head>
-  <body class="min-h-screen">
+  <body class="min-h-screen" data-shell={width}>
     <NavDrawer />
-    <main class="mx-auto w-full max-w-5xl px-5 py-10">
+    <main class="pf-shell py-10">
       <slot />
     </main>
     <Footer />
