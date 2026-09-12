@@ -20,6 +20,91 @@ export class ApiError extends Error {
   }
 }
 
+/** True for the two statuses that mean Access did not let this through. */
+export function isAuthError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+}
+
+const AUTH_FAILED_MESSAGE =
+  'your sign-in could not be verified. Reload to try again. If it keeps happening, ' +
+  'the Access policy in front of this app needs checking.';
+
+/**
+ * Readable text for any thrown value, with a useful line for auth failures.
+ *
+ * Every caller puts this after a colon ("Could not load this project: …",
+ * "Saving failed: …"), which is why the auth sentence starts lower case.
+ */
+export function describeError(error: unknown): string {
+  if (isAuthError(error)) return AUTH_FAILED_MESSAGE;
+  return error instanceof Error ? error.message : String(error);
+}
+
+const AUTH_RELOAD_KEY = 'profolio:auth-reloads';
+const AUTH_RELOAD_WINDOW_MS = 60_000;
+const AUTH_RELOAD_LIMIT = 2;
+
+/** sessionStorage, or null where touching it throws (private mode, blocked site data). */
+function sessionStore(): Storage | null {
+  try {
+    const store = window.sessionStorage;
+    const probe = '__profolio_probe__';
+    store.setItem(probe, '1');
+    store.removeItem(probe);
+    return store;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recover from an expired Access session by reloading: Access intercepts the
+ * navigation, the user signs in, and the app comes back.
+ *
+ * That only works while Access is actually in front of the Worker. When it is
+ * not — a route that stopped matching, a blocked cookie, `wrangler dev`
+ * without ACCESS_DEV_BYPASS — the reload lands on the same 401 and the page
+ * reloads forever, hammering the API and never telling the user why.
+ *
+ * So reloads are counted in sessionStorage (per tab, gone when the tab closes)
+ * and stop after AUTH_RELOAD_LIMIT inside a minute. Returns true if a reload
+ * has started and the caller should stop; false means show the error instead.
+ * Without usable storage there is no way to count, and an uncounted reload is
+ * the loop, so that returns false too.
+ */
+export function reloadForAuth(): boolean {
+  const store = sessionStore();
+  if (!store) return false;
+
+  const now = Date.now();
+  let recent: number[] = [];
+  try {
+    const parsed: unknown = JSON.parse(store.getItem(AUTH_RELOAD_KEY) ?? '[]');
+    if (Array.isArray(parsed)) {
+      recent = parsed.filter(
+        (at): at is number => typeof at === 'number' && now - at < AUTH_RELOAD_WINDOW_MS,
+      );
+    }
+  } catch {
+    // A corrupted value should not disable recovery: treat it as no attempts.
+  }
+
+  if (recent.length >= AUTH_RELOAD_LIMIT) return false;
+
+  store.setItem(AUTH_RELOAD_KEY, JSON.stringify([...recent, now]));
+  window.location.reload();
+  return true;
+}
+
+/** After any successful request the session works, so the reload budget resets. */
+function clearAuthReloads(): void {
+  try {
+    window.sessionStorage.removeItem(AUTH_RELOAD_KEY);
+  } catch {
+    // No storage means nothing was recorded to clear.
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -38,6 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, message);
   }
 
+  clearAuthReloads();
   return (await response.json()) as T;
 }
 

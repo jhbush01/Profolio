@@ -5,7 +5,7 @@
  * back to the record it came from. Editing happens in the builder, so there is
  * exactly one place a dimension can be changed.
  */
-import { ApiError, loadVault } from './db';
+import { describeError, isAuthError, loadVault, reloadForAuth } from './db';
 import {
   BLANK,
   buildProfileRows,
@@ -90,12 +90,9 @@ export async function initProfileTable() {
       </table>
     </div>`;
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-      window.location.reload();
-      return;
-    }
+    if (isAuthError(error) && reloadForAuth()) return;
     host.innerHTML = `<p class="rounded-lg border border-line bg-surface p-6 text-sm text-critical">
-      Could not load your records: ${escapeHtml(error instanceof Error ? error.message : String(error))}
+      Could not load your records: ${escapeHtml(describeError(error))}
     </p>`;
   }
 }

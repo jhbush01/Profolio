@@ -12,7 +12,7 @@
  *
  * Read-only by design: every action here is a link to the page that owns it.
  */
-import { ApiError, loadProgrammes, loadVault, type Programme } from './db';
+import { describeError, isAuthError, loadProgrammes, loadVault, reloadForAuth, type Programme } from './db';
 import { isComplete, missingDimensions } from './dimensions';
 import { currentWeek, elapsedFraction, scoreProgramme, templateFor, totalWeeks } from '../programmes';
 import type { VaultDocument, VaultProfile } from './types';
@@ -442,12 +442,9 @@ export async function initHome() {
       ${body}
     </div>`;
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-      window.location.reload();
-      return;
-    }
+    if (isAuthError(error) && reloadForAuth()) return;
     host.innerHTML = `<p class="card p-6 text-sm text-critical">
-      Could not load your ProFolio: ${escapeHtml(error instanceof Error ? error.message : String(error))}
+      Could not load your ProFolio: ${escapeHtml(describeError(error))}
     </p>`;
   }
 }

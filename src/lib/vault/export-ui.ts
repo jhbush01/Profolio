@@ -8,7 +8,15 @@
  * The build itself still runs in the browser; bytes are streamed from R2 one
  * document at a time and never round-trip back up.
  */
-import { ApiError, documentBytes, loadProgrammes, loadVault, type Programme } from './db';
+import {
+  describeError,
+  documentBytes,
+  isAuthError,
+  loadProgrammes,
+  loadVault,
+  reloadForAuth,
+  type Programme,
+} from './db';
 import { templateFor } from '../programmes';
 import type { ExportPlan, ProgrammeSection } from './pdf';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
@@ -288,7 +296,7 @@ async function runExport() {
     URL.revokeObjectURL(url);
     setState('Exported.');
   } catch (error) {
-    setState(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
+    setState(`Export failed: ${describeError(error)}`);
   } finally {
     if (button) button.disabled = false;
   }
@@ -310,12 +318,9 @@ export async function initExport() {
     chosen = new Set(programmes.filter((p) => assignedTo(p.id).length > 0).map((p) => p.id));
     includeUnassigned = chosen.size === 0;
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-      window.location.reload();
-      return;
-    }
+    if (isAuthError(error) && reloadForAuth()) return;
     host.innerHTML = `<p class="card p-6 text-sm text-critical">
-      Could not load your record: ${escapeHtml(error instanceof Error ? error.message : String(error))}
+      Could not load your record: ${escapeHtml(describeError(error))}
     </p>`;
     return;
   }

@@ -6,7 +6,9 @@
  * the same artefact can satisfy items in several programmes at once.
  */
 import {
-  ApiError,
+  describeError,
+  isAuthError,
+  reloadForAuth,
   createProgramme,
   deleteProgramme,
   loadProgrammes,
@@ -47,11 +49,8 @@ async function guard(label: string, action: () => Promise<unknown>) {
   try {
     await action();
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-      window.location.reload();
-      return;
-    }
-    setStatus(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
+    if (isAuthError(error) && reloadForAuth()) return;
+    setStatus(`${label} failed: ${describeError(error)}`);
   }
 }
 

@@ -10,7 +10,9 @@
  * "Project" on screen, programme in the code — see home-ui.ts.
  */
 import {
-  ApiError,
+  describeError,
+  isAuthError,
+  reloadForAuth,
   deleteProgramme,
   loadProgrammes,
   loadVault,
@@ -99,11 +101,8 @@ async function guard(label: string, action: () => Promise<unknown>) {
   try {
     await action();
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-      window.location.reload();
-      return;
-    }
-    setStatus(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
+    if (isAuthError(error) && reloadForAuth()) return;
+    setStatus(`${label} failed: ${describeError(error)}`);
   }
 }
 
@@ -472,12 +471,9 @@ export async function initProject() {
   try {
     await refresh();
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-      window.location.reload();
-      return;
-    }
+    if (isAuthError(error) && reloadForAuth()) return;
     host.innerHTML = `<p class="card p-6 text-sm text-critical">
-      Could not load this project: ${escapeHtml(error instanceof Error ? error.message : String(error))}
+      Could not load this project: ${escapeHtml(describeError(error))}
     </p>`;
     return;
   }

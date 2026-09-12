@@ -11,7 +11,9 @@
 import {
   acknowledgeDeid,
   addDocuments,
-  ApiError,
+  describeError,
+  isAuthError,
+  reloadForAuth,
   clearAll,
   createFolder,
   deleteDocument,
@@ -420,19 +422,19 @@ async function refresh() {
 
 /**
  * Runs an action, surfacing failures in the status line instead of throwing
- * into the console. A 401 means the Access session lapsed — reloading bounces
- * the user through the login page.
+ * into the console. A 401 usually means the Access session lapsed, and
+ * reloadForAuth bounces the user through the login page — but only a couple of
+ * times per minute, after which the failure is shown rather than retried.
  */
 async function guard(label: string, action: () => Promise<unknown>) {
   try {
     await action();
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+    if (isAuthError(error)) {
       setStatus('Your sign-in expired. Reloading…');
-      window.location.reload();
-      return;
+      if (reloadForAuth()) return;
     }
-    setStatus(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
+    setStatus(`${label} failed: ${describeError(error)}`);
   }
 }
 
@@ -506,7 +508,7 @@ async function exportPdf() {
     URL.revokeObjectURL(url);
     setStatus(`Exported ${formatBytes(blob.size)}.`);
   } catch (error) {
-    setStatus(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
+    setStatus(`Export failed: ${describeError(error)}`);
   } finally {
     button.disabled = false;
   }
