@@ -62,37 +62,30 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         id="capture-photo-button"
         type="button"
         disabled
-        class="flex flex-[1.4] flex-col items-center justify-center gap-1 rounded-lg bg-accent px-3 py-3 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg bg-accent px-3 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
       >
         <i data-lucide="camera" class="size-6" aria-hidden="true"></i>
         Camera
       </button>
       <button
-        id="capture-photos-button"
-        type="button"
-        disabled
-        class="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-line bg-surface px-3 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <i data-lucide="image" class="size-5" aria-hidden="true"></i>
-        Photos
-      </button>
-      <button
         id="capture-file-button"
         type="button"
         disabled
-        class="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-line bg-surface px-3 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-line bg-surface px-3 py-3.5 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <i data-lucide="paperclip" class="size-5" aria-hidden="true"></i>
-        Files
+        <i data-lucide="upload" class="size-6" aria-hidden="true"></i>
+        Upload
       </button>
     </div>
   </div>
 
-  <!-- Three inputs, because the attributes are what steer the phone:
-       `capture` opens the rear camera, `accept` alone opens the photo
-       library, and neither opens the file browser. -->
+  <!-- Two inputs, because the attributes are what steer the phone.
+       `capture` goes straight to the rear camera. The bare input, with no
+       `accept`, makes the device offer its own sheet — Photo Library, Take
+       Photo, Choose File on iOS; Gallery, Files, Drive on Android. Splitting
+       "photos" from "files" ourselves meant guessing at that sheet and
+       getting it wrong on half the devices. -->
   <input id="capture-photo" type="file" accept="image/*" capture="environment" class="sr-only" />
-  <input id="capture-photos" type="file" accept="image/*" multiple class="sr-only" />
   <input id="capture-file" type="file" multiple class="sr-only" />
 </BaseLayout>
 

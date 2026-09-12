@@ -14,8 +14,6 @@ import {
   describeError,
   isAuthError,
   reloadForAuth,
-  clearAll,
-  deleteAccount,
   createFolder,
   deleteDocument,
   deleteFolderDeep,
@@ -23,7 +21,6 @@ import {
   loadProgrammes,
   loadVault,
   saveOrder,
-  saveProfile,
   updateDocument,
   updateFolder,
   type Programme,
@@ -49,7 +46,8 @@ let folders: VaultFolder[] = [];
 let documents: VaultDocument[] = [];
 let profile: VaultProfile = { name: '', title: '', summary: '' };
 let selected: string = ALL;
-let signedInAs = '';
+/** Free-text filter applied on top of the folder selection. */
+let search = '';
 let deidAcknowledged = false;
 /** Account storage allowance, from the last snapshot. */
 let storage: { usedBytes: number; limitBytes: number } | null = null;
@@ -191,11 +189,37 @@ function detailPanel(doc: VaultDocument): string {
   </details>`;
 }
 
-/** Documents shown for the current selection. */
+/**
+ * Documents shown for the current folder selection and search.
+ *
+ * Searching looks past the file name into the caption, the source and the
+ * names of the projects a record counts toward, because "the certificate from
+ * the first placement" is how people remember an artefact — not as
+ * IMG_4032.jpeg, which is what the phone called it.
+ */
 function visibleDocuments(): VaultDocument[] {
-  if (selected === ALL) return documents;
-  if (selected === UNFILED) return documents.filter((doc) => !doc.folderId);
-  return documents.filter((doc) => doc.folderId === selected);
+  const inFolder =
+    selected === ALL
+      ? documents
+      : selected === UNFILED
+        ? documents.filter((doc) => !doc.folderId)
+        : documents.filter((doc) => doc.folderId === selected);
+
+  const needle = search.trim().toLowerCase();
+  if (!needle) return inFolder;
+
+  const programmeName = new Map(openProgrammes.map((p) => [p.id, p.name.toLowerCase()]));
+  return inFolder.filter((doc) =>
+    [
+      doc.name,
+      doc.caption,
+      doc.source ?? '',
+      ...doc.programmes.map((id) => programmeName.get(id) ?? ''),
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(needle),
+  );
 }
 
 function folderPath(id: string | null): string {
@@ -380,6 +404,21 @@ function renderPendingCount() {
   host.textContent = pending === 1 ? '1 needs detail' : `${pending} need detail`;
 }
 
+function renderSearchSummary() {
+  const host = $('search-summary');
+  if (!host) return;
+  const needle = search.trim();
+  if (!needle) {
+    host.textContent = '';
+    return;
+  }
+  const found = visibleDocuments().length;
+  host.textContent =
+    found === 0
+      ? `Nothing matches "${needle}".`
+      : `${found} artefact${found === 1 ? '' : 's'} match "${needle}".`;
+}
+
 function renderUsage() {
   const host = $('usage');
   if (!host) return;
@@ -406,12 +445,9 @@ async function refresh() {
   folders = snapshot.folders;
   documents = snapshot.documents;
   profile = snapshot.profile;
-  signedInAs = snapshot.signedInAs;
   deidAcknowledged = snapshot.deidAcknowledged;
   storage = snapshot.storage;
 
-  const identity = $('signed-in-as');
-  if (identity) identity.textContent = signedInAs;
 
   // Uploads stay locked until the de-identification notice is acknowledged.
   const gate = $('deid-gate');
@@ -428,6 +464,7 @@ async function refresh() {
   renderDocuments();
   renderUsage();
   renderPendingCount();
+  renderSearchSummary();
 }
 
 /**
@@ -593,21 +630,6 @@ function enableDocumentDragging() {
 /* ------------------------------------------------------------------- wiring */
 
 export async function initVault() {
-  const nameField = $<HTMLInputElement>('profile-name');
-  const titleField = $<HTMLInputElement>('profile-title');
-  const summaryField = $<HTMLTextAreaElement>('profile-summary');
-  const persistProfile = async () => {
-    profile = {
-      name: nameField?.value ?? '',
-      title: titleField?.value ?? '',
-      summary: summaryField?.value ?? '',
-    };
-    await guard('Saving cover details', () => saveProfile(profile));
-  };
-  [nameField, titleField, summaryField].forEach((field) =>
-    field?.addEventListener('change', persistProfile),
-  );
-
   $('new-folder')?.addEventListener('click', async () => {
     const name = window.prompt('Folder name');
     if (!name?.trim()) return;
@@ -640,39 +662,11 @@ export async function initVault() {
     });
   });
 
-  $('clear-all')?.addEventListener('click', async () => {
-    if (
-      !window.confirm(
-        'Delete every file, folder and project, and your cover details? This cannot be undone. Export a PDF first if you want a copy.',
-      )
-    )
-      return;
-    await guard('Clearing', async () => {
-      await clearAll();
-      selected = ALL;
-      if (nameField) nameField.value = '';
-      if (titleField) titleField.value = '';
-      if (summaryField) summaryField.value = '';
-      await refresh();
-      setStatus('Cleared.');
-    });
-  });
-
-  $('delete-account')?.addEventListener('click', async () => {
-    // Typed rather than clicked: this one removes the account, and a confirm
-    // dialog is a reflex by the second time you have seen it.
-    const typed = window.prompt(
-      'This deletes your evidence, your projects and the account itself. It cannot be undone.\n\nType DELETE to confirm.',
-    );
-    if (typed !== 'DELETE') {
-      if (typed !== null) setStatus('Not deleted — the confirmation did not match.');
-      return;
-    }
-    await guard('Deleting account', async () => {
-      await deleteAccount();
-      // Straight to the ProFolio, which will resolve a fresh empty account.
-      window.location.href = '/';
-    });
+  $<HTMLInputElement>('doc-search')?.addEventListener('input', (event) => {
+    search = (event.target as HTMLInputElement).value;
+    renderDocuments();
+    renderPendingCount();
+    renderSearchSummary();
   });
 
   $<HTMLTextAreaElement>('folder-note')?.addEventListener('change', async (event) => {
@@ -862,10 +856,5 @@ export async function initVault() {
     if (event.dataTransfer?.files?.length) await handleFiles(event.dataTransfer.files);
   });
 
-  await guard('Loading your portfolio', async () => {
-    await refresh();
-    if (nameField) nameField.value = profile.name;
-    if (titleField) titleField.value = profile.title;
-    if (summaryField) summaryField.value = profile.summary;
-  });
+  await guard('Loading your artefacts', refresh);
 }

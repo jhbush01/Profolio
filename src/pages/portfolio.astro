@@ -14,45 +14,14 @@ import PageHeader from '../components/PageHeader.astro';
 ---
 
 <BaseLayout
-  title="Portfolio builder"
-  description="Build a simple digital portfolio: upload documents, organise them into folders, and export a tidy PDF."
+  title="All artefacts"
+  description="Every artefact you have captured, across every project, in one searchable list."
 >
   <PageHeader
-    eyebrow="Portfolio builder"
-    title="Build your portfolio"
-    lead="Add documents, group them into folders, then export them as one PDF."
+    eyebrow="All artefacts"
+    title="Everything you have captured"
+    lead="Every artefact across every project. Evidence lives inside the project it was assigned to; this is where you search the lot."
   />
-
-  <!-- Who you are, and where the files actually live. -->
-  <div class="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-    <span class="inline-flex size-2 rounded-full bg-positive" aria-hidden="true"></span>
-    <p>
-      Signed in as <strong id="signed-in-as" class="font-medium">…</strong>
-    </p>
-    <p class="text-xs text-ink-muted">
-      Documents are stored in Cloudflare R2 and reachable from any device you sign in on.
-    </p>
-  </div>
-
-  <!-- Profile: printed on the PDF cover page. -->
-  <section class="card mb-6">
-    <h2 class="mb-1 text-base font-semibold">Cover details</h2>
-    <p class="prose-body mb-4 text-xs">These appear on the front page of the exported PDF.</p>
-    <div class="grid gap-3 sm:grid-cols-2">
-      <label class="flex flex-col gap-1.5">
-        <span class="text-xs font-medium">Your name</span>
-        <input id="profile-name" type="text" placeholder="e.g. Jordan Rivers" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
-      </label>
-      <label class="flex flex-col gap-1.5">
-        <span class="text-xs font-medium">Title or role</span>
-        <input id="profile-title" type="text" placeholder="e.g. Registered Nurse" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
-      </label>
-      <label class="flex flex-col gap-1.5 sm:col-span-2">
-        <span class="text-xs font-medium">Short summary</span>
-        <textarea id="profile-summary" rows="2" placeholder="One or two lines about what this portfolio contains." class="rounded-lg border border-line bg-surface px-3 py-2 text-sm"></textarea>
-      </label>
-    </div>
-  </section>
 
   <!-- De-identification gate. Hidden by the controller once acknowledged;
        server-side, uploads are refused until the record exists. -->
@@ -107,6 +76,18 @@ import PageHeader from '../components/PageHeader.astro';
     <input id="file-input" type="file" multiple class="sr-only" />
   </div>
 
+  <div class="mb-6">
+    <label for="doc-search" class="sr-only">Search artefacts</label>
+    <input
+      id="doc-search"
+      type="search"
+      placeholder="Search by file name, caption, source or project…"
+      autocomplete="off"
+      class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+    />
+    <p id="search-summary" class="mt-1.5 text-xs text-ink-muted"></p>
+  </div>
+
   <div class="grid gap-6 lg:grid-cols-[16rem_1fr]">
     <!-- Folder tree -->
     <aside class="card h-fit p-3">
@@ -138,47 +119,6 @@ import PageHeader from '../components/PageHeader.astro';
       <div id="document-list" class="grid gap-4 sm:grid-cols-2"></div>
     </section>
   </div>
-
-  <!-- Leaving, and taking it with you. Its own section at the foot of the page
-       rather than a link beside Export: these are the two actions nobody should
-       reach by aiming at something else. -->
-  <section id="your-data" class="mt-10 scroll-mt-24 border-t border-line pt-8">
-    <h2 class="text-lg font-semibold">Your data</h2>
-    <p class="prose-body mt-1 max-w-[60ch] text-sm">
-      Everything here belongs to you and is visible only to you.{' '}
-      <a href="/privacy" class="text-accent underline underline-offset-2">What is stored, and for how long</a>.
-    </p>
-
-    <div class="mt-4 flex flex-col gap-3 sm:flex-row">
-      <div class="card flex-1 p-5">
-        <h3 class="text-sm font-semibold">Clear everything</h3>
-        <p class="prose-body mt-1 text-xs">
-          Removes every file, folder and project, and your cover details. The account stays, so you
-          can start again.
-        </p>
-        <button id="clear-all" type="button"
-          class="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-critical/40 hover:text-critical">
-          Clear everything
-        </button>
-      </div>
-
-      <div class="card flex-1 p-5">
-        <h3 class="text-sm font-semibold">Delete your account</h3>
-        <p class="prose-body mt-1 text-xs">
-          All of the above, plus the account and the record of which sign-ins reach it. Signing in
-          again gives you a new, empty ProFolio.
-        </p>
-        <button id="delete-account" type="button"
-          class="mt-3 rounded-md border border-critical/40 bg-surface px-3 py-1.5 text-xs font-medium text-critical transition hover:bg-critical hover:text-white">
-          Delete account
-        </button>
-      </div>
-    </div>
-
-    <p class="prose-body mt-3 text-xs">
-      Export a PDF first if you want a copy — deletion is immediate and you cannot undo it.
-    </p>
-  </section>
 
   <!-- Full-page drop target hint, shown while dragging. -->
   <div

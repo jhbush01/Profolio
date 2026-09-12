@@ -103,6 +103,46 @@
     @apply font-display text-xs font-medium uppercase tracking-[0.14em];
   }
 
+  /*
+   * Three bars, drawn rather than fetched.
+   *
+   * Lucide comes from a CDN, and BaseLayout strips <i data-lucide> elements it
+   * never filled. That leaves an empty button — a control with no affordance
+   * at all, which for the only way into navigation is not acceptable. The
+   * :has() test shows these bars only when no SVG arrived.
+   */
+  .pf-burger {
+    display: none;
+    position: relative;
+    width: 1.125rem;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+
+  .pf-burger::before,
+  .pf-burger::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+
+  .pf-burger::before {
+    top: -0.3125rem;
+  }
+
+  .pf-burger::after {
+    top: 0.3125rem;
+  }
+
+  #drawer-open:not(:has(svg)) .pf-burger {
+    display: block;
+  }
+
   /* The one measure every band of the page agrees on: top bar, content and
      footer all sit on it, so their left edges line up down the whole screen.
      Width comes from --pf-shell on <body> rather than a class per band, so a

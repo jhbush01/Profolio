@@ -80,7 +80,7 @@ async function guard(label: string, action: () => Promise<unknown>) {
 }
 
 function setPickersEnabled(enabled: boolean) {
-  for (const id of ['capture-photo-button', 'capture-photos-button', 'capture-file-button']) {
+  for (const id of ['capture-photo-button', 'capture-file-button']) {
     const button = $<HTMLButtonElement>(id);
     if (button) button.disabled = !enabled;
   }
@@ -374,14 +374,12 @@ export async function initCapture() {
   });
 
   const photoInput = $<HTMLInputElement>('capture-photo');
-  const photosInput = $<HTMLInputElement>('capture-photos');
   const fileInput = $<HTMLInputElement>('capture-file');
 
   $('capture-photo-button')?.addEventListener('click', () => photoInput?.click());
-  $('capture-photos-button')?.addEventListener('click', () => photosInput?.click());
   $('capture-file-button')?.addEventListener('click', () => fileInput?.click());
 
-  for (const input of [photoInput, photosInput, fileInput]) {
+  for (const input of [photoInput, fileInput]) {
     input?.addEventListener('change', async () => {
       if (input.files) await handleFiles(input.files);
       // Cleared so capturing the same filename twice still fires a change.

@@ -2,7 +2,7 @@
   "name": "Profolio — professional evidence vault",
   "short_name": "Profolio",
   "description": "Capture and organise the evidence of your professional practice.",
-  "start_url": "/capture",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f6f7f9",

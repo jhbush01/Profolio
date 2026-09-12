@@ -1,12 +1,15 @@
 ---
 /**
- * Phone navigation. Five slots along the bottom, with capture deliberately
- * heaviest in the middle — it is the reason the app is on a phone at all
- * (see docs/PRODUCT.md).
+ * Phone navigation. Four destinations, with capture deliberately heaviest —
+ * it is the reason the app is on a phone at all (see docs/PRODUCT.md).
  *
- * Phone only: the drawer and top bar still serve every wider screen, and they
- * stay reachable here too, so the four destinations below are a shortcut
- * rather than the whole map.
+ * Only the things done regularly. Everything else — all artefacts, the data
+ * collection profile, privacy, the worked example — lives in the drawer,
+ * which is the full map on a phone and the main navigation on desktop.
+ *
+ * Evidence is not here on purpose: captured evidence is assigned to a project,
+ * so a project is where you go looking for it. All artefacts is the search
+ * across projects, which is a less frequent errand than the four below.
  *
  * Hidden on /capture, which runs its own action bar along the bottom. Two
  * stacked bars would put the camera under the nav instead of under a thumb.
@@ -14,17 +17,27 @@
 const path = Astro.url.pathname;
 const hidden = path.startsWith('/capture') || path.startsWith('/present');
 
-// Deliberately the same labels, in the same order, as the drawer on wider
-// screens: two names for one destination is how navigation stops being
-// trusted.
-const links = [
+interface NavLink {
+  href: string;
+  label: string;
+  icon: string;
+  /** Extra path prefixes that should light this up. */
+  also?: string[];
+}
+
+// Deliberately the same labels as the drawer uses on wider screens: two names
+// for one destination is how navigation stops being trusted.
+const links: NavLink[] = [
   { href: '/', label: 'ProFolio', icon: 'house' },
-  { href: '/portfolio', label: 'Evidence', icon: 'folder' },
+  // Being inside one project is still "Projects" as far as where-am-I goes.
+  { href: '/programmes', label: 'Projects', icon: 'folder', also: ['/project'] },
   { href: '/export', label: 'Export', icon: 'download' },
-  { href: '/data-profile', label: 'Data', icon: 'list-checks' },
 ];
 
-const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+const isActive = (link: NavLink) =>
+  link.href === '/'
+    ? path === '/'
+    : path.startsWith(link.href) || (link.also ?? []).some((prefix) => path.startsWith(prefix));
 ---
 
 {
@@ -38,10 +51,10 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
         {links.slice(0, 2).map((link) => (
           <a
             href={link.href}
-            aria-current={isActive(link.href) ? 'page' : undefined}
+            aria-current={isActive(link) ? 'page' : undefined}
             class:list={[
               'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[0.7rem] transition',
-              isActive(link.href) ? 'font-medium text-accent' : 'text-ink-muted',
+              isActive(link) ? 'font-medium text-accent' : 'text-ink-muted',
             ]}
           >
             <i data-lucide={link.icon} class="size-5" aria-hidden="true" />
@@ -62,10 +75,10 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
         {links.slice(2).map((link) => (
           <a
             href={link.href}
-            aria-current={isActive(link.href) ? 'page' : undefined}
+            aria-current={isActive(link) ? 'page' : undefined}
             class:list={[
               'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[0.7rem] transition',
-              isActive(link.href) ? 'font-medium text-accent' : 'text-ink-muted',
+              isActive(link) ? 'font-medium text-accent' : 'text-ink-muted',
             ]}
           >
             <i data-lucide={link.icon} class="size-5" aria-hidden="true" />

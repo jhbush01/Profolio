@@ -38,11 +38,13 @@ const sections: { label: string | null; links: NavLink[] }[] = [
   {
     label: null,
     links: [
-      { href: '/', label: 'Your ProFolio', hint: 'All your projects' },
-      { href: '/capture', label: 'Capture', hint: 'Camera, photos or files' },
-      { href: '/portfolio', label: 'All evidence', hint: 'Every record you have saved' },
+      { href: '/', label: 'Your ProFolio', hint: 'Your projects at a glance' },
+      { href: '/programmes', label: 'Projects', hint: 'Start, manage and close them' },
+      { href: '/capture', label: 'Capture', hint: 'Camera or upload' },
+      { href: '/portfolio', label: 'All artefacts', hint: 'Search across every project' },
       { href: '/export', label: 'Export', hint: 'Build a PDF' },
       { href: '/data-profile', label: 'Data collection profile', hint: 'Generated summary' },
+      { href: '/account', label: 'Account', hint: 'Cover details and your data' },
       { href: '/privacy', label: 'Privacy', hint: 'What is stored, and deleting it' },
     ],
   },
@@ -65,7 +67,25 @@ const showBack = path !== '/';
 ---
 
 <header class="no-print sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
-  <div class="pf-shell flex items-center gap-3 py-3">
+  <div class="pf-shell flex items-center gap-2 py-3">
+    {/* Always the first thing in the bar, on every page and every width, so
+        the way into the rest of the app never moves. Icon-only, with the
+        label carried by aria-label and the three bars everyone already
+        reads as a menu. */}
+    <button
+      type="button"
+      id="drawer-open"
+      aria-controls="app-drawer"
+      aria-expanded="false"
+      aria-label="Open menu"
+      class="flex size-9 shrink-0 items-center justify-center rounded-md border border-line transition hover:border-accent/40 hover:text-accent"
+    >
+      <i data-lucide="menu" class="size-5" aria-hidden="true"></i>
+      {/* Drawn in CSS as well as fetched, because the icon comes from a CDN
+          and a button with nothing in it is an invisible control. */}
+      <span class="pf-burger" aria-hidden="true"></span>
+    </button>
+
     {
       showBack && (
         <a
@@ -74,24 +94,11 @@ const showBack = path !== '/';
           class="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-ink-muted transition hover:bg-canvas hover:text-accent"
         >
           <i data-lucide="arrow-left" class="size-5" aria-hidden="true" />
-          {/* Always a word beside the arrow. The icon comes from a CDN, and
-              an icon-only back button on a phone is an invisible, unhittable
-              anchor on any network that blocks it. */}
           <span class="sm:hidden">Back</span>
           <span class="hidden sm:inline">Your ProFolio</span>
         </a>
       )
     }
-    <button
-      type="button"
-      id="drawer-open"
-      aria-controls="app-drawer"
-      aria-expanded="false"
-      class="flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
-    >
-      <i data-lucide="menu" class="size-4" aria-hidden="true"></i>
-      Menu
-    </button>
 
     {/* The wordmark is only a link when nothing else in the bar already goes
         home. With the back arrow present it is identity, not navigation —
