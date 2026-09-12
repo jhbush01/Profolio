@@ -25,17 +25,22 @@ import {
 import { isComplete, missingDimensions } from './dimensions';
 import { wireViewer } from './viewer';
 import { buildPortfolioPdf } from './pdf';
-import { reportSections } from './report';
+import { reportEntries } from './report';
 import {
   currentWeek,
   elapsedFraction,
   matchesItem,
+  outlineFor,
   scoreProgramme,
   suggestForProgramme,
   templateFor,
   totalWeeks,
+  writtenFor,
   type ProgrammeTemplate,
+  type ReportHeading,
 } from '../programmes';
+import { buildProfileRows, PROFILE_COLUMNS, rowCells } from './profile-table';
+import type { ContextField } from '../programmes/types';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
@@ -66,11 +71,15 @@ let deidAcknowledged = false;
 let profile: VaultProfile = emptyProfile;
 let folders: VaultFolder[] = [];
 
+/**
+ * Context is not here, on purpose. It used to be a tab of its own, which made
+ * the setting a form you filled in somewhere else and then never looked at
+ * again. It is the opening of the report, so it is written inside the report.
+ */
 const TABS = [
   { id: 'hub', label: 'Hub' },
   { id: 'checklist', label: 'Checklist' },
   { id: 'evidence', label: 'Evidence' },
-  { id: 'context', label: 'Context' },
   { id: 'report', label: 'Report' },
   { id: 'settings', label: 'Settings' },
 ] as const;
@@ -88,6 +97,9 @@ const projectId = () => new URLSearchParams(window.location.search).get('id') ??
 
 function readTab(): TabId {
   const raw = new URLSearchParams(window.location.search).get('tab');
+  // Context was a tab until it moved into the report. Links to it exist in the
+  // wild — bookmarks, and any project page rendered before this shipped.
+  if (raw === 'context') return 'report';
   return TABS.some((t) => t.id === raw) ? (raw as TabId) : 'hub';
 }
 
@@ -260,30 +272,119 @@ function suggestionBlock(closed: boolean): string {
   </section>`;
 }
 
-function contextBlock(): string {
-  if (!template || !programme || template.contextFields.length === 0) return '';
-  const lines = template.contextFields
-    .map((field) => {
-      const value = programme!.context[field.id]?.trim();
-      return value ? `${field.label}: ${value}` : null;
-    })
-    .filter((line): line is string => line !== null);
+/**
+ * The context statement, editable in place.
+ *
+ * It used to be read-only here with an "Edit" link out to the projects list,
+ * which meant leaving the thing you were writing to change a fact about it and
+ * then finding your way back. Fields write on change, like the dates do.
+ */
+function contextFieldsBlock(closed: boolean): string {
+  const current = programme;
+  if (!template || !current || template.contextFields.length === 0) return '';
 
-  return `<section class="card p-6">
-    <div class="flex items-baseline justify-between gap-4">
-      <h2 class="text-lg font-semibold">Context statement</h2>
-      <a href="/programmes" class="text-xs font-medium text-accent hover:underline">Edit</a>
+  const field = (f: ContextField): string => {
+    const value = current.context[f.id] ?? '';
+    const shared =
+      'w-full rounded-md border border-line bg-surface px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60';
+
+    const input =
+      f.kind === 'longtext'
+        ? `<textarea data-context="${escapeHtml(f.id)}" rows="3" ${closed ? 'disabled' : ''}
+             class="${shared} py-2 leading-relaxed">${escapeHtml(value)}</textarea>`
+        : f.kind === 'select'
+          ? `<select data-context="${escapeHtml(f.id)}" ${closed ? 'disabled' : ''} class="${shared} min-h-11">
+               <option value="">—</option>
+               ${(f.options ?? [])
+                 .map(
+                   (option) =>
+                     `<option value="${escapeHtml(option)}"${option === value ? ' selected' : ''}>${escapeHtml(option)}</option>`,
+                 )
+                 .join('')}
+             </select>`
+          : `<input type="${f.kind === 'number' ? 'number' : 'text'}" data-context="${escapeHtml(f.id)}"
+               value="${escapeHtml(value)}" ${closed ? 'disabled' : ''} class="${shared} min-h-11" />`;
+
+    return `<label class="flex flex-col gap-1.5 ${f.kind === 'longtext' ? 'sm:col-span-2' : ''}">
+      <span class="text-xs font-medium">${escapeHtml(f.label)}</span>
+      ${input}
+      ${f.hint ? `<span class="text-xs text-ink-faint">${escapeHtml(f.hint)}</span>` : ''}
+    </label>`;
+  };
+
+  const answered = template.contextFields.filter((f) => current.context[f.id]?.trim()).length;
+
+  return `<div class="mt-4 rounded-lg border border-line-subtle bg-canvas p-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-3">
+      <p class="pf-eyebrow text-ink-faint">The facts of the setting</p>
+      <p class="font-mono text-xs text-ink-faint">${answered} of ${template.contextFields.length} answered</p>
     </div>
-    ${
-      lines.length > 0
-        ? `<div class="mt-3 flex flex-col gap-1.5 rounded-md bg-canvas p-4">
-             ${lines.map((line) => `<span class="text-sm">${escapeHtml(line)}</span>`).join('')}
-           </div>`
-        : `<p class="prose-body mt-2 text-sm">
-             Not answered yet. Prints at the front of this project's section on export.
-           </p>`
-    }
-  </section>`;
+    <p class="prose-body mt-1 text-xs">
+      Printed as a list at the front of this section. Name nobody: pseudonyms and roles only.
+    </p>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">${template.contextFields.map(field).join('')}</div>
+  </div>`;
+}
+
+/**
+ * The data collection table for THIS project, generated from the records
+ * assigned to it.
+ *
+ * The standalone /data-profile page covers the whole vault, which is the wrong
+ * scope for a report about one placement: a table listing evidence from a
+ * project you are not writing about is a table an assessor will hold against
+ * you. Same builder, same columns, so the two cannot disagree.
+ */
+function dataProfileBlock(): string {
+  const rows = buildProfileRows(assigned());
+
+  if (rows.length === 0) {
+    return `<div class="mt-4 rounded-lg border border-dashed border-line bg-canvas px-4 py-6 text-center">
+      <p class="prose-body text-xs">
+        The table builds itself from the records in this project. There are none yet.
+      </p>
+    </div>`;
+  }
+
+  const incomplete = rows.filter((row) => !row.complete).length;
+
+  return `<div class="mt-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-3">
+      <p class="pf-eyebrow text-ink-faint">Data collection</p>
+      <p class="font-mono text-xs ${incomplete > 0 ? 'text-caution' : 'text-ink-faint'}">
+        ${rows.length} row${rows.length === 1 ? '' : 's'}${incomplete > 0 ? ` · ${incomplete} incomplete` : ''}
+      </p>
+    </div>
+    <p class="prose-body mt-1 text-xs">
+      Generated from the details on each record. Fill a record's details in and its row completes
+      itself — nothing here is typed twice.
+    </p>
+    <div class="mt-3 overflow-x-auto rounded-lg border border-line-subtle">
+      <table class="w-full min-w-[52rem] border-collapse text-left text-xs">
+        <thead class="bg-canvas">
+          <tr>
+            <th class="px-3 py-2 font-medium">Evidence</th>
+            ${PROFILE_COLUMNS.map((column) => `<th class="px-3 py-2 font-medium">${escapeHtml(column)}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              (row) => `<tr class="border-t border-line-subtle ${row.complete ? '' : 'bg-caution-surface/40'}">
+                <td class="max-w-[16rem] px-3 py-2">
+                  <button type="button" data-view="${row.documentId}" title="${escapeHtml(row.documentName)}"
+                    class="block max-w-full truncate text-left font-medium transition hover:text-accent hover:underline">
+                    ${escapeHtml(row.documentName)}
+                  </button>
+                </td>
+                ${rowCells(row).map((cell) => `<td class="px-3 py-2 text-ink-muted">${escapeHtml(cell)}</td>`).join('')}
+              </tr>`,
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
 }
 
 /** Everything in the project, flat and dated — the "what have I actually got" view. */
@@ -537,7 +638,7 @@ function outputsBlock(acknowledged: boolean): string {
         answered === total,
         'Context statement',
         `${answered} of ${total} answered`,
-        `/project?id=${encodeURIComponent(current.id)}&tab=context`,
+        `/project?id=${encodeURIComponent(current.id)}&tab=report`,
         answered === total ? 'View' : 'Finish',
       ),
     );
@@ -554,7 +655,7 @@ function outputsBlock(acknowledged: boolean): string {
         : incomplete === 0
           ? `${records.length} row${records.length === 1 ? '' : 's'}, all complete`
           : `${incomplete} row${incomplete === 1 ? '' : 's'} incomplete`,
-      '/data-profile',
+      `/project?id=${encodeURIComponent(current.id)}&tab=report`,
       incomplete === 0 ? 'View' : 'Fix',
     ),
   );
@@ -620,18 +721,6 @@ function exportFilename(): string {
   return `${stem || 'project'}.pdf`;
 }
 
-/** The context statement as "Label: value" lines, or nothing when unanswered. */
-function contextLines(): string[] {
-  if (!programme || !template) return [];
-  const current = programme;
-  return template.contextFields
-    .map((field) => {
-      const value = current.context[field.id]?.trim();
-      return value ? `${field.label}: ${value}` : null;
-    })
-    .filter((line): line is string => line !== null);
-}
-
 async function exportProject() {
   if (!programme) return;
   const records = assigned();
@@ -655,8 +744,7 @@ async function exportProject() {
           {
             name: programme.name,
             window: windowLabel(),
-            contextLines: contextLines(),
-            report: reportSections(programme),
+            report: reportEntries(programme),
             documents: records,
           },
         ],
@@ -694,13 +782,16 @@ function windowLabel(): string | null {
 /* ----------------------------------------------------------------- report */
 
 /**
- * The written half of a portfolio, section by section, before you export.
+ * The report: the whole written submission, scaffolded heading by heading, in
+ * the order it is written and exported.
  *
- * Three things per section of the template's checklist: the evidence you
- * assigned that answers it, what is missing from that evidence, and the
- * questions to answer about it.
+ * Everything the report is made of now lives here rather than in tabs beside
+ * it. Under each heading: the facts of the setting where the template asks for
+ * them, the evidence you assigned that belongs there, what an assessor will
+ * notice is missing from it, the generated data collection table where the
+ * template puts it, the questions, and the box you answer them in.
  *
- * The questions come from the template (see ProgrammeTemplate.reportPrompts)
+ * The questions come from the template (see ProgrammeTemplate.reportOutline)
  * and they are only ever questions. Nothing here drafts, suggests or starts a
  * sentence for you — docs/PRODUCT.md rules that out, and the whole value of a
  * portfolio's prose is that an assessor is reading your thinking, not a form
@@ -712,94 +803,121 @@ function reportTab(closed: boolean): string {
   }
 
   const records = assigned();
-  const sections = [...new Set(template.items.map((item) => item.section))];
-  const prompts = template.reportPrompts ?? {};
   const answers = programme.report ?? {};
+  const outline = outlineFor(template);
 
-  const blocks = sections
-    .map((section) => {
-      const items = template!.items.filter((item) => item.section === section);
-      const matched = records.filter((doc) => items.some((item) => matchesItem(item, doc)));
-
-      // What an assessor will notice is missing, per artefact.
-      const unannotated = matched.filter((doc) => !doc.caption.trim()).length;
-      const unsourced = matched.filter((doc) => !doc.source?.trim()).length;
-      const gaps = [
-        unannotated > 0 ? `${unannotated} with no annotation` : null,
-        unsourced > 0 ? `${unsourced} with no source` : null,
-      ].filter(Boolean) as string[];
-
-      const questions = prompts[section] ?? [];
-      const written = answers[section] ?? '';
-      const words = written.trim() ? written.trim().split(/\s+/).length : 0;
-
-      return `<section class="card p-6">
-        <div class="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 class="text-lg font-semibold">${escapeHtml(section)}</h2>
-          <p class="font-mono text-xs text-ink-faint">
-            ${matched.length} artefact${matched.length === 1 ? '' : 's'}${
-              words > 0 ? ` · ${words} word${words === 1 ? '' : 's'} written` : ''
-            }
-          </p>
-        </div>
-
-        ${
-          matched.length === 0
-            ? `<p class="prose-body mt-2 text-sm">
-                 Nothing assigned here yet. The checklist tab says what would fit.
-               </p>`
-            : `<ul class="mt-3 flex flex-col">
-                 ${matched.map((doc) => evidenceRow(doc, closed)).join('')}
-               </ul>`
-        }
-
-        ${
-          gaps.length > 0
-            ? `<p class="mt-3 rounded-md bg-caution-surface px-3 py-2 text-xs text-caution">
-                 ${escapeHtml(gaps.join(' · '))}. An artefact with nothing written about it is a
-                 file, not evidence.
-               </p>`
-            : ''
-        }
-
-        ${
-          questions.length > 0
-            ? `<div class="mt-5 border-t border-line-subtle pt-4">
-                 <p class="pf-eyebrow text-ink-faint">Answer in your own words</p>
-                 <ul class="prose-body mt-2 list-disc space-y-1 pl-5 text-sm">
-                   ${questions.map((q) => `<li>${escapeHtml(q)}</li>`).join('')}
-                 </ul>
-               </div>`
-            : ''
-        }
-
-        <textarea
-          data-report="${escapeHtml(section)}"
-          rows="8"
-          ${closed ? 'readonly' : ''}
-          placeholder="${closed ? 'This project is closed.' : 'Your response to the questions above.'}"
-          class="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed ${
-            closed ? 'cursor-not-allowed opacity-70' : ''
-          }"
-        >${escapeHtml(written)}</textarea>
-      </section>`;
-    })
+  const blocks = outline
+    .map((heading, index) => headingBlock(heading, index, records, answers, closed))
     .join('');
 
   return `<div class="flex flex-col gap-5">
     <section class="card p-6">
-      <h2 class="text-lg font-semibold">Before you export</h2>
+      <h2 class="text-lg font-semibold">Your report, in order</h2>
       <p class="prose-body mt-1 text-sm">
-        Each section below holds the evidence you assigned to it and the questions to answer about
-        it. What you write here prints ahead of that section's evidence in the export.
+        This is the submission itself, not a summary of it. Each heading holds the facts, the
+        evidence and the questions that belong under it, and what you write prints in this order
+        ahead of that heading's evidence in the export.
       </p>
       <p class="prose-body mt-2 text-sm">
         The questions are prompts, not a template to fill in. Nothing in ProFolio writes any of this
         for you — an assessor is reading your thinking, and it has to be yours.
       </p>
+      <ol class="mt-3 flex flex-wrap gap-x-2 gap-y-1 font-mono text-xs text-ink-faint">
+        ${outline
+          .map(
+            (heading, index) =>
+              `<li>${index + 1}. ${escapeHtml(heading.title)}${index < outline.length - 1 ? ' ·' : ''}</li>`,
+          )
+          .join('')}
+      </ol>
     </section>
     ${blocks}
   </div>`;
+}
+
+function headingBlock(
+  heading: ReportHeading,
+  index: number,
+  records: VaultDocument[],
+  answers: Record<string, string>,
+  closed: boolean,
+): string {
+  const items = template!.items.filter((item) => (heading.sections ?? []).includes(item.section));
+  const matched = records.filter((doc) => items.some((item) => matchesItem(item, doc)));
+
+  // What an assessor will notice is missing, per artefact.
+  const unannotated = matched.filter((doc) => !doc.caption.trim()).length;
+  const unsourced = matched.filter((doc) => !doc.source?.trim()).length;
+  const gaps = [
+    unannotated > 0 ? `${unannotated} with no annotation` : null,
+    unsourced > 0 ? `${unsourced} with no source` : null,
+  ].filter(Boolean) as string[];
+
+  const written = writtenFor(answers, heading);
+  const words = written.trim() ? written.trim().split(/\s+/).length : 0;
+
+  return `<section class="card p-6">
+    <div class="flex flex-wrap items-baseline justify-between gap-3">
+      <h2 class="text-lg font-semibold">
+        <span class="font-mono text-sm font-normal text-ink-faint">${index + 1}.</span>
+        ${escapeHtml(heading.title)}
+      </h2>
+      <p class="font-mono text-xs text-ink-faint">
+        ${
+          items.length > 0
+            ? `${matched.length} artefact${matched.length === 1 ? '' : 's'}`
+            : ''
+        }${words > 0 ? `${items.length > 0 ? ' · ' : ''}${words} word${words === 1 ? '' : 's'} written` : ''}
+      </p>
+    </div>
+    ${heading.blurb ? `<p class="prose-body mt-1 text-xs">${escapeHtml(heading.blurb)}</p>` : ''}
+
+    ${heading.includesContext ? contextFieldsBlock(closed) : ''}
+
+    ${
+      items.length === 0
+        ? ''
+        : matched.length === 0
+          ? `<p class="prose-body mt-4 text-sm">
+               Nothing assigned here yet. The checklist tab says what would fit.
+             </p>`
+          : `<ul class="mt-4 flex flex-col">
+               ${matched.map((doc) => evidenceRow(doc, closed)).join('')}
+             </ul>`
+    }
+
+    ${
+      gaps.length > 0
+        ? `<p class="mt-3 rounded-md bg-caution-surface px-3 py-2 text-xs text-caution">
+             ${escapeHtml(gaps.join(' · '))}. An artefact with nothing written about it is a
+             file, not evidence.
+           </p>`
+        : ''
+    }
+
+    ${heading.includesDataProfile ? dataProfileBlock() : ''}
+
+    ${
+      heading.prompts.length > 0
+        ? `<div class="mt-5 border-t border-line-subtle pt-4">
+             <p class="pf-eyebrow text-ink-faint">Answer in your own words</p>
+             <ul class="prose-body mt-2 list-disc space-y-1 pl-5 text-sm">
+               ${heading.prompts.map((prompt) => `<li>${escapeHtml(prompt)}</li>`).join('')}
+             </ul>
+           </div>`
+        : ''
+    }
+
+    <textarea
+      data-report="${escapeHtml(heading.id)}"
+      rows="8"
+      ${closed ? 'readonly' : ''}
+      placeholder="${closed ? 'This project is closed.' : 'Your response to the questions above.'}"
+      class="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed ${
+        closed ? 'cursor-not-allowed opacity-70' : ''
+      }"
+    >${escapeHtml(written)}</textarea>
+  </section>`;
 }
 
 function render() {
@@ -881,9 +999,7 @@ function render() {
             ? `${checklistBlock(closed)}${extraBlock(closed)}${suggestionBlock(closed)}`
             : tab === 'evidence'
               ? evidenceTab(closed)
-              : tab === 'context'
-                ? contextBlock()
-                : settingsTab(closed)
+              : settingsTab(closed)
       }
     </div>`;
 }
@@ -906,16 +1022,34 @@ export async function initProject() {
 
   wireViewer(host, (id) => documents.find((doc) => doc.id === id));
 
+  // The report and its context fields write on change rather than behind a Save
+  // button. Neither re-renders afterwards: this fires as focus leaves a field,
+  // and rebuilding the tab underneath someone tabbing through fourteen context
+  // questions would take the focus with it.
   host.addEventListener('change', async (event) => {
-    const field = event.target as HTMLTextAreaElement;
+    const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+    if (!programme) return;
+
     const section = field.dataset?.report;
-    if (!section || !programme) return;
-    const next = { ...(programme.report ?? {}), [section]: field.value };
-    await guard('Saving your report', async () => {
-      await updateProgramme(programme!.id, { report: next });
-      await refresh();
-      setStatus('Saved.');
-    });
+    if (section) {
+      const next = { ...(programme.report ?? {}), [section]: field.value };
+      await guard('Saving your report', async () => {
+        await updateProgramme(programme!.id, { report: next });
+        await refresh();
+        setStatus('Saved.');
+      });
+      return;
+    }
+
+    const contextField = field.dataset?.context;
+    if (contextField) {
+      const next = { ...(programme.context ?? {}), [contextField]: field.value };
+      await guard('Saving the context', async () => {
+        await updateProgramme(programme!.id, { context: next });
+        await refresh();
+        setStatus('Saved.');
+      });
+    }
   });
 
   // setTab has always written ?tab= to the URL, and nothing ever read it back,

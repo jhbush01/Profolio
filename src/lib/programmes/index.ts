@@ -7,15 +7,64 @@
  */
 import { finalPlacement } from './final-placement';
 import { professionalDevelopment } from './professional-development';
-import type { ItemProgress, ProgrammeTemplate } from './types';
+import type { ItemProgress, ProgrammeTemplate, ReportHeading } from './types';
 import type { Dimensions } from '../vault/dimensions';
 
-export type { ChecklistItem, ItemProgress, ProgrammeTemplate } from './types';
+export type { ChecklistItem, ItemProgress, ProgrammeTemplate, ReportHeading } from './types';
 
 export const TEMPLATES: ProgrammeTemplate[] = [finalPlacement, professionalDevelopment];
 
 export function templateFor(key: string): ProgrammeTemplate | undefined {
   return TEMPLATES.find((template) => template.key === key);
+}
+
+/**
+ * The report outline for a template — declared, or derived from its checklist.
+ *
+ * Every template gets an outline, because the report tab is now the only place
+ * the context statement and the data collection table can be reached. A
+ * template that declares no outline would otherwise have no way to edit its own
+ * context, so the derived one puts the context at the front and the table at the
+ * back and uses the checklist section names as headings.
+ */
+export function outlineFor(template: ProgrammeTemplate): readonly ReportHeading[] {
+  if (template.reportOutline?.length) return template.reportOutline;
+
+  const sections = [...new Set(template.items.map((item) => item.section))];
+  if (sections.length === 0) {
+    return [{ id: 'report', title: 'Report', prompts: [], includesContext: true, includesDataProfile: true }];
+  }
+
+  return sections.map((section, index) => ({
+    // Lower-cased section name: the same key the pre-outline report wrote
+    // under, so nothing already typed is orphaned by this.
+    id: section.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    title: section,
+    prompts: [],
+    sections: [section],
+    includesContext: index === 0,
+    includesDataProfile: index === sections.length - 1,
+  }));
+}
+
+/**
+ * What someone wrote under one heading.
+ *
+ * Falls back to the heading's first checklist-section name, which is the key the
+ * report was stored under before headings had ids. Without this, shipping the
+ * outline would have silently hidden text people had already written.
+ */
+export function writtenFor(
+  report: Record<string, string>,
+  heading: ReportHeading,
+): string {
+  const direct = report[heading.id];
+  if (direct !== undefined) return direct;
+  for (const section of heading.sections ?? []) {
+    const legacy = report[section];
+    if (legacy !== undefined) return legacy;
+  }
+  return '';
 }
 
 /** How far through its window a programme is, 0–1. Null when undated. */

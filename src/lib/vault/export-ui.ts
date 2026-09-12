@@ -18,8 +18,7 @@ import {
   reloadForAuth,
   type Programme,
 } from './db';
-import { templateFor } from '../programmes';
-import { reportSections } from './report';
+import { contextLines, reportEntries } from './report';
 import type { ExportPlan, ProgrammeSection } from './pdf';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 
@@ -63,18 +62,6 @@ function unassignedDocuments(): VaultDocument[] {
   return documents.filter((doc) => !doc.programmes.some((id) => chosen.has(id)));
 }
 
-/** Context lines for a programme, in the template's declared field order. */
-function contextLines(programme: Programme): string[] {
-  const template = templateFor(programme.template);
-  if (!template) return [];
-  return template.contextFields
-    .map((field) => {
-      const value = programme.context[field.id]?.trim();
-      return value ? `${field.label}: ${value}` : null;
-    })
-    .filter((line): line is string => line !== null);
-}
-
 /** True when any ticked programme actually declares a context statement. */
 function anyContextAvailable(): boolean {
   return [...chosen].some((id) => {
@@ -90,8 +77,10 @@ function buildPlan(): ExportPlan {
     sections.push({
       name: programme.name,
       window: windowLabel(programme),
-      contextLines: includeContext ? contextLines(programme) : [],
-      report: reportSections(programme),
+      // The context statement and the data collection table are no longer
+      // slabs of their own: they print under the report heading the template
+      // gives them, so both toggles are resolved in here.
+      report: reportEntries(programme, { includeContext, includeProfileTable }),
       documents: assignedTo(programme.id),
     });
   }
@@ -178,11 +167,11 @@ function render() {
     '<span class="block text-xs">Contents</span>',
     ...plan.sections.flatMap((section) => [
       `<span class="block text-xs font-semibold text-ink">${escapeHtml(section.name)}</span>`,
-      ...(section.contextLines.length > 0
-        ? ['<span class="block pl-3.5 text-xs">Context statement</span>']
+      ...(section.report.length > 0
+        ? ['<span class="block pl-3.5 text-xs">Report</span>']
         : []),
-      ...(includeProfileTable && section.documents.length > 0
-        ? ['<span class="block pl-3.5 text-xs">Data collection profile</span>']
+      ...(section.report.some((entry) => entry.includesDataProfile) && section.documents.length > 0
+        ? ['<span class="block pl-7 text-xs">Data collection</span>']
         : []),
       `<span class="block pl-3.5 text-xs">${section.documents.length} document${section.documents.length === 1 ? '' : 's'}</span>`,
     ]),

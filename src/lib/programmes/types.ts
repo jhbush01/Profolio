@@ -57,20 +57,37 @@ export interface ProgrammeTemplate {
   /** Context questions for this programme. Empty means the section is hidden. */
   contextFields: ContextField[];
   /**
-   * Questions to answer about each section before exporting, keyed by the
-   * section name used on this template's checklist items.
+   * The report, as an ordered outline. This is the essay a portfolio is,
+   * scaffolded: one entry per heading, in the order they are written and
+   * exported.
    *
-   * QUESTIONS ONLY. Never a starter sentence, an example answer, or a phrase
-   * to adapt — docs/PRODUCT.md rules out drafting or suggesting reflective
-   * writing, and the whole value of a portfolio's prose is that it is the
-   * practitioner's own.
+   * TITLES ARE TEMPLATE DATA, ON PURPOSE. An institution whose assessment has
+   * its own required headings replaces them here and nothing else changes —
+   * the storage is keyed on `id`, so renaming a title never orphans what
+   * someone already wrote.
    *
-   * These are generic professional-practice questions. They are deliberately
-   * not any assessment provider's wording: an institution that licenses one
-   * supplies its own template with its own prompts. Omit the key and that
-   * section simply has no prompts.
+   * PROMPTS ARE QUESTIONS ONLY. Never a starter sentence, an example answer,
+   * or a phrase to adapt: docs/PRODUCT.md rules out drafting or suggesting
+   * reflective writing, and an assessor is meant to be reading the
+   * practitioner's thinking rather than a form letter.
    */
-  reportPrompts?: Record<string, readonly string[]>;
+  reportOutline?: readonly ReportHeading[];
+}
+
+export interface ReportHeading {
+  /** Stable storage key. Changing a title must never orphan written text. */
+  id: string;
+  /** The heading as it appears on screen and in the export. Replaceable. */
+  title: string;
+  /** One line on what this heading is for. */
+  blurb?: string;
+  prompts: readonly string[];
+  /** Checklist sections whose evidence is gathered under this heading. */
+  sections?: readonly string[];
+  /** Render the project's context statement fields here, editable. */
+  includesContext?: boolean;
+  /** Render the generated data collection table here. */
+  includesDataProfile?: boolean;
 }
 
 /** Progress for one checklist item against a set of evidence. */

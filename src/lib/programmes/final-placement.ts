@@ -13,40 +13,94 @@ export const finalPlacement: ProgrammeTemplate = {
   tagline: 'A sustained teaching sequence, evidenced end to end.',
   audience: 'Final-year pre-service teachers on professional experience.',
   defaultWeeks: 6,
+
+  /*
+   * The report, in the order it is written and printed.
+   *
+   * The headings follow the planning-to-appraisal cycle, which is the shape of
+   * professional practice rather than any one provider's task. TITLES HERE ARE
+   * DATA: an institution whose assessment prescribes its own headings edits
+   * this array and nothing else moves. Storage is keyed on `id`, so a retitled
+   * heading keeps whatever was already written under it.
+   *
+   * Prompts are questions, never openings — see ProgrammeTemplate.reportOutline.
+   */
+  reportOutline: [
+    {
+      id: 'context',
+      title: 'The setting and these learners',
+      blurb: 'Where you taught, who you taught, and what that made possible.',
+      sections: ['Context'],
+      // The facts sit here rather than in a tab of their own: they are the
+      // first paragraphs of the report, not a separate form to fill in.
+      includesContext: true,
+      prompts: [
+        'What about this setting shaped what was possible in your teaching?',
+        'What did you need to know about these learners before you could plan?',
+      ],
+    },
+    {
+      id: 'planning',
+      title: 'Planning for learning',
+      blurb: 'What the starting-point evidence said, and the sequence you built from it.',
+      sections: ['Planning'],
+      prompts: [
+        'What did the diagnostic evidence tell you these learners already knew?',
+        'Why did you sequence the learning this way rather than another way?',
+        'Which learners did you plan differently for, and what did you change?',
+      ],
+    },
+    {
+      id: 'teaching',
+      title: 'Teaching the sequence',
+      blurb: 'What you did, what happened, and what you changed while it was happening.',
+      sections: ['Teaching'],
+      prompts: [
+        'What did you do when the class did not respond the way you planned?',
+        'Which teaching decision would you make differently, and on what evidence?',
+        'How did you adjust for the individuals you were tracking?',
+      ],
+    },
+    {
+      id: 'assessing',
+      title: 'Assessing and judging learning',
+      blurb: 'The instruments you used, the judgements you made, and how you checked them.',
+      sections: ['Assessing'],
+      // The generated table belongs to this heading because its columns are
+      // assessment-literacy columns: purpose, level of use, source, and who
+      // designed the instrument. Moving it under another heading is one line.
+      includesDataProfile: true,
+      prompts: [
+        'What did the assessment tell you that you did not already know?',
+        "How did you check your judgement against somebody else's?",
+        'What did learners do with the feedback you gave them?',
+      ],
+    },
+    {
+      id: 'reflecting',
+      title: 'Reflecting on practice',
+      blurb: 'What changed in you, not just in the class.',
+      sections: ['Reflecting'],
+      prompts: [
+        'What changed in your practice across this placement, and what caused it?',
+        'What did you try that did not work, and what did you learn from it?',
+      ],
+    },
+    {
+      id: 'appraising',
+      title: 'Appraising the impact on learning',
+      blurb: 'Where these learners started, where they finished, and how you know.',
+      sections: ['Appraising'],
+      prompts: [
+        'What is your evidence that these learners moved, and how far?',
+        'What would you need to do differently to move them further?',
+      ],
+    },
+  ],
+
   // Facts about the setting. Generic placement context — nothing here is
   // specific to one assessment task, and duration is derived from the
   // programme's own date window rather than asked twice.
-  // Questions, never openings. See ProgrammeTemplate.reportPrompts.
-  reportPrompts: {
-    Context: [
-      'What about this setting shaped what was possible in your teaching?',
-      'What did you need to know about these learners before you could plan?',
-    ],
-    Planning: [
-      'What did the diagnostic evidence tell you these learners already knew?',
-      'Why did you sequence the learning this way rather than another way?',
-      'Which learners did you plan differently for, and what did you change?',
-    ],
-    Teaching: [
-      'What did you do when the class did not respond the way you planned?',
-      'Which teaching decision would you make differently, and on what evidence?',
-      'How did you adjust for the individuals you were tracking?',
-    ],
-    Assessing: [
-      'What did the assessment tell you that you did not already know?',
-      'How did you check your judgement against somebody else\'s?',
-      'What did learners do with the feedback you gave them?',
-    ],
-    Reflecting: [
-      'What changed in your practice across this placement, and what caused it?',
-      'What did you try that did not work, and what did you learn from it?',
-    ],
-    Appraising: [
-      'What is your evidence that these learners moved, and how far?',
-      'What would you need to do differently to move them further?',
-    ],
-  },
-
   contextFields: [
     { id: 'setting', label: 'School or centre', kind: 'text', hint: 'Optional. Left out if you would rather keep the setting unnamed.' },
     { id: 'sector', label: 'Sector', kind: 'select', options: ['Government', 'Catholic', 'Independent', 'Other'] },

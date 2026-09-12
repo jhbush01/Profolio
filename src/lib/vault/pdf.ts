@@ -89,19 +89,34 @@ export type LoadBytes = (doc: VaultDocument) => Promise<Uint8Array>;
  * templates, checklists or the programme registry, so adding a new programme
  * type never touches this file.
  */
+/**
+ * One heading of the written report, resolved by the caller.
+ *
+ * The context statement and the data collection table are attached to a heading
+ * rather than printed as slabs of their own, because in a submitted portfolio
+ * they are not appendices — they are the paragraphs a heading is made of. Which
+ * heading owns which is the template's business, not this file's.
+ */
+export interface ReportEntry {
+  /** The heading, exactly as the template titles it. */
+  section: string;
+  body: string;
+  /** Pre-rendered "Label: value" lines, printed under this heading. */
+  contextLines: string[];
+  /** Print the section's data collection table under this heading. */
+  includesDataProfile: boolean;
+}
+
 export interface ProgrammeSection {
   name: string;
   /** Rendered window, e.g. "20 Jul – 29 Aug 2026". Null when undated. */
   window: string | null;
-  /** Pre-rendered "Label: value" lines. Empty to omit the statement page. */
-  contextLines: string[];
   /**
    * What the practitioner wrote about each part of their practice, in the
-   * order the template declares. Printed after the context statement and
-   * before the evidence, because an assessor reads the argument before the
-   * exhibits.
+   * order the template declares. Printed before the evidence, because an
+   * assessor reads the argument before the exhibits.
    */
-  report: { section: string; body: string }[];
+  report: ReportEntry[];
   documents: VaultDocument[];
 }
 
@@ -425,44 +440,25 @@ export async function buildPortfolioPdf(
     });
   }
 
-  /** The programme's own context statement, printed as given. */
-  function drawContextPage(name: string, lines: string[]) {
-    const page = pdf.addPage(A4);
-    let y = A4[1] - MARGIN - 10;
-    page.drawText('Context statement', { x: MARGIN, y, size: 20, font: bold, color: INK });
-    y -= 18;
-    page.drawText(sanitize(name), { x: MARGIN, y, size: 10, font: regular, color: MUTED });
-    y -= 14;
-    page.drawLine({
-      start: { x: MARGIN, y },
-      end: { x: width - MARGIN, y },
-      thickness: 1,
-      color: LINE,
-    });
-    y -= 28;
-
-    for (const line of lines) {
-      for (const wrapped of wrap(line, regular, 11, contentWidth)) {
-        page.drawText(wrapped, { x: MARGIN, y, size: 11, font: regular, color: INK });
-        y -= 17;
-      }
-      y -= 5;
-    }
-  }
-
   /**
-   * The written report, one heading and its paragraphs per section.
+   * The written report, one heading and its paragraphs per entry.
    *
    * Paragraphs are split on blank lines and wrapped, so what someone typed
    * into a textarea comes out reading like prose rather than one long block.
+   *
+   * A heading may also carry the context statement and the data collection
+   * table. Both print under it, in that order, ahead of the prose: the facts
+   * before the argument about them. The table starts its own page because it is
+   * landscape-ish and wide, and a table split by a heading reads as two tables.
    */
-  function drawReportPages(name: string, sections: { section: string; body: string }[]) {
+  function drawReportPages(section: ProgrammeSection): number[] {
     let page = pdf.addPage(A4);
     let y = A4[1] - MARGIN - 10;
+    const tableIndexes: number[] = [];
 
     page.drawText('Report', { x: MARGIN, y, size: 20, font: bold, color: INK });
     y -= 18;
-    page.drawText(sanitize(name), { x: MARGIN, y, size: 10, font: regular, color: MUTED });
+    page.drawText(sanitize(section.name), { x: MARGIN, y, size: 10, font: regular, color: MUTED });
     y -= 14;
     page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 1, color: LINE });
     y -= 30;
@@ -473,10 +469,20 @@ export async function buildPortfolioPdf(
       y = A4[1] - MARGIN - 10;
     };
 
-    for (const entry of sections) {
+    for (const [index, entry] of section.report.entries()) {
       room(46);
       page.drawText(sanitize(entry.section), { x: MARGIN, y, size: 13, font: bold, color: INK });
       y -= 20;
+
+      for (const line of entry.contextLines) {
+        for (const wrapped of wrap(line, regular, 11, contentWidth)) {
+          room(17);
+          page.drawText(wrapped, { x: MARGIN, y, size: 11, font: regular, color: MUTED });
+          y -= 17;
+        }
+        y -= 3;
+      }
+      if (entry.contextLines.length > 0) y -= 10;
 
       for (const paragraph of entry.body.split(/\n\s*\n/)) {
         const text = paragraph.replace(/\s+/g, ' ').trim();
@@ -488,8 +494,23 @@ export async function buildPortfolioPdf(
         }
         y -= 8;
       }
+
+      if (entry.includesDataProfile) {
+        const at = drawProfileTable(section.documents);
+        if (at >= 0) tableIndexes.push(at);
+        // The table owned the last page, so the next heading starts on a clean
+        // one — but only if there is a next heading. Otherwise this is a blank
+        // page at the end of a submission.
+        if (index < section.report.length - 1) {
+          page = pdf.addPage(A4);
+          y = A4[1] - MARGIN - 10;
+        }
+      }
+
       y -= 12;
     }
+
+    return tableIndexes;
   }
 
   function drawDivider(folder: VaultFolder, depth: number, count: number) {
@@ -525,15 +546,21 @@ export async function buildPortfolioPdf(
       toc.push({ label: section.name, depth: 0, rawIndex: rawIndex() });
       drawSectionDivider(section.name, section.window, section.documents.length);
 
-      if (section.contextLines.length > 0) {
-        toc.push({ label: 'Context statement', depth: 1, rawIndex: rawIndex() });
-        drawContextPage(section.name, section.contextLines);
-      }
+      // One run of pages, in the order the template declares: the report, with
+      // the context statement and the data collection table printed under
+      // whichever heading owns them.
+      let tables: number[] = [];
       if (section.report.length > 0) {
-        drawReportPages(section.name, section.report);
+        toc.push({ label: 'Report', depth: 1, rawIndex: rawIndex() });
+        tables = drawReportPages(section);
+      }
+      for (const index of tables) {
+        toc.push({ label: 'Data collection', depth: 2, rawIndex: index });
       }
 
-      if (plan.includeProfileTable) {
+      // A template whose report claimed no table still gets one, otherwise
+      // turning the outline on would have silently dropped it.
+      if (plan.includeProfileTable && tables.length === 0) {
         const index = drawProfileTable(section.documents);
         if (index >= 0) toc.push({ label: 'Data collection profile', depth: 1, rawIndex: index });
       }
