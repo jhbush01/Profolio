@@ -11,12 +11,19 @@ export const PATCH: APIRoute = ({ request, params }) =>
       startsOn?: string | null;
       endsOn?: string | null;
       archived?: boolean;
+      report?: Record<string, string>;
       context?: Record<string, string>;
     } = {};
     if ('name' in body) patch.name = String(body.name ?? '').trim();
     if ('startsOn' in body) patch.startsOn = (body.startsOn as string | null) ?? null;
     if ('endsOn' in body) patch.endsOn = (body.endsOn as string | null) ?? null;
     if ('archived' in body) patch.archived = Boolean(body.archived);
+    if ('report' in body && body.report && typeof body.report === 'object') {
+      // Replaced wholesale, like context: the client sends the full answer set.
+      patch.report = Object.fromEntries(
+        Object.entries(body.report).filter(([, v]) => typeof v === 'string'),
+      ) as Record<string, string>;
+    }
     if ('context' in body) {
       // Whitelist to string values; a template's field ids are the only keys
       // that will ever be read back, so anything else is dropped here.

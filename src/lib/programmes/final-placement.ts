@@ -16,6 +16,37 @@ export const finalPlacement: ProgrammeTemplate = {
   // Facts about the setting. Generic placement context — nothing here is
   // specific to one assessment task, and duration is derived from the
   // programme's own date window rather than asked twice.
+  // Questions, never openings. See ProgrammeTemplate.reportPrompts.
+  reportPrompts: {
+    Context: [
+      'What about this setting shaped what was possible in your teaching?',
+      'What did you need to know about these learners before you could plan?',
+    ],
+    Planning: [
+      'What did the diagnostic evidence tell you these learners already knew?',
+      'Why did you sequence the learning this way rather than another way?',
+      'Which learners did you plan differently for, and what did you change?',
+    ],
+    Teaching: [
+      'What did you do when the class did not respond the way you planned?',
+      'Which teaching decision would you make differently, and on what evidence?',
+      'How did you adjust for the individuals you were tracking?',
+    ],
+    Assessing: [
+      'What did the assessment tell you that you did not already know?',
+      'How did you check your judgement against somebody else\'s?',
+      'What did learners do with the feedback you gave them?',
+    ],
+    Reflecting: [
+      'What changed in your practice across this placement, and what caused it?',
+      'What did you try that did not work, and what did you learn from it?',
+    ],
+    Appraising: [
+      'What is your evidence that these learners moved, and how far?',
+      'What would you need to do differently to move them further?',
+    ],
+  },
+
   contextFields: [
     { id: 'setting', label: 'School or centre', kind: 'text', hint: 'Optional. Left out if you would rather keep the setting unnamed.' },
     { id: 'sector', label: 'Sector', kind: 'select', options: ['Government', 'Catholic', 'Independent', 'Other'] },

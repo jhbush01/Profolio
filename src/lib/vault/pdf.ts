@@ -95,6 +95,13 @@ export interface ProgrammeSection {
   window: string | null;
   /** Pre-rendered "Label: value" lines. Empty to omit the statement page. */
   contextLines: string[];
+  /**
+   * What the practitioner wrote about each part of their practice, in the
+   * order the template declares. Printed after the context statement and
+   * before the evidence, because an assessor reads the argument before the
+   * exhibits.
+   */
+  report: { section: string; body: string }[];
   documents: VaultDocument[];
 }
 
@@ -443,6 +450,48 @@ export async function buildPortfolioPdf(
     }
   }
 
+  /**
+   * The written report, one heading and its paragraphs per section.
+   *
+   * Paragraphs are split on blank lines and wrapped, so what someone typed
+   * into a textarea comes out reading like prose rather than one long block.
+   */
+  function drawReportPages(name: string, sections: { section: string; body: string }[]) {
+    let page = pdf.addPage(A4);
+    let y = A4[1] - MARGIN - 10;
+
+    page.drawText('Report', { x: MARGIN, y, size: 20, font: bold, color: INK });
+    y -= 18;
+    page.drawText(sanitize(name), { x: MARGIN, y, size: 10, font: regular, color: MUTED });
+    y -= 14;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 1, color: LINE });
+    y -= 30;
+
+    const room = (needed: number) => {
+      if (y - needed >= MARGIN) return;
+      page = pdf.addPage(A4);
+      y = A4[1] - MARGIN - 10;
+    };
+
+    for (const entry of sections) {
+      room(46);
+      page.drawText(sanitize(entry.section), { x: MARGIN, y, size: 13, font: bold, color: INK });
+      y -= 20;
+
+      for (const paragraph of entry.body.split(/\n\s*\n/)) {
+        const text = paragraph.replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        for (const line of wrap(text, regular, 11, contentWidth)) {
+          room(17);
+          page.drawText(line, { x: MARGIN, y, size: 11, font: regular, color: INK });
+          y -= 17;
+        }
+        y -= 8;
+      }
+      y -= 12;
+    }
+  }
+
   function drawDivider(folder: VaultFolder, depth: number, count: number) {
     const page = pdf.addPage(A4);
     let y = A4[1] / 2 + 40;
@@ -479,6 +528,9 @@ export async function buildPortfolioPdf(
       if (section.contextLines.length > 0) {
         toc.push({ label: 'Context statement', depth: 1, rawIndex: rawIndex() });
         drawContextPage(section.name, section.contextLines);
+      }
+      if (section.report.length > 0) {
+        drawReportPages(section.name, section.report);
       }
 
       if (plan.includeProfileTable) {

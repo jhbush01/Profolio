@@ -19,6 +19,7 @@ import {
   type Programme,
 } from './db';
 import { templateFor } from '../programmes';
+import { reportSections } from './report';
 import type { ExportPlan, ProgrammeSection } from './pdf';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 
@@ -90,6 +91,7 @@ function buildPlan(): ExportPlan {
       name: programme.name,
       window: windowLabel(programme),
       contextLines: includeContext ? contextLines(programme) : [],
+      report: reportSections(programme),
       documents: assignedTo(programme.id),
     });
   }

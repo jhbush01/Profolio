@@ -56,6 +56,21 @@ export interface ProgrammeTemplate {
   items: ChecklistItem[];
   /** Context questions for this programme. Empty means the section is hidden. */
   contextFields: ContextField[];
+  /**
+   * Questions to answer about each section before exporting, keyed by the
+   * section name used on this template's checklist items.
+   *
+   * QUESTIONS ONLY. Never a starter sentence, an example answer, or a phrase
+   * to adapt — docs/PRODUCT.md rules out drafting or suggesting reflective
+   * writing, and the whole value of a portfolio's prose is that it is the
+   * practitioner's own.
+   *
+   * These are generic professional-practice questions. They are deliberately
+   * not any assessment provider's wording: an institution that licenses one
+   * supplies its own template with its own prompts. Omit the key and that
+   * section simply has no prompts.
+   */
+  reportPrompts?: Record<string, readonly string[]>;
 }
 
 /** Progress for one checklist item against a set of evidence. */

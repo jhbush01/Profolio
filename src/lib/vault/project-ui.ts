@@ -25,6 +25,7 @@ import {
 import { isComplete, missingDimensions } from './dimensions';
 import { wireViewer } from './viewer';
 import { buildPortfolioPdf } from './pdf';
+import { reportSections } from './report';
 import {
   currentWeek,
   elapsedFraction,
@@ -70,6 +71,7 @@ const TABS = [
   { id: 'checklist', label: 'Checklist' },
   { id: 'evidence', label: 'Evidence' },
   { id: 'context', label: 'Context' },
+  { id: 'report', label: 'Report' },
   { id: 'settings', label: 'Settings' },
 ] as const;
 
@@ -654,6 +656,7 @@ async function exportProject() {
             name: programme.name,
             window: windowLabel(),
             contextLines: contextLines(),
+            report: reportSections(programme),
             documents: records,
           },
         ],
@@ -685,6 +688,118 @@ async function exportProject() {
 function windowLabel(): string | null {
   if (!programme?.startsOn || !programme.endsOn) return null;
   return `${isoShortDate(programme.startsOn)} – ${isoShortDate(programme.endsOn)}`;
+}
+
+
+/* ----------------------------------------------------------------- report */
+
+/**
+ * The written half of a portfolio, section by section, before you export.
+ *
+ * Three things per section of the template's checklist: the evidence you
+ * assigned that answers it, what is missing from that evidence, and the
+ * questions to answer about it.
+ *
+ * The questions come from the template (see ProgrammeTemplate.reportPrompts)
+ * and they are only ever questions. Nothing here drafts, suggests or starts a
+ * sentence for you — docs/PRODUCT.md rules that out, and the whole value of a
+ * portfolio's prose is that an assessor is reading your thinking, not a form
+ * letter you adapted.
+ */
+function reportTab(closed: boolean): string {
+  if (!programme || !template) {
+    return '<p class="prose-body text-sm">This project uses a template that declares no report.</p>';
+  }
+
+  const records = assigned();
+  const sections = [...new Set(template.items.map((item) => item.section))];
+  const prompts = template.reportPrompts ?? {};
+  const answers = programme.report ?? {};
+
+  const blocks = sections
+    .map((section) => {
+      const items = template!.items.filter((item) => item.section === section);
+      const matched = records.filter((doc) => items.some((item) => matchesItem(item, doc)));
+
+      // What an assessor will notice is missing, per artefact.
+      const unannotated = matched.filter((doc) => !doc.caption.trim()).length;
+      const unsourced = matched.filter((doc) => !doc.source?.trim()).length;
+      const gaps = [
+        unannotated > 0 ? `${unannotated} with no annotation` : null,
+        unsourced > 0 ? `${unsourced} with no source` : null,
+      ].filter(Boolean) as string[];
+
+      const questions = prompts[section] ?? [];
+      const written = answers[section] ?? '';
+      const words = written.trim() ? written.trim().split(/\s+/).length : 0;
+
+      return `<section class="card p-6">
+        <div class="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 class="text-lg font-semibold">${escapeHtml(section)}</h2>
+          <p class="font-mono text-xs text-ink-faint">
+            ${matched.length} artefact${matched.length === 1 ? '' : 's'}${
+              words > 0 ? ` · ${words} word${words === 1 ? '' : 's'} written` : ''
+            }
+          </p>
+        </div>
+
+        ${
+          matched.length === 0
+            ? `<p class="prose-body mt-2 text-sm">
+                 Nothing assigned here yet. The checklist tab says what would fit.
+               </p>`
+            : `<ul class="mt-3 flex flex-col">
+                 ${matched.map((doc) => evidenceRow(doc, closed)).join('')}
+               </ul>`
+        }
+
+        ${
+          gaps.length > 0
+            ? `<p class="mt-3 rounded-md bg-caution-surface px-3 py-2 text-xs text-caution">
+                 ${escapeHtml(gaps.join(' · '))}. An artefact with nothing written about it is a
+                 file, not evidence.
+               </p>`
+            : ''
+        }
+
+        ${
+          questions.length > 0
+            ? `<div class="mt-5 border-t border-line-subtle pt-4">
+                 <p class="pf-eyebrow text-ink-faint">Answer in your own words</p>
+                 <ul class="prose-body mt-2 list-disc space-y-1 pl-5 text-sm">
+                   ${questions.map((q) => `<li>${escapeHtml(q)}</li>`).join('')}
+                 </ul>
+               </div>`
+            : ''
+        }
+
+        <textarea
+          data-report="${escapeHtml(section)}"
+          rows="8"
+          ${closed ? 'readonly' : ''}
+          placeholder="${closed ? 'This project is closed.' : 'Your response to the questions above.'}"
+          class="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed ${
+            closed ? 'cursor-not-allowed opacity-70' : ''
+          }"
+        >${escapeHtml(written)}</textarea>
+      </section>`;
+    })
+    .join('');
+
+  return `<div class="flex flex-col gap-5">
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Before you export</h2>
+      <p class="prose-body mt-1 text-sm">
+        Each section below holds the evidence you assigned to it and the questions to answer about
+        it. What you write here prints ahead of that section's evidence in the export.
+      </p>
+      <p class="prose-body mt-2 text-sm">
+        The questions are prompts, not a template to fill in. Nothing in ProFolio writes any of this
+        for you — an assessor is reading your thinking, and it has to be yours.
+      </p>
+    </section>
+    ${blocks}
+  </div>`;
 }
 
 function render() {
@@ -760,6 +875,8 @@ function render() {
       ${
         tab === 'hub'
           ? hubTab()
+          : tab === 'report'
+            ? reportTab(closed)
           : tab === 'checklist'
             ? `${checklistBlock(closed)}${extraBlock(closed)}${suggestionBlock(closed)}`
             : tab === 'evidence'
@@ -788,6 +905,18 @@ export async function initProject() {
   if (!host) return;
 
   wireViewer(host, (id) => documents.find((doc) => doc.id === id));
+
+  host.addEventListener('change', async (event) => {
+    const field = event.target as HTMLTextAreaElement;
+    const section = field.dataset?.report;
+    if (!section || !programme) return;
+    const next = { ...(programme.report ?? {}), [section]: field.value };
+    await guard('Saving your report', async () => {
+      await updateProgramme(programme!.id, { report: next });
+      await refresh();
+      setStatus('Saved.');
+    });
+  });
 
   // setTab has always written ?tab= to the URL, and nothing ever read it back,
   // so a deep link or a refresh silently landed on the default tab. Every link

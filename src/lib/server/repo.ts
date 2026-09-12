@@ -61,6 +61,8 @@ export interface ProgrammeRow {
   archived: boolean;
   /** Template-declared context answers, keyed by field id. */
   context: Record<string, string>;
+  /** Template-declared report answers, keyed by section name. */
+  report: Record<string, string>;
   /** Set while closed. Nothing joins or leaves a closed programme. */
   closedAt: number | null;
   /** Last time it was reopened, so a changed submission is traceable. */
@@ -599,7 +601,7 @@ export class Repo {
   async programmes(): Promise<ProgrammeRow[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT id, template, name, starts_on, ends_on, created_at, archived, context,
+        `SELECT id, template, name, starts_on, ends_on, created_at, archived, context, report,
                 closed_at, reopened_at
            FROM programmes WHERE owner = ?1
           ORDER BY archived, created_at DESC`,
@@ -616,6 +618,7 @@ export class Repo {
       createdAt: row.created_at as number,
       archived: Boolean(row.archived),
       context: parseContext(row.context),
+      report: parseContext(row.report),
       closedAt: (row.closed_at as number | null) ?? null,
       reopenedAt: (row.reopened_at as number | null) ?? null,
     }));
@@ -636,6 +639,7 @@ export class Repo {
       createdAt: Date.now(),
       archived: false,
       context: {},
+      report: {},
       closedAt: null,
       reopenedAt: null,
     };
@@ -662,6 +666,7 @@ export class Repo {
       endsOn?: string | null;
       archived?: boolean;
       context?: Record<string, string>;
+      report?: Record<string, string>;
     },
   ): Promise<void> {
     const owned = await this.db
@@ -679,6 +684,9 @@ export class Repo {
       // Replaced wholesale: the client always sends the complete answer set,
       // so a cleared field is a real clear rather than a missing key.
       columns.push(['context', JSON.stringify(patch.context)]);
+    }
+    if (patch.report !== undefined) {
+      columns.push(['report', JSON.stringify(patch.report)]);
     }
     if (columns.length === 0) return;
 

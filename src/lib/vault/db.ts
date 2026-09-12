@@ -303,6 +303,8 @@ export interface Programme {
   createdAt: number;
   archived: boolean;
   context: Record<string, string>;
+  /** Written answers to the template's report prompts, keyed by section. */
+  report: Record<string, string>;
   /** Set while closed: nothing joins or leaves until it is reopened. */
   closedAt: number | null;
   reopenedAt: number | null;
@@ -333,6 +335,7 @@ export function updateProgramme(
     endsOn?: string | null;
     archived?: boolean;
     context?: Record<string, string>;
+    report?: Record<string, string>;
     closed?: boolean;
   },
 ): Promise<unknown> {
