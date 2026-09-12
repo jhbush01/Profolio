@@ -38,7 +38,7 @@ const sections: { label: string | null; links: NavLink[] }[] = [
   {
     label: null,
     links: [
-      { href: '/', label: 'Your ProFolio', hint: 'Your projects at a glance' },
+      { href: '/', label: 'Home', hint: 'Your projects at a glance' },
       { href: '/programmes', label: 'Projects', hint: 'Start, manage and close them' },
       { href: '/capture', label: 'Capture', hint: 'Camera or upload' },
       { href: '/portfolio', label: 'All artefacts', hint: 'Search across every project' },
@@ -90,12 +90,12 @@ const showBack = path !== '/';
       showBack && (
         <a
           href="/"
-          aria-label="Back to Your ProFolio"
+          aria-label="Back to Home"
           class="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-ink-muted transition hover:bg-canvas hover:text-accent"
         >
           <i data-lucide="arrow-left" class="size-5" aria-hidden="true" />
           <span class="sm:hidden">Back</span>
-          <span class="hidden sm:inline">Your ProFolio</span>
+          <span class="hidden sm:inline">Home</span>
         </a>
       )
     }

@@ -30,12 +30,47 @@ import PageHeader from '../components/PageHeader.astro';
       <p id="account-usage" class="prose-body mt-1 text-xs">…</p>
     </section>
 
-    <!-- Printed on the PDF cover page, and shown at the top of Your ProFolio. -->
+    <!-- Printed on the PDF cover page, and shown at the top of Home. -->
     <section class="card p-6">
       <h2 class="text-base font-semibold">Cover details</h2>
       <p class="prose-body mb-4 mt-1 text-xs">
-        These head your ProFolio and print on the front page of every export.
+        These head your Home page and print on the front page of every export.
       </p>
+
+      <div class="mb-5 flex items-center gap-4 border-b border-line-subtle pb-5">
+        <!-- Initials until there is a picture, so the slot is never empty. -->
+        <div
+          id="avatar-preview"
+          class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-accent-soft font-display text-2xl text-accent"
+        >
+          &nbsp;
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs font-medium">Your picture</p>
+          <p class="prose-body mt-0.5 text-xs">
+            Optional. Scaled down in your browser before it is sent, so a photo
+            straight off a phone is fine.
+          </p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              id="avatar-choose"
+              type="button"
+              class="rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent"
+            >
+              Choose image
+            </button>
+            <button
+              id="avatar-remove"
+              type="button"
+              hidden
+              class="rounded-md px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:text-critical"
+            >
+              Remove
+            </button>
+          </div>
+          <input id="avatar-input" type="file" accept="image/*" class="sr-only" />
+        </div>
+      </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1.5">
           <span class="text-xs font-medium">Your name</span>

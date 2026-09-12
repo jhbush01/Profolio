@@ -51,6 +51,12 @@ export interface VaultProfile {
   name: string;
   title: string;
   summary: string;
+  /**
+   * When the profile picture was last replaced, or null when there is none.
+   * Server-set: saving a profile never writes it. Appended to the picture's
+   * URL so a replacement shows up immediately despite the browser cache.
+   */
+  avatarUpdatedAt?: number | null;
 }
 
 /** How a document is treated by the PDF exporter. */

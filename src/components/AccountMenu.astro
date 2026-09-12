@@ -95,7 +95,7 @@
       }
     });
 
-    // The same rule as the avatar on Your ProFolio (see initials() in
+    // The same rule as the avatar on Home (see initials() in
     // home-ui.ts), so the two badges on one screen never disagree about who
     // you are. Splitting on "@" as well means an address with no separator in
     // its local part still yields two letters.
@@ -121,6 +121,23 @@
         if (!email) throw new Error('no email');
         if (emailField) emailField.textContent = email;
         if (initialsField) initialsField.textContent = initialsOf(email);
+
+        // The picture, if there is one. No cache-buster here on purpose: this
+        // badge is on every page, and asking /api/me for the timestamp would
+        // cost a database read per page view to keep a 24px square current.
+        // The endpoint's five-minute max-age is close enough for a corner of
+        // the chrome; the account page, where you actually change it, does
+        // carry the stamp and updates at once.
+        const picture = new Image();
+        picture.onload = () => {
+          if (!initialsField) return;
+          initialsField.textContent = '';
+          picture.alt = '';
+          picture.className = 'size-full object-cover';
+          initialsField.classList.add('overflow-hidden');
+          initialsField.appendChild(picture);
+        };
+        picture.src = '/api/profile/avatar';
       })
       .catch(() => {
         // Sign out stays reachable: not knowing who you are is the moment you

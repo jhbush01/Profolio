@@ -484,7 +484,7 @@ export async function initProject() {
       <p class="prose-body mx-auto mt-2 max-w-[48ch] text-sm">
         It may have been removed, or the link may be out of date.
       </p>
-      <a href="/" class="mt-4 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-white">Your ProFolio</a>
+      <a href="/" class="mt-4 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-white">Home</a>
     </div>`;
     return;
   }

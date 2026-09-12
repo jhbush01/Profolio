@@ -16,7 +16,9 @@ import {
   isAuthError,
   loadVault,
   reloadForAuth,
+  removeAvatar,
   saveProfile,
+  uploadAvatar,
 } from './db';
 import type { VaultProfile } from './types';
 
@@ -41,6 +43,12 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+/** Two letters from a name, or from the address when there is no name yet. */
+function initialsFrom(name: string, email: string): string {
+  const parts = (name.trim() || email).split(/[\s.@_-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?';
 }
 
 export async function initAccount() {
@@ -102,12 +110,56 @@ export async function initAccount() {
     });
   });
 
+  const preview = $('avatar-preview');
+  const avatarInput = $<HTMLInputElement>('avatar-input');
+  const removeButton = $('avatar-remove');
+
+  function showAvatar(stamp: number | null, name: string, email: string) {
+    if (!preview) return;
+    if (stamp) {
+      // The stamp is the cache-buster: one stable URL, a new query each time
+      // the picture is replaced.
+      preview.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = `/api/profile/avatar?v=${stamp}`;
+      img.alt = 'Your profile picture';
+      img.className = 'size-full object-cover';
+      preview.appendChild(img);
+    } else {
+      preview.textContent = initialsFrom(name, email);
+    }
+    if (removeButton) removeButton.hidden = !stamp;
+  }
+
+  $('avatar-choose')?.addEventListener('click', () => avatarInput?.click());
+
+  avatarInput?.addEventListener('change', async () => {
+    const file = avatarInput.files?.[0];
+    // Cleared first, so choosing the same file twice still fires a change.
+    avatarInput.value = '';
+    if (!file) return;
+    await guard('Saving your picture', async () => {
+      await uploadAvatar(file);
+      setStatus('Picture saved.');
+      await load();
+    });
+  });
+
+  removeButton?.addEventListener('click', async () => {
+    await guard('Removing your picture', async () => {
+      await removeAvatar();
+      setStatus('Picture removed.');
+      await load();
+    });
+  });
+
   async function load() {
     const snapshot = await loadVault();
     if (nameField) nameField.value = snapshot.profile.name;
     if (titleField) titleField.value = snapshot.profile.title;
     if (summaryField) summaryField.value = snapshot.profile.summary;
     if (emailField) emailField.textContent = snapshot.signedInAs;
+    showAvatar(snapshot.profile.avatarUpdatedAt ?? null, snapshot.profile.name, snapshot.signedInAs);
     if (usageField) {
       const used = snapshot.storage.usedBytes;
       usageField.textContent = `${snapshot.documents.length} file${

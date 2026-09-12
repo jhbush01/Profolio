@@ -1,5 +1,5 @@
 /**
- * Your ProFolio — what a signed-in practitioner lands on.
+ * Home — what a signed-in practitioner lands on.
  *
  * A grid of projects, the way a portfolio site presents work, because that is
  * the shape people already know. The two things a portfolio site cannot do are
@@ -70,18 +70,22 @@ function headerBlock(profile: VaultProfile, email: string): string {
   // one-word-per-line column.
   return `<div class="flex flex-col gap-5 sm:flex-row sm:items-start">
     <div class="flex min-w-0 flex-1 items-start gap-4">
-      <div class="flex size-16 shrink-0 items-center justify-center rounded-md bg-accent-soft font-display text-2xl text-accent">
-        ${escapeHtml(initials(profile, email))}
+      <div class="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-accent-soft font-display text-2xl text-accent">
+        ${
+          profile.avatarUpdatedAt
+            ? `<img src="/api/profile/avatar?v=${profile.avatarUpdatedAt}" alt="" class="size-full object-cover" />`
+            : escapeHtml(initials(profile, email))
+        }
       </div>
       <div class="min-w-0 flex-1">
-        <p class="pf-eyebrow text-ink-faint">Your ProFolio</p>
+        <p class="pf-eyebrow text-ink-faint">Home</p>
         <h1 class="mt-1.5 font-display text-3xl font-normal tracking-[-0.02em] sm:text-5xl ${named ? '' : 'text-ink-faint'}">
           ${escapeHtml(named ? profile.name : 'Your name')}
         </h1>
         <p class="prose-body mt-1 text-sm">
           ${role ? escapeHtml(role) : 'Shown on the cover of every export.'}
         </p>
-        <a href="/portfolio" class="mt-1 inline-block text-xs font-medium text-accent hover:underline">
+        <a href="/account" class="mt-1 inline-block text-xs font-medium text-accent hover:underline">
           ${named ? 'Edit cover details' : 'Add cover details'}
         </a>
       </div>

@@ -159,8 +159,12 @@ Ordered easiest-first within dependency order.
    instead of dropdowns (a `<select>` on a phone opens a modal picker, costing
    two extra taps per dimension).
 
-   Installable from a home screen via a web manifest, with `start_url` of
-   `/capture` — the reason to keep this on a phone is capture, not browsing.
+   Installable from a home screen via a web manifest. `start_url` is `/`:
+   the home-screen icon opens Home, like every other app's icon does. An
+   earlier version opened straight to `/capture`, on the argument that capture
+   is the reason the app is on a phone at all. It is, but the phone bar puts
+   Capture one tap from anywhere, so the argument no longer buys enough to
+   justify an icon that lands somewhere other than the front of the app.
 
    **Not yet: offline.** There is no service worker. Classroom wifi is usually
    fine and a caching bug that loses a capture is worse than a failed upload the

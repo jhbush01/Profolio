@@ -225,6 +225,57 @@ export function deleteDocument(id: string): Promise<unknown> {
   return request(`/api/documents/${id}`, { method: 'DELETE' });
 }
 
+/**
+ * Replaces the profile picture. Resized in the browser before it is sent, so
+ * a 4MB phone photo becomes a picture the server will accept and the account
+ * is never asked to store a full-resolution portrait.
+ */
+export async function uploadAvatar(file: File): Promise<{ avatarUpdatedAt: number }> {
+  const form = new FormData();
+  form.set('file', await shrinkImage(file));
+  return request('/api/profile/avatar', { method: 'PUT', body: form });
+}
+
+export function removeAvatar(): Promise<unknown> {
+  return request('/api/profile/avatar', { method: 'DELETE' });
+}
+
+/** Longest edge of a stored profile picture. Anything bigger is wasted bytes. */
+const AVATAR_EDGE = 512;
+
+/**
+ * Downscales and re-encodes to JPEG with a canvas.
+ *
+ * Returns the original untouched if anything here fails — an unusual image
+ * format, a browser without createImageBitmap, a canvas the browser refuses to
+ * export. The server still enforces type and size, so the worst case is a
+ * rejection with a clear message rather than a broken upload.
+ */
+async function shrinkImage(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, AVATAR_EDGE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.85),
+    );
+    if (!blob) return file;
+    return new File([blob], 'profile.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
 export function clearAll(): Promise<unknown> {
   return request('/api/vault', { method: 'DELETE' });
 }

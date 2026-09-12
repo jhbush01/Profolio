@@ -34,6 +34,12 @@ export interface ProfileRow {
   name: string;
   title: string;
   summary: string;
+  /**
+   * When the picture was last replaced, or null when there is none. Read-only:
+   * saveProfile does not touch it, and it doubles as the cache-buster on the
+   * one stable URL the image is served from.
+   */
+  avatarUpdatedAt?: number | null;
 }
 
 export interface ProgrammeRow {
@@ -128,6 +134,14 @@ function size(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))}MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 }
+
+/**
+ * A profile picture is a picture, not an archive. Small enough that it is not
+ * worth counting against the account's storage allowance, and small enough
+ * that a phone photo has to be resized before it will go — which the account
+ * page does in the browser rather than making the Worker do it.
+ */
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 /** R2 caps the keys per delete call; stay well under it. */
 const DELETE_BATCH = 500;
@@ -248,13 +262,14 @@ export class Repo {
 
   async profile(): Promise<ProfileRow> {
     const row = await this.db
-      .prepare(`SELECT name, title, summary FROM profiles WHERE owner = ?1`)
+      .prepare(`SELECT name, title, summary, avatar_updated_at FROM profiles WHERE owner = ?1`)
       .bind(this.who.accountId)
       .first<Record<string, unknown>>();
     return {
       name: (row?.name as string) ?? '',
       title: (row?.title as string) ?? '',
       summary: (row?.summary as string) ?? '',
+      avatarUpdatedAt: (row?.avatar_updated_at as number | null) ?? null,
     };
   }
 
@@ -781,6 +796,11 @@ export class Repo {
    */
   async clearAll(): Promise<void> {
     const keys = [...(await this.objectKeys()).values()];
+    // The picture is a cover detail, and cover details go. It is not in
+    // documents, so objectKeys() will never find it — the bucket only forgets
+    // what something explicitly deletes.
+    const avatar = await this.avatarKey();
+    if (avatar) keys.push(avatar);
     if (keys.length > 0) await deleteObjects(this.bucket, keys);
     await this.db.batch([
       this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.accountId),
@@ -788,7 +808,12 @@ export class Repo {
       this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.accountId),
       this.db.prepare(`DELETE FROM programmes WHERE owner = ?1`).bind(this.who.accountId),
       this.db
-        .prepare(`UPDATE profiles SET name = '', title = '', summary = '' WHERE owner = ?1`)
+        .prepare(
+          `UPDATE profiles
+              SET name = '', title = '', summary = '',
+                  avatar_key = NULL, avatar_mime = NULL, avatar_updated_at = NULL
+            WHERE owner = ?1`,
+        )
         .bind(this.who.accountId),
     ]);
   }
@@ -809,6 +834,77 @@ export class Repo {
         .bind(this.who.accountId),
       this.db.prepare(`DELETE FROM accounts WHERE id = ?1`).bind(this.who.accountId),
     ]);
+  }
+
+  /**
+   * Replaces the profile picture.
+   *
+   * The key carries a timestamp rather than being one stable path, so a
+   * replacement writes a new object and the old one is deleted explicitly.
+   * Overwriting in place leaves R2 and any cache disagreeing about which
+   * bytes are current for a while; a new key never does.
+   */
+  async saveAvatar(file: File): Promise<number> {
+    if (!file.type.startsWith('image/')) {
+      throw new HttpError(415, 'A profile picture has to be an image');
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      throw new HttpError(413, `Pictures are limited to ${MAX_AVATAR_BYTES / (1024 * 1024)}MB`);
+    }
+
+    const previous = await this.avatarKey();
+    const updatedAt = Date.now();
+    const key = `${this.who.accountId}/profile/${updatedAt}`;
+
+    await this.bucket.put(key, file.stream(), {
+      httpMetadata: { contentType: file.type },
+      customMetadata: { owner: this.who.accountId },
+    });
+
+    await this.db
+      .prepare(
+        `INSERT INTO profiles (owner, name, title, summary, avatar_key, avatar_mime, avatar_updated_at)
+         VALUES (?1, '', '', '', ?2, ?3, ?4)
+         ON CONFLICT(owner) DO UPDATE SET avatar_key = ?2, avatar_mime = ?3, avatar_updated_at = ?4`,
+      )
+      .bind(this.who.accountId, key, file.type, updatedAt)
+      .run();
+
+    if (previous) await this.bucket.delete(previous);
+    return updatedAt;
+  }
+
+  async deleteAvatar(): Promise<void> {
+    const key = await this.avatarKey();
+    if (key) await this.bucket.delete(key);
+    await this.db
+      .prepare(
+        `UPDATE profiles SET avatar_key = NULL, avatar_mime = NULL, avatar_updated_at = NULL
+          WHERE owner = ?1`,
+      )
+      .bind(this.who.accountId)
+      .run();
+  }
+
+  /** Streams the picture back to its owner, or null when there is none. */
+  async avatarBody(): Promise<{ body: ReadableStream; mime: string } | null> {
+    const row = await this.db
+      .prepare(`SELECT avatar_key, avatar_mime FROM profiles WHERE owner = ?1`)
+      .bind(this.who.accountId)
+      .first<{ avatar_key: string | null; avatar_mime: string | null }>();
+    if (!row?.avatar_key) return null;
+
+    const object = await this.bucket.get(row.avatar_key);
+    if (!object) return null;
+    return { body: object.body, mime: row.avatar_mime || 'application/octet-stream' };
+  }
+
+  private async avatarKey(): Promise<string | null> {
+    const row = await this.db
+      .prepare(`SELECT avatar_key FROM profiles WHERE owner = ?1`)
+      .bind(this.who.accountId)
+      .first<{ avatar_key: string | null }>();
+    return row?.avatar_key ?? null;
   }
 
   private async ownsFolder(id: string): Promise<boolean> {
