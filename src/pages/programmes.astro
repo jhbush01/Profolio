@@ -16,25 +16,16 @@ import PageHeader from '../components/PageHeader.astro';
   description="Track evidence against a template, such as a final placement or a year of professional development, with a date window and a checklist."
 >
   <PageHeader
-    eyebrow="Projects"
     title="Projects"
-    lead="Pick a template and set your dates, then assign evidence as you capture it. The checklist shows what is still missing."
+    lead="Everything you are collecting for, grouped by where it has got to. Open one to work in it."
   />
 
   <p id="programme-status" role="status" aria-live="polite" class="mb-4 text-xs text-ink-muted"></p>
 
   <section id="programme-list" class="mb-10 flex flex-col gap-5"></section>
 
-  <p
-    id="programme-empty"
-    hidden
-    class="mb-10 rounded-lg border border-dashed border-line bg-surface p-6 text-center text-sm text-ink-muted"
-  >
-    No projects yet. Start one below. Evidence already in your vault that fits its checklist is offered for you to add.
-  </p>
-
   <section>
-    <h2 class="mb-1 text-xl font-semibold">Available templates</h2>
+    <h2 class="mb-1 text-xl font-semibold">Start a project</h2>
     <p class="prose-body mb-4 text-sm">
       You can run more than one at a time, and one record can sit in several. A certificate
       can count toward a placement and that year's professional development without being

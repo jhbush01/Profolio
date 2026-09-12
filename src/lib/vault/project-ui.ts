@@ -331,6 +331,21 @@ function settingsTab(closed: boolean): string {
     ${closureBlock(closed)}
 
     <section class="card p-6">
+      <h2 class="text-lg font-semibold">${programme.archived ? 'Archived' : 'Archive this project'}</h2>
+      <p class="prose-body mt-1 text-sm">
+        ${
+          programme.archived
+            ? 'Out of Home and out of the projects you are working on, and still here in full. Restore it whenever you want it back.'
+            : 'Puts it away without deleting anything. It leaves Home and the Current tab, keeps everything it holds, and still exports.'
+        }
+      </p>
+      <button type="button" data-archive
+        class="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent/40 hover:text-accent">
+        ${programme.archived ? 'Restore project' : 'Archive project'}
+      </button>
+    </section>
+
+    <section class="card p-6">
       <h2 class="text-lg font-semibold">Remove this project</h2>
       <p class="prose-body mt-1 text-sm">
         The project and its checklist are deleted. Your evidence is not: every record stays
@@ -672,6 +687,12 @@ export async function initProject() {
   const host = $('project');
   if (!host) return;
 
+  // setTab has always written ?tab= to the URL, and nothing ever read it back,
+  // so a deep link or a refresh silently landed on the default tab. Every link
+  // that names a tab — the Hub panels, a freshly started project going to its
+  // settings — depended on this.
+  tab = readTab();
+
   try {
     await refresh();
   } catch (error) {
@@ -779,6 +800,17 @@ export async function initProject() {
         render();
         setStatus('Removed from this project. The record is untouched.');
       });
+    }
+
+    if (button.dataset.archive !== undefined) {
+      const next = !programme.archived;
+      await guard(next ? 'Archiving project' : 'Restoring project', async () => {
+        await updateProgramme(id, { archived: next });
+        await refresh();
+        render();
+        setStatus(next ? 'Archived. Find it under Projects → Archived.' : 'Restored.');
+      });
+      return;
     }
 
     if (button.dataset.close !== undefined) {
