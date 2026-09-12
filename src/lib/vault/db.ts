@@ -199,11 +199,99 @@ export function deleteFolderDeep(id: string): Promise<{ documentsRemoved: number
 }
 
 /** Uploads all files in one multipart request rather than one call per file. */
-export function addDocuments(files: File[], folderId: string | null): Promise<{ added: VaultDocument[] }> {
+export function addDocuments(
+  files: File[],
+  folderId: string | null,
+  programmeId: string | null = null,
+): Promise<{ added: VaultDocument[] }> {
   const form = new FormData();
   if (folderId) form.set('folderId', folderId);
+  if (programmeId) form.set('programmeId', programmeId);
   for (const file of files) form.append('files', file);
   return request('/api/documents', { method: 'POST', body: form });
+}
+
+/** Largest single file the server will take. Mirrors MAX_UPLOAD_BYTES. */
+export const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
+
+/**
+ * How many bytes may ride in one request.
+ *
+ * A Worker's request body is capped at 100MB and the cap is enforced at the
+ * edge, so a single multipart request carrying forty photographs fails before
+ * any of our code runs and the user is told nothing useful. Batches are kept
+ * well under it.
+ */
+const BATCH_BYTES = 40 * 1024 * 1024;
+
+export interface UploadOutcome {
+  added: VaultDocument[];
+  /** Files the server or this function refused, with the reason for each. */
+  rejected: { name: string; reason: string }[];
+}
+
+/**
+ * Uploads many files of any size, in batches.
+ *
+ * Oversized files are reported rather than attempted: sending one only to have
+ * the edge drop the whole batch would take the other files down with it. A
+ * batch that fails for any other reason is reported per file and the rest still
+ * go, because losing twenty uploads to one bad one is how people stop trusting
+ * a bulk upload.
+ */
+export async function uploadFiles(
+  files: File[],
+  folderId: string | null,
+  programmeId: string | null,
+  onProgress?: (done: number, total: number, label: string) => void,
+): Promise<UploadOutcome> {
+  const outcome: UploadOutcome = { added: [], rejected: [] };
+
+  const sendable: File[] = [];
+  for (const file of files) {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      outcome.rejected.push({
+        name: file.name,
+        reason: `larger than the ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))}MB limit`,
+      });
+    } else {
+      sendable.push(file);
+    }
+  }
+
+  const batches: File[][] = [];
+  let batch: File[] = [];
+  let bytes = 0;
+  for (const file of sendable) {
+    if (batch.length > 0 && bytes + file.size > BATCH_BYTES) {
+      batches.push(batch);
+      batch = [];
+      bytes = 0;
+    }
+    batch.push(file);
+    bytes += file.size;
+  }
+  if (batch.length > 0) batches.push(batch);
+
+  let done = 0;
+  for (const group of batches) {
+    onProgress?.(done, sendable.length, group[0]?.name ?? '');
+    try {
+      const result = await addDocuments(group, folderId, programmeId);
+      outcome.added.push(...result.added);
+    } catch (error) {
+      // An auth failure is not this file's fault and will repeat for every
+      // batch, so it stops the whole upload rather than producing one line
+      // per file saying the same thing.
+      if (isAuthError(error)) throw error;
+      const reason = describeError(error);
+      for (const file of group) outcome.rejected.push({ name: file.name, reason });
+    }
+    done += group.length;
+    onProgress?.(done, sendable.length, group[group.length - 1]?.name ?? '');
+  }
+
+  return outcome;
 }
 
 export interface DocumentPatch {

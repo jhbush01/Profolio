@@ -97,6 +97,22 @@ export async function openViewer(doc: VaultDocument) {
   if (!host.open) host.showModal();
 
   const kind = renderKindFor(doc.mime, doc.name);
+
+  // Recordings stream straight from the content endpoint rather than being
+  // fetched into a Blob first. A lesson recording is tens of megabytes; pulling
+  // all of it into memory before the first frame, every time someone glances at
+  // it, is the difference between a preview and a download. The endpoint
+  // answers Range requests, so the browser fetches only what it plays.
+  if (kind === 'video' || kind === 'audio') {
+    const src = `/api/documents/${encodeURIComponent(doc.id)}/content`;
+    body().innerHTML =
+      kind === 'video'
+        ? `<video src="${src}" controls playsinline preload="metadata"
+             class="max-h-[70vh] w-full max-w-full bg-ink"></video>`
+        : `<audio src="${src}" controls preload="metadata" class="w-full max-w-[36rem]"></audio>`;
+    return;
+  }
+
   if (kind === 'unsupported') {
     body().innerHTML = `<p class="max-w-[40ch] py-12 text-center text-sm text-ink-muted">
       No preview for ${escapeHtml(doc.mime || 'this file type')}. It is still stored, and it still

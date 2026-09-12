@@ -10,6 +10,8 @@
  * "Project" on screen, programme in the code — see home-ui.ts.
  */
 import {
+  createFolder,
+  deleteFolderDeep,
   describeError,
   documentBytes,
   emptyProfile,
@@ -19,10 +21,14 @@ import {
   loadProgrammes,
   loadVault,
   updateDocument,
+  updateFolder,
   updateProgramme,
+  uploadFiles,
   type Programme,
 } from './db';
+import { describeFindings, scanFiles } from './deidentify';
 import { isComplete, missingDimensions } from './dimensions';
+import { renderKindFor } from './types';
 import { wireViewer } from './viewer';
 import { buildPortfolioPdf } from './pdf';
 import { reportEntries } from './report';
@@ -93,7 +99,26 @@ type TabId = (typeof TABS)[number]['id'];
  */
 let tab: TabId = 'hub';
 
+/**
+ * The folder open in the Evidence tab, null for the top level. In the URL for
+ * the same reason the tab is: a folder three levels down is a place you want to
+ * come back to, and the back button should walk out of it.
+ */
+let folderCursor: string | null = null;
+
 const projectId = () => new URLSearchParams(window.location.search).get('id') ?? '';
+
+function readFolder(): string | null {
+  return new URLSearchParams(window.location.search).get('folder') || null;
+}
+
+function setFolder(next: string | null) {
+  folderCursor = next;
+  const params = new URLSearchParams(window.location.search);
+  if (next) params.set('folder', next);
+  else params.delete('folder');
+  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+}
 
 function readTab(): TabId {
   const raw = new URLSearchParams(window.location.search).get('tab');
@@ -387,33 +412,232 @@ function dataProfileBlock(): string {
   </div>`;
 }
 
-/** Everything in the project, flat and dated — the "what have I actually got" view. */
-function evidenceTab(closed: boolean): string {
-  const records = [...assigned()].sort((a, b) => b.addedAt - a.addedAt);
+/* ---------------------------------------------------------------- folders */
 
-  if (records.length === 0) {
-    return `<section class="rounded-lg border border-dashed border-line bg-canvas px-8 py-14 text-center">
-      <h2 class="text-lg font-semibold">Nothing in this project yet</h2>
-      <p class="prose-body mx-auto mt-2 max-w-[48ch] text-sm">
-        Capture something and add it here, or open the checklist to see what fits.
-      </p>
-      <a href="/capture" class="mt-4 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-white">Capture evidence</a>
-    </section>`;
+/**
+ * Folders are the vault's, not the project's.
+ *
+ * A record belongs to one folder and to any number of projects, so a folder
+ * that lived inside a project could not hold a record shared with another one —
+ * and sharing evidence across projects is the thing this app does that a
+ * folder-of-files does not. What "folders inside projects" means here is the
+ * same filing cabinet, opened from inside a project and showing that project's
+ * records, with every folder's total alongside so the shared drawers are
+ * visible rather than surprising.
+ */
+function childFolders(parentId: string | null): VaultFolder[] {
+  return folders
+    .filter((folder) => folder.parentId === parentId)
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+}
+
+/** Descendant folder ids of `id`, including `id` itself. */
+function folderSubtree(id: string): Set<string> {
+  const out = new Set<string>([id]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const folder of folders) {
+      if (folder.parentId && out.has(folder.parentId) && !out.has(folder.id)) {
+        out.add(folder.id);
+        added = true;
+      }
+    }
   }
+  return out;
+}
+
+/** Records in a folder or anywhere beneath it: this project's, and in total. */
+function folderCounts(id: string): { mine: number; total: number } {
+  const subtree = folderSubtree(id);
+  const inside = (doc: VaultDocument) => doc.folderId !== null && subtree.has(doc.folderId);
+  return {
+    mine: assigned().filter(inside).length,
+    total: documents.filter(inside).length,
+  };
+}
+
+/** Trail from the root to the open folder, root first. */
+function breadcrumb(): VaultFolder[] {
+  const trail: VaultFolder[] = [];
+  let current = folders.find((folder) => folder.id === folderCursor);
+  while (current) {
+    trail.unshift(current);
+    const parent: string | null = current.parentId;
+    current = parent ? folders.find((folder) => folder.id === parent) : undefined;
+  }
+  return trail;
+}
+
+/** A short word for what a file is, for the row beside its name. */
+function kindLabel(doc: VaultDocument): string {
+  const kind = renderKindFor(doc.mime, doc.name);
+  if (kind === 'video') return 'Video';
+  if (kind === 'audio') return 'Audio';
+  if (kind === 'pdf') return 'PDF';
+  if (kind === 'image') return 'Image';
+  const extension = /\.([a-z0-9]+)$/i.exec(doc.name)?.[1];
+  return extension ? extension.toUpperCase() : 'File';
+}
+
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * The drop target. One control that takes any number of files of any type and
+ * files them here, assigned to this project, without asking anything first.
+ *
+ * Capture is still the careful path: one artefact, its details, saved. This is
+ * the other half — the evening after a placement week when there are forty
+ * photographs on a phone and the details can wait. Both end up in the same
+ * place, and the checklist shows which ones still need filling in.
+ */
+function dropZone(closed: boolean): string {
+  if (closed) {
+    return `<p class="rounded-lg border border-dashed border-line bg-canvas px-4 py-3 text-xs text-ink-muted">
+      This project is closed. Reopen it in Settings to add files.
+    </p>`;
+  }
+
+  if (!deidAcknowledged) {
+    return `<div class="rounded-lg border border-dashed border-caution bg-caution-surface px-4 py-3">
+      <p class="text-xs text-caution">
+        Before your first upload you need to read and accept the de-identification notice.
+      </p>
+      <a href="/capture" class="mt-2 inline-block text-xs font-medium text-accent hover:underline">Read it on the capture page</a>
+    </div>`;
+  }
+
+  const where = folderCursor ? escapeHtml(breadcrumb().at(-1)?.name ?? 'this folder') : 'this project';
+
+  return `<div data-drop
+    class="rounded-lg border border-dashed border-line bg-canvas px-4 py-5 text-center transition">
+    <p class="text-sm font-medium">Drop files here</p>
+    <p class="prose-body mx-auto mt-1 max-w-[46ch] text-xs">
+      Any number, any type, straight into ${where}. Photos, PDFs, recordings. Details can be
+      added later — the checklist tracks what is still missing.
+    </p>
+    <label class="mt-3 inline-block cursor-pointer rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
+      Choose files
+      <input type="file" multiple data-upload class="sr-only" />
+    </label>
+  </div>`;
+}
+
+/** The project's evidence, filed. */
+function evidenceTab(closed: boolean): string {
+  const records = assigned();
+  const trail = breadcrumb();
+  const here = records
+    .filter((doc) => (doc.folderId ?? null) === folderCursor)
+    .sort((a, b) => b.addedAt - a.addedAt);
+  const subfolders = childFolders(folderCursor);
+
+  const crumbs = [
+    `<button type="button" data-open-folder="" class="rounded px-1 transition hover:text-accent ${
+      folderCursor === null ? 'font-semibold text-ink' : ''
+    }">All evidence</button>`,
+    ...trail.map(
+      (folder, index) =>
+        `<span class="text-ink-faint" aria-hidden="true">/</span>
+         <button type="button" data-open-folder="${folder.id}" class="rounded px-1 transition hover:text-accent ${
+           index === trail.length - 1 ? 'font-semibold text-ink' : ''
+         }">${escapeHtml(folder.name)}</button>`,
+    ),
+  ].join('');
+
+  const folderRows = subfolders
+    .map((folder) => {
+      const counts = folderCounts(folder.id);
+      const elsewhere = counts.total - counts.mine;
+      return `<li class="flex items-center gap-3 border-t border-line-subtle py-2.5">
+        <span aria-hidden="true" class="shrink-0 text-ink-faint">▸</span>
+        <button type="button" data-open-folder="${folder.id}"
+          class="min-w-0 flex-1 truncate text-left text-sm font-medium transition hover:text-accent hover:underline">
+          ${escapeHtml(folder.name)}
+        </button>
+        <span class="shrink-0 font-mono text-xs text-ink-faint">
+          ${counts.mine} here${elsewhere > 0 ? ` · ${elsewhere} from other projects` : ''}
+        </span>
+        ${
+          closed
+            ? ''
+            : `<span class="flex shrink-0 gap-2">
+                 <button type="button" data-rename-folder="${folder.id}"
+                   class="text-xs text-ink-faint underline underline-offset-2 hover:text-accent">Rename</button>
+                 <button type="button" data-delete-folder="${folder.id}"
+                   class="text-xs text-ink-faint underline underline-offset-2 hover:text-critical">Delete</button>
+               </span>`
+        }
+      </li>`;
+    })
+    .join('');
+
+  const fileRows = here
+    .map(
+      (doc) => `<li class="flex items-center gap-3 border-t border-line-subtle py-2.5">
+      <span class="min-w-0 flex-1">
+        <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
+          class="block max-w-full truncate text-left text-sm font-medium transition hover:text-accent hover:underline">
+          ${escapeHtml(doc.name)}
+        </button>
+        <span class="mt-0.5 block text-xs text-ink-faint">
+          <span class="font-mono">${escapeHtml(kindLabel(doc))} · ${escapeHtml(fileSize(doc.size))} · ${escapeHtml(shortDate(doc.addedAt))}</span>${
+            isComplete(doc) ? '' : ' · <span class="text-caution">missing detail</span>'
+          }
+        </span>
+      </span>
+      ${
+        closed
+          ? ''
+          : `<button type="button" data-move="${doc.id}"
+               class="shrink-0 text-xs text-ink-faint underline underline-offset-2 hover:text-accent">Move</button>`
+      }
+    </li>`,
+    )
+    .join('');
 
   const incomplete = records.filter((doc) => !isComplete(doc)).length;
 
-  return `<section class="card p-6">
-    <div class="flex flex-wrap items-baseline justify-between gap-3 pb-1">
-      <h2 class="text-lg font-semibold">${records.length} record${records.length === 1 ? '' : 's'}</h2>
+  return `<div class="flex flex-col gap-5">
+    ${dropZone(closed)}
+
+    <section class="card p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <nav class="-ml-1 flex flex-wrap items-center gap-1 text-sm text-ink-muted" aria-label="Folder">
+          ${crumbs}
+        </nav>
+        ${
+          closed
+            ? ''
+            : `<button type="button" data-new-folder
+                 class="rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent">New folder</button>`
+        }
+      </div>
+
+      <p class="prose-body mt-1 text-xs">
+        ${records.length} record${records.length === 1 ? '' : 's'} in this project${
+          incomplete > 0 ? ` · <span class="text-caution">${incomplete} missing detail</span>` : ''
+        }. Folders are shared across your whole ProFolio, so a record filed here still counts
+        in every project it belongs to.
+      </p>
+
       ${
-        incomplete > 0
-          ? `<span class="text-xs text-caution">${incomplete} missing detail</span>`
-          : '<span class="text-xs text-positive">All details filled in</span>'
+        subfolders.length === 0 && here.length === 0
+          ? `<p class="mt-4 rounded-md border border-dashed border-line bg-canvas px-4 py-6 text-center text-sm text-ink-muted">
+               ${
+                 folderCursor === null
+                   ? 'Nothing filed here yet. Drop files above, or make a folder.'
+                   : 'This folder holds nothing from this project.'
+               }
+             </p>`
+          : `<ul class="mt-3">${folderRows}${fileRows}</ul>`
       }
-    </div>
-    <ul>${records.map((doc) => evidenceRow(doc, closed)).join('')}</ul>
-  </section>`;
+    </section>
+  </div>`;
 }
 
 /** Dates, closing, and removing — the things that change the project itself. */
@@ -1014,6 +1238,90 @@ async function refresh() {
   deidAcknowledged = snapshot.deidAcknowledged;
   programme = programmeData.programmes.find((p) => p.id === projectId());
   template = programme ? templateFor(programme.template) : undefined;
+
+  // A folder deleted in another tab must not leave this one showing an empty
+  // level it can never navigate out of.
+  if (folderCursor && !folders.some((folder) => folder.id === folderCursor)) {
+    setFolder(null);
+  }
+}
+
+/**
+ * Asks which folder to move a record into.
+ *
+ * A numbered prompt rather than a drag target: dragging a row into a folder is
+ * lovely with a mouse and impossible with a thumb, and this app is used on a
+ * phone in a corridor. Returns the chosen folder id, null for the top level, or
+ * undefined when the user backed out.
+ */
+function pickFolder(doc: VaultDocument): string | null | undefined {
+  const flat: { id: string | null; label: string }[] = [{ id: null, label: 'Top level' }];
+  const walk = (parentId: string | null, depth: number) => {
+    for (const folder of childFolders(parentId)) {
+      flat.push({ id: folder.id, label: `${'— '.repeat(depth)}${folder.name}` });
+      walk(folder.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+
+  const menu = flat.map((entry, index) => `${index + 1}. ${entry.label}`).join('\n');
+  const answer = window.prompt(`Move "${doc.name}" to:\n\n${menu}\n\nNumber:`);
+  if (answer === null) return undefined;
+
+  const choice = flat[Number(answer.trim()) - 1];
+  if (!choice) {
+    setStatus('That was not one of the folders listed.');
+    return undefined;
+  }
+  return choice.id;
+}
+
+/* ----------------------------------------------------------------- upload */
+
+/**
+ * Stores whatever was dropped or picked, into the open folder and this project.
+ *
+ * Filenames are scanned for identifiers first, exactly as capture does: a
+ * bulk path that skipped the warning would be the easiest way in the app to
+ * upload "Year 8 Sarah Smith draft.pdf" by accident.
+ */
+async function receiveFiles(files: File[]) {
+  if (!programme || files.length === 0) return;
+  if (programme.closedAt !== null) {
+    setStatus('This project is closed. Reopen it before adding files.');
+    return;
+  }
+  if (!deidAcknowledged) {
+    setStatus('Read and accept the de-identification notice before uploading.');
+    return;
+  }
+
+  const suspicious = scanFiles(files);
+  if (suspicious.length > 0 && !window.confirm(describeFindings(suspicious))) {
+    setStatus('Cancelled. Rename the files to remove identifiers.');
+    return;
+  }
+
+  setStatus(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`, true);
+
+  await guard('Upload', async () => {
+    const outcome = await uploadFiles(files, folderCursor, programme!.id, (done, total, label) =>
+      setStatus(`Uploading ${Math.min(done + 1, total)} of ${total}: ${label}`, true),
+    );
+    await refresh();
+    render();
+
+    const saved = outcome.added.length;
+    const failed = outcome.rejected;
+    setStatus(
+      failed.length === 0
+        ? `Added ${saved} file${saved === 1 ? '' : 's'}. Fill in their details when you have a minute.`
+        : `Added ${saved}. ${failed.length} could not be stored — ${failed
+            .slice(0, 2)
+            .map((entry) => `${entry.name}: ${entry.reason}`)
+            .join('; ')}${failed.length > 2 ? `, and ${failed.length - 2} more` : ''}.`,
+    );
+  });
 }
 
 export async function initProject() {
@@ -1021,6 +1329,36 @@ export async function initProject() {
   if (!host) return;
 
   wireViewer(host, (id) => documents.find((doc) => doc.id === id));
+
+  // The file picker, and dropping onto the zone. Both delegated, because the
+  // Evidence tab is re-rendered wholesale after every change.
+  host.addEventListener('change', (event) => {
+    const input = event.target as HTMLInputElement;
+    if (input.dataset?.upload === undefined) return;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    void receiveFiles(files);
+  });
+
+  const zone = (event: Event) => (event.target as HTMLElement)?.closest?.('[data-drop]');
+
+  // dragover must be cancelled or the browser navigates to the dropped file.
+  host.addEventListener('dragover', (event) => {
+    const target = zone(event);
+    if (!target) return;
+    event.preventDefault();
+    target.classList.add('border-accent', 'bg-accent-soft');
+  });
+  host.addEventListener('dragleave', (event) => {
+    zone(event)?.classList.remove('border-accent', 'bg-accent-soft');
+  });
+  host.addEventListener('drop', (event) => {
+    const target = zone(event);
+    if (!target) return;
+    event.preventDefault();
+    target.classList.remove('border-accent', 'bg-accent-soft');
+    void receiveFiles(Array.from((event as DragEvent).dataTransfer?.files ?? []));
+  });
 
   // The report and its context fields write on change rather than behind a Save
   // button. Neither re-renders afterwards: this fires as focus leaves a field,
@@ -1057,6 +1395,7 @@ export async function initProject() {
   // that names a tab — the Hub panels, a freshly started project going to its
   // settings — depended on this.
   tab = readTab();
+  folderCursor = readFolder();
 
   try {
     await refresh();
@@ -1111,6 +1450,78 @@ export async function initProject() {
       setTab(nextTab as TabId);
       render();
       return;
+    }
+
+    // Folder navigation. The attribute is present-but-empty for "All evidence",
+    // so `!== undefined` rather than truthiness.
+    const open = button.dataset.openFolder;
+    if (open !== undefined) {
+      setFolder(open || null);
+      render();
+      return;
+    }
+
+    if (button.dataset.newFolder !== undefined) {
+      const name = window.prompt('Folder name');
+      if (!name?.trim()) return;
+      return guard('Creating folder', async () => {
+        const folder = await createFolder(name.trim(), folderCursor);
+        await refresh();
+        setFolder(folder.id);
+        render();
+        setStatus(`Created "${folder.name}".`);
+      });
+    }
+
+    const rename = button.dataset.renameFolder;
+    if (rename) {
+      const folder = folders.find((f) => f.id === rename);
+      const name = window.prompt('Rename folder', folder?.name ?? '');
+      if (!name?.trim() || name.trim() === folder?.name) return;
+      return guard('Renaming folder', async () => {
+        await updateFolder(rename, { name: name.trim() });
+        await refresh();
+        render();
+        setStatus('Renamed.');
+      });
+    }
+
+    const removeFolder = button.dataset.deleteFolder;
+    if (removeFolder) {
+      const folder = folders.find((f) => f.id === removeFolder);
+      const counts = folderCounts(removeFolder);
+      // Deleting a folder deletes the files in it, and those files may belong
+      // to projects other than this one. Say the number out loud.
+      if (
+        !window.confirm(
+          `Delete "${folder?.name ?? 'this folder'}" and everything inside it?\n\n` +
+            `${counts.total} file${counts.total === 1 ? '' : 's'} will be permanently deleted` +
+            `${counts.total - counts.mine > 0 ? `, including ${counts.total - counts.mine} used by other projects` : ''}. ` +
+            'This cannot be undone.',
+        )
+      ) {
+        return;
+      }
+      return guard('Deleting folder', async () => {
+        const result = await deleteFolderDeep(removeFolder);
+        await refresh();
+        render();
+        setStatus(`Deleted the folder and ${result.documentsRemoved} file${result.documentsRemoved === 1 ? '' : 's'}.`);
+      });
+    }
+
+    const move = button.dataset.move;
+    if (move) {
+      const doc = documents.find((d) => d.id === move);
+      if (!doc) return;
+      const target = pickFolder(doc);
+      if (target === undefined) return;
+      return guard('Moving file', async () => {
+        await updateDocument(move, { folderId: target });
+        await refresh();
+        render();
+        setStatus('Moved.');
+      });
     }
 
     if (button.dataset.removeProject !== undefined) {

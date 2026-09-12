@@ -66,8 +66,15 @@ export interface VaultProfile {
   avatarUpdatedAt?: number | null;
 }
 
-/** How a document is treated by the PDF exporter. */
-export type RenderKind = 'image' | 'pdf' | 'unsupported';
+/**
+ * How a document is treated on screen and by the PDF exporter.
+ *
+ * `video` and `audio` play in the viewer but cannot go into a PDF. No PDF
+ * reader that an assessor is realistically using will play an embedded movie,
+ * so the export prints a card naming the recording instead of pretending. See
+ * the viewer and pdf.ts for the two halves of that.
+ */
+export type RenderKind = 'image' | 'pdf' | 'video' | 'audio' | 'unsupported';
 
 export function renderKindFor(mime: string, name: string): RenderKind {
   const lower = name.toLowerCase();
@@ -77,5 +84,14 @@ export function renderKindFor(mime: string, name: string): RenderKind {
     return 'unsupported';
   }
   if (mime === 'application/pdf' || lower.endsWith('.pdf')) return 'pdf';
+  // Extensions as well as MIME: a file picked from a phone's gallery, or moved
+  // between devices, often arrives with an empty or wrong type.
+  if (mime.startsWith('video/') || /\.(mp4|mov|m4v|webm|avi|mkv)$/.test(lower)) return 'video';
+  if (mime.startsWith('audio/') || /\.(mp3|m4a|wav|aac|ogg)$/.test(lower)) return 'audio';
   return 'unsupported';
+}
+
+/** True for the kinds that are stored and viewable but never printed. */
+export function isTimeBased(kind: RenderKind): boolean {
+  return kind === 'video' || kind === 'audio';
 }

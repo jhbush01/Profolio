@@ -373,6 +373,17 @@ export async function buildPortfolioPdf(
             y -= 13;
           }
         }
+      } else if (kind === 'video' || kind === 'audio') {
+        // A PDF cannot carry a recording that any assessor's reader will play.
+        // Pretending otherwise — an embedded movie annotation nothing opens —
+        // would be worse than saying plainly what exists and where it is.
+        drawCard(
+          doc,
+          `${kind === 'video' ? 'A video' : 'An audio'} recording, held in the portfolio and ` +
+            'viewable there. It cannot be played from inside a PDF, so it is named here instead ' +
+            'of embedded. Supply the file alongside this document if the recording itself is ' +
+            'being assessed.',
+        );
       } else {
         drawCard(doc, 'This file type cannot be rendered inline. It is listed here for the record.');
       }

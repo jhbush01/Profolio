@@ -124,8 +124,20 @@ function parseStandards(raw: unknown): string[] {
   }
 }
 
-/** Largest single upload accepted, to keep one bad file from filling the bucket. */
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+/**
+ * Largest single upload accepted.
+ *
+ * Raised from 25MB so a lesson recording can be evidence. It cannot go much
+ * higher without a different upload path: a Worker's request body is capped at
+ * 100MB on the plans this runs on, and the cap is enforced at the edge — a
+ * file over it never reaches this code, so the user gets an opaque failure
+ * rather than the clear message below. 80MB leaves room for the multipart
+ * envelope and for that message to be ours.
+ *
+ * A longer recording needs presigned multipart uploads straight to R2, which
+ * is a real piece of work rather than a bigger number here.
+ */
+export const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
 
 /**
  * Total bytes one account may hold.
@@ -441,7 +453,20 @@ export class Repo {
     return docs.length;
   }
 
-  async addDocument(file: File, folderId: string | null): Promise<DocumentRow> {
+  /**
+   * Stores one file.
+   *
+   * `programmeId` assigns it to a project as part of the same call. Uploading
+   * inside a project and then assigning would be two round trips per file, and
+   * a bulk drop of thirty photographs would spend most of its time on the
+   * second one — and would leave thirty unassigned records behind if the tab
+   * closed in between.
+   */
+  async addDocument(
+    file: File,
+    folderId: string | null,
+    programmeId: string | null = null,
+  ): Promise<DocumentRow> {
     // Server-side gate. The UI blocks this too, but a client cannot be the
     // only thing standing between children's work and a public bucket.
     if ((await this.deidAcknowledgedAt()) === null) {
@@ -516,6 +541,13 @@ export class Repo {
       // Do not leave an object in the bucket that nothing references.
       await this.bucket.delete(objectKey);
       throw error;
+    }
+
+    if (programmeId) {
+      // Reuses the assignment path so a closed project refuses the file here
+      // exactly as it refuses it anywhere else. The document itself is already
+      // stored and stays stored: the upload succeeded, the assignment did not.
+      doc.programmes = await this.setDocumentProgrammes(doc.id, [programmeId]);
     }
 
     return doc;
@@ -812,16 +844,46 @@ export class Repo {
   }
 
   /** Streams a document's bytes back, for the PDF export and previews. */
-  async documentBody(id: string): Promise<{ body: ReadableStream; mime: string; name: string } | null> {
+  /**
+   * One document's bytes, optionally a byte range of them.
+   *
+   * The range matters for video. A browser will not let anyone scrub through a
+   * recording unless the server answers 206 to a Range request, and Safari will
+   * not start a video at all without it — so a 40-minute lesson recording would
+   * otherwise have to download in full before its first frame, every time.
+   */
+  async documentBody(
+    id: string,
+    range?: R2Range,
+  ): Promise<{
+    body: ReadableStream;
+    mime: string;
+    name: string;
+    /** Length of this response's body. */
+    length: number;
+    /** Length of the whole object, which differs when a range was served. */
+    total: number;
+    /** Byte offset of the first byte returned. */
+    offset: number;
+  } | null> {
     const row = await this.db
       .prepare(`SELECT name, mime, r2_key FROM documents WHERE id = ?1 AND owner = ?2`)
       .bind(id, this.who.accountId)
       .first<{ name: string; mime: string; r2_key: string }>();
     if (!row) return null;
 
-    const object = await this.bucket.get(row.r2_key);
-    if (!object) return null;
-    return { body: object.body, mime: row.mime || 'application/octet-stream', name: row.name };
+    const object = await this.bucket.get(row.r2_key, range ? { range } : undefined);
+    if (!object || !object.body) return null;
+
+    const served = object.range && 'offset' in object.range ? object.range : null;
+    return {
+      body: object.body,
+      mime: row.mime || 'application/octet-stream',
+      name: row.name,
+      length: served?.length ?? object.size,
+      total: object.size,
+      offset: served?.offset ?? 0,
+    };
   }
 
   /**
