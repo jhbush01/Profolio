@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { withRepo } from '../../lib/server/handler';
+import { MAX_ACCOUNT_BYTES } from '../../lib/server/repo';
 
 export const prerender = false;
 
@@ -12,6 +13,9 @@ export const GET: APIRoute = ({ request }) =>
       profile: await repo.profile(),
       folders: await repo.folders(),
       documents: await repo.documents(),
+      // So the builder can show how much room is left rather than discovering
+      // the cap as a failed upload.
+      storage: { usedBytes: await repo.storageUsed(), limitBytes: MAX_ACCOUNT_BYTES },
     }),
   );
 

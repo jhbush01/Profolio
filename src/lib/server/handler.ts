@@ -4,6 +4,7 @@
  */
 import { env } from 'cloudflare:workers';
 import { errorResponse, requireIdentity } from './access';
+import { resolveAccount } from './accounts';
 import { Repo } from './repo';
 
 /**
@@ -17,7 +18,10 @@ export async function withRepo(
 ): Promise<Response> {
   const bindings = env as Env & { ACCESS_DEV_BYPASS?: string };
   try {
-    const who = await requireIdentity(request, bindings);
+    // Two steps on purpose: access.ts proves who the token belongs to, and
+    // accounts.ts decides which account that is. Rows are owned by the second.
+    const token = await requireIdentity(request, bindings);
+    const who = await resolveAccount(bindings.DB, token);
     const repo = new Repo(bindings.DB, bindings.DOCUMENTS, who);
     return await run(repo, who.email);
   } catch (error) {

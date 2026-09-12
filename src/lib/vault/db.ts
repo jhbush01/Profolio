@@ -127,8 +127,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export interface AccountStorage {
+  usedBytes: number;
+  limitBytes: number;
+}
+
 export interface VaultSnapshot {
   signedInAs: string;
+  /** How much of this account's storage allowance is in use. */
+  storage: AccountStorage;
   /** Whether this user has acknowledged the de-identification requirement. */
   deidAcknowledged: boolean;
   profile: VaultProfile;

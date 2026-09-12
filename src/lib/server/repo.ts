@@ -4,7 +4,8 @@
  * Every query filters on `owner`, so a bug in a route handler cannot leak one
  * user's documents to another even once this becomes multi-user.
  */
-import { HttpError, type Identity } from './access';
+import { HttpError } from './access';
+import type { Identity } from './accounts';
 import type { Dimensions } from '../vault/dimensions';
 
 export interface FolderRow {
@@ -110,6 +111,33 @@ function parseStandards(raw: unknown): string[] {
 /** Largest single upload accepted, to keep one bad file from filling the bucket. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Total bytes one account may hold.
+ *
+ * A placement's worth of photographs and PDFs runs to a few hundred megabytes,
+ * so this is generous for the intended use and still bounds what a single
+ * sign-in can put on the bill. Without it, open registration and an R2 bucket
+ * are the same thing as an open R2 bucket.
+ */
+export const MAX_ACCOUNT_BYTES = 2 * 1024 * 1024 * 1024;
+
+/** Bytes for a human, in whichever unit does not read as "0.0GB". */
+function size(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))}MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+}
+
+/** R2 caps the keys per delete call; stay well under it. */
+const DELETE_BATCH = 500;
+
+async function deleteObjects(bucket: R2Bucket, keys: string[]): Promise<void> {
+  for (let i = 0; i < keys.length; i += DELETE_BATCH) {
+    await bucket.delete(keys.slice(i, i + DELETE_BATCH));
+  }
+}
+
 export class Repo {
   constructor(
     private readonly db: D1Database,
@@ -117,9 +145,32 @@ export class Repo {
     private readonly who: Identity,
   ) {}
 
-  private key(documentId: string): string {
-    // Namespaced by owner so bucket objects are attributable and prefix-listable.
-    return `${this.who.email}/${documentId}`;
+  /**
+   * Key for a NEW object. Existing objects are not moved when an account is
+   * rekeyed, so every read and delete uses the r2_key stored on the row
+   * instead — this is only ever used at insert time.
+   */
+  private newKey(documentId: string): string {
+    // Namespaced by account so bucket objects are attributable and prefix-listable.
+    return `${this.who.accountId}/${documentId}`;
+  }
+
+  /** The stored R2 key of every document this account owns, by document id. */
+  private async objectKeys(): Promise<Map<string, string>> {
+    const { results } = await this.db
+      .prepare(`SELECT id, r2_key FROM documents WHERE owner = ?1`)
+      .bind(this.who.accountId)
+      .all<{ id: string; r2_key: string }>();
+    return new Map(results.map((row) => [row.id, row.r2_key]));
+  }
+
+  /** Bytes this account is currently storing. Summed, so it cannot drift. */
+  async storageUsed(): Promise<number> {
+    const row = await this.db
+      .prepare(`SELECT COALESCE(SUM(size), 0) AS bytes FROM documents WHERE owner = ?1`)
+      .bind(this.who.accountId)
+      .first<{ bytes: number }>();
+    return row?.bytes ?? 0;
   }
 
   async folders(): Promise<FolderRow[]> {
@@ -129,7 +180,7 @@ export class Repo {
            FROM folders WHERE owner = ?1
           ORDER BY sort_order, name`,
       )
-      .bind(this.who.email)
+      .bind(this.who.accountId)
       .all<Record<string, unknown>>();
 
     return results.map((row) => ({
@@ -151,7 +202,7 @@ export class Repo {
            FROM documents WHERE owner = ?1
           ORDER BY sort_order, added_at`,
       )
-      .bind(this.who.email)
+      .bind(this.who.accountId)
       .all<Record<string, unknown>>();
 
     // One extra query rather than a join: a join would repeat every document
@@ -159,7 +210,7 @@ export class Repo {
     // vault returns.
     const assignments = await this.db
       .prepare(`SELECT document_id, programme_id FROM document_programmes WHERE owner = ?1`)
-      .bind(this.who.email)
+      .bind(this.who.accountId)
       .all<{ document_id: string; programme_id: string }>();
 
     const byDocument = new Map<string, string[]>();
@@ -198,7 +249,7 @@ export class Repo {
   async profile(): Promise<ProfileRow> {
     const row = await this.db
       .prepare(`SELECT name, title, summary FROM profiles WHERE owner = ?1`)
-      .bind(this.who.email)
+      .bind(this.who.accountId)
       .first<Record<string, unknown>>();
     return {
       name: (row?.name as string) ?? '',
@@ -214,7 +265,7 @@ export class Repo {
   async deidAcknowledgedAt(): Promise<number | null> {
     const row = await this.db
       .prepare(`SELECT deid_ack_at FROM profiles WHERE owner = ?1`)
-      .bind(this.who.email)
+      .bind(this.who.accountId)
       .first<{ deid_ack_at: number | null }>();
     return row?.deid_ack_at ?? null;
   }
@@ -227,7 +278,7 @@ export class Repo {
         `INSERT INTO profiles (owner, deid_ack_at) VALUES (?1, ?2)
          ON CONFLICT(owner) DO UPDATE SET deid_ack_at = COALESCE(deid_ack_at, ?2)`,
       )
-      .bind(this.who.email, now)
+      .bind(this.who.accountId, now)
       .run();
     return (await this.deidAcknowledgedAt()) ?? now;
   }
@@ -240,7 +291,7 @@ export class Repo {
         `INSERT INTO profiles (owner, name, title, summary) VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(owner) DO UPDATE SET name = ?2, title = ?3, summary = ?4`,
       )
-      .bind(this.who.email, profile.name, profile.title, profile.summary)
+      .bind(this.who.accountId, profile.name, profile.title, profile.summary)
       .run();
   }
 
@@ -253,7 +304,7 @@ export class Repo {
         `SELECT COUNT(*) AS n FROM folders
           WHERE owner = ?1 AND ((?2 IS NULL AND parent_id IS NULL) OR parent_id = ?2)`,
       )
-      .bind(this.who.email, parentId)
+      .bind(this.who.accountId, parentId)
       .first<{ n: number }>();
 
     const folder: FolderRow = {
@@ -270,7 +321,7 @@ export class Repo {
         `INSERT INTO folders (id, owner, name, parent_id, note, created_at, sort_order)
          VALUES (?1, ?2, ?3, ?4, '', ?5, ?6)`,
       )
-      .bind(folder.id, this.who.email, folder.name, folder.parentId, folder.createdAt, folder.order)
+      .bind(folder.id, this.who.accountId, folder.name, folder.parentId, folder.createdAt, folder.order)
       .run();
 
     return folder;
@@ -281,13 +332,13 @@ export class Repo {
     if (patch.name !== undefined) {
       await this.db
         .prepare(`UPDATE folders SET name = ?3 WHERE id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email, patch.name)
+        .bind(id, this.who.accountId, patch.name)
         .run();
     }
     if (patch.note !== undefined) {
       await this.db
         .prepare(`UPDATE folders SET note = ?3 WHERE id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email, patch.note)
+        .bind(id, this.who.accountId, patch.note)
         .run();
     }
   }
@@ -313,19 +364,25 @@ export class Repo {
 
     // R2 first: an orphaned object is worse than a retryable delete, because a
     // row without its object is visible in the UI as a broken document.
-    if (docs.length > 0) await this.bucket.delete(docs.map((doc) => this.key(doc.id)));
+    if (docs.length > 0) {
+      const keys = await this.objectKeys();
+      await deleteObjects(
+        this.bucket,
+        docs.map((doc) => keys.get(doc.id)).filter((key): key is string => Boolean(key)),
+      );
+    }
 
     const statements = [
       ...docs.map((doc) =>
         this.db
           .prepare(`DELETE FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
-          .bind(doc.id, this.who.email),
+          .bind(doc.id, this.who.accountId),
       ),
       ...docs.map((doc) =>
-        this.db.prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`).bind(doc.id, this.who.email),
+        this.db.prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`).bind(doc.id, this.who.accountId),
       ),
       ...[...doomed].map((folderId) =>
-        this.db.prepare(`DELETE FROM folders WHERE id = ?1 AND owner = ?2`).bind(folderId, this.who.email),
+        this.db.prepare(`DELETE FROM folders WHERE id = ?1 AND owner = ?2`).bind(folderId, this.who.accountId),
       ),
     ];
     await this.db.batch(statements);
@@ -345,6 +402,17 @@ export class Repo {
         `"${file.name}" is larger than the ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB limit`,
       );
     }
+
+    // Checked per file rather than per request, so a multi-file upload stores
+    // what fits and reports the one that does not, instead of failing the lot.
+    const used = await this.storageUsed();
+    if (used + file.size > MAX_ACCOUNT_BYTES) {
+      throw new HttpError(
+        413,
+        `"${file.name}" does not fit: you are using ${size(used)} of your ${size(MAX_ACCOUNT_BYTES)}. ` +
+          `Remove something, or export and clear what you no longer need.`,
+      );
+    }
     if (folderId && !(await this.ownsFolder(folderId))) throw new HttpError(404, 'Folder not found');
 
     const siblings = await this.db
@@ -352,7 +420,7 @@ export class Repo {
         `SELECT COUNT(*) AS n FROM documents
           WHERE owner = ?1 AND ((?2 IS NULL AND folder_id IS NULL) OR folder_id = ?2)`,
       )
-      .bind(this.who.email, folderId)
+      .bind(this.who.accountId, folderId)
       .first<{ n: number }>();
 
     const doc: DocumentRow = {
@@ -376,9 +444,10 @@ export class Repo {
       programmes: [],
     };
 
-    await this.bucket.put(this.key(doc.id), file.stream(), {
+    const objectKey = this.newKey(doc.id);
+    await this.bucket.put(objectKey, file.stream(), {
       httpMetadata: { contentType: file.type || 'application/octet-stream' },
-      customMetadata: { owner: this.who.email, name: file.name },
+      customMetadata: { owner: this.who.accountId, name: file.name },
     });
 
     try {
@@ -388,13 +457,13 @@ export class Repo {
            VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, ?8, ?9)`,
         )
         .bind(
-          doc.id, this.who.email, doc.name, doc.folderId, doc.mime,
-          doc.size, doc.addedAt, doc.order, this.key(doc.id),
+          doc.id, this.who.accountId, doc.name, doc.folderId, doc.mime,
+          doc.size, doc.addedAt, doc.order, objectKey,
         )
         .run();
     } catch (error) {
       // Do not leave an object in the bucket that nothing references.
-      await this.bucket.delete(this.key(doc.id));
+      await this.bucket.delete(objectKey);
       throw error;
     }
 
@@ -434,7 +503,7 @@ export class Repo {
     const assignments = columns.map(([column], i) => `${column} = ?${i + 3}`).join(', ');
     await this.db
       .prepare(`UPDATE documents SET ${assignments} WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email, ...columns.map(([, value]) => value))
+      .bind(id, this.who.accountId, ...columns.map(([, value]) => value))
       .run();
   }
 
@@ -454,7 +523,7 @@ export class Repo {
       valid.map((id, index) =>
         this.db
           .prepare(`UPDATE documents SET sort_order = ?3 WHERE id = ?1 AND owner = ?2`)
-          .bind(id, this.who.email, index),
+          .bind(id, this.who.accountId, index),
       ),
     );
     return valid.length;
@@ -470,7 +539,7 @@ export class Repo {
       valid.map((id, index) =>
         this.db
           .prepare(`UPDATE folders SET sort_order = ?3 WHERE id = ?1 AND owner = ?2`)
-          .bind(id, this.who.email, index),
+          .bind(id, this.who.accountId, index),
       ),
     );
     return valid.length;
@@ -486,7 +555,7 @@ export class Repo {
            FROM programmes WHERE owner = ?1
           ORDER BY archived, created_at DESC`,
       )
-      .bind(this.who.email)
+      .bind(this.who.accountId)
       .all<Record<string, unknown>>();
 
     return results.map((row) => ({
@@ -528,7 +597,7 @@ export class Repo {
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)`,
       )
       .bind(
-        programme.id, this.who.email, programme.template, programme.name,
+        programme.id, this.who.accountId, programme.template, programme.name,
         programme.startsOn, programme.endsOn, programme.createdAt,
       )
       .run();
@@ -548,7 +617,7 @@ export class Repo {
   ): Promise<void> {
     const owned = await this.db
       .prepare(`SELECT 1 AS ok FROM programmes WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email)
+      .bind(id, this.who.accountId)
       .first<{ ok: number }>();
     if (!owned) throw new HttpError(404, 'Programme not found');
 
@@ -567,7 +636,7 @@ export class Repo {
     const assignments = columns.map(([column], i) => `${column} = ?${i + 3}`).join(', ');
     await this.db
       .prepare(`UPDATE programmes SET ${assignments} WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email, ...columns.map(([, value]) => value))
+      .bind(id, this.who.accountId, ...columns.map(([, value]) => value))
       .run();
   }
 
@@ -588,7 +657,7 @@ export class Repo {
 
     const { results } = await this.db
       .prepare(`SELECT programme_id FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
-      .bind(documentId, this.who.email)
+      .bind(documentId, this.who.accountId)
       .all<{ programme_id: string }>();
     const current = new Set(results.map((row) => row.programme_id));
 
@@ -610,7 +679,7 @@ export class Repo {
             `INSERT INTO document_programmes (document_id, programme_id, owner, assigned_at)
              VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING`,
           )
-          .bind(documentId, id, this.who.email, now),
+          .bind(documentId, id, this.who.accountId, now),
       ),
       ...remove.map((id) =>
         this.db
@@ -618,7 +687,7 @@ export class Repo {
             `DELETE FROM document_programmes
               WHERE document_id = ?1 AND programme_id = ?2 AND owner = ?3`,
           )
-          .bind(documentId, id, this.who.email),
+          .bind(documentId, id, this.who.accountId),
       ),
     ];
     if (statements.length > 0) await this.db.batch(statements);
@@ -636,7 +705,7 @@ export class Repo {
   async setProgrammeClosed(id: string, closed: boolean): Promise<void> {
     const owned = await this.db
       .prepare(`SELECT closed_at FROM programmes WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email)
+      .bind(id, this.who.accountId)
       .first<{ closed_at: number | null }>();
     if (!owned) throw new HttpError(404, 'Programme not found');
 
@@ -645,7 +714,7 @@ export class Repo {
       if (owned.closed_at !== null) return;
       await this.db
         .prepare(`UPDATE programmes SET closed_at = ?3 WHERE id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email, now)
+        .bind(id, this.who.accountId, now)
         .run();
       return;
     }
@@ -653,7 +722,7 @@ export class Repo {
     if (owned.closed_at === null) return;
     await this.db
       .prepare(`UPDATE programmes SET closed_at = NULL, reopened_at = ?3 WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email, now)
+      .bind(id, this.who.accountId, now)
       .run();
   }
 
@@ -665,53 +734,57 @@ export class Repo {
     await this.db.batch([
       this.db
         .prepare(`DELETE FROM document_programmes WHERE programme_id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email),
-      this.db.prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`).bind(id, this.who.email),
+        .bind(id, this.who.accountId),
+      this.db.prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`).bind(id, this.who.accountId),
     ]);
   }
 
   async deleteDocument(id: string): Promise<void> {
-    if (!(await this.ownsDocument(id))) throw new HttpError(404, 'Document not found');
-    await this.bucket.delete(this.key(id));
+    const row = await this.db
+      .prepare(`SELECT r2_key FROM documents WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.accountId)
+      .first<{ r2_key: string }>();
+    if (!row) throw new HttpError(404, 'Document not found');
+    await this.bucket.delete(row.r2_key);
     await this.db.batch([
       this.db
         .prepare(`DELETE FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
-        .bind(id, this.who.email),
-      this.db.prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`).bind(id, this.who.email),
+        .bind(id, this.who.accountId),
+      this.db.prepare(`DELETE FROM documents WHERE id = ?1 AND owner = ?2`).bind(id, this.who.accountId),
     ]);
   }
 
   /** Streams a document's bytes back, for the PDF export and previews. */
   async documentBody(id: string): Promise<{ body: ReadableStream; mime: string; name: string } | null> {
     const row = await this.db
-      .prepare(`SELECT name, mime FROM documents WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email)
-      .first<{ name: string; mime: string }>();
+      .prepare(`SELECT name, mime, r2_key FROM documents WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.accountId)
+      .first<{ name: string; mime: string; r2_key: string }>();
     if (!row) return null;
 
-    const object = await this.bucket.get(this.key(id));
+    const object = await this.bucket.get(row.r2_key);
     if (!object) return null;
     return { body: object.body, mime: row.mime || 'application/octet-stream', name: row.name };
   }
 
   async clearAll(): Promise<void> {
-    const docs = await this.documents();
-    if (docs.length > 0) await this.bucket.delete(docs.map((doc) => this.key(doc.id)));
+    const keys = [...(await this.objectKeys()).values()];
+    if (keys.length > 0) await deleteObjects(this.bucket, keys);
     await this.db.batch([
-      this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.email),
-      this.db.prepare(`DELETE FROM documents WHERE owner = ?1`).bind(this.who.email),
-      this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.email),
+      this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.accountId),
+      this.db.prepare(`DELETE FROM documents WHERE owner = ?1`).bind(this.who.accountId),
+      this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.accountId),
       // Clears the cover details but keeps the acknowledgement on record.
       this.db
         .prepare(`UPDATE profiles SET name = '', title = '', summary = '' WHERE owner = ?1`)
-        .bind(this.who.email),
+        .bind(this.who.accountId),
     ]);
   }
 
   private async ownsFolder(id: string): Promise<boolean> {
     const row = await this.db
       .prepare(`SELECT 1 AS ok FROM folders WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email)
+      .bind(id, this.who.accountId)
       .first<{ ok: number }>();
     return Boolean(row);
   }
@@ -719,7 +792,7 @@ export class Repo {
   private async ownsDocument(id: string): Promise<boolean> {
     const row = await this.db
       .prepare(`SELECT 1 AS ok FROM documents WHERE id = ?1 AND owner = ?2`)
-      .bind(id, this.who.email)
+      .bind(id, this.who.accountId)
       .first<{ ok: number }>();
     return Boolean(row);
   }

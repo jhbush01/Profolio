@@ -50,6 +50,8 @@ let profile: VaultProfile = { name: '', title: '', summary: '' };
 let selected: string = ALL;
 let signedInAs = '';
 let deidAcknowledged = false;
+/** Account storage allowance, from the last snapshot. */
+let storage: { usedBytes: number; limitBytes: number } | null = null;
 /** Programmes still accepting evidence; closed ones offer no control. */
 let openProgrammes: Programme[] = [];
 
@@ -381,7 +383,13 @@ function renderUsage() {
   const host = $('usage');
   if (!host) return;
   const totalBytes = documents.reduce((sum, doc) => sum + doc.size, 0);
-  host.textContent = `${documents.length} file${documents.length === 1 ? '' : 's'} · ${formatBytes(totalBytes)} in R2`;
+  const count = `${documents.length} file${documents.length === 1 ? '' : 's'}`;
+  // The allowance is only worth naming once it is close enough to matter;
+  // "0.4 MB of 2.0 GB" on day one is noise.
+  const near = storage && totalBytes > storage.limitBytes * 0.75;
+  host.textContent = near
+    ? `${count} · ${formatBytes(totalBytes)} of ${formatBytes(storage!.limitBytes)} used`
+    : `${count} · ${formatBytes(totalBytes)} in R2`;
 }
 
 async function refresh() {
@@ -399,6 +407,7 @@ async function refresh() {
   profile = snapshot.profile;
   signedInAs = snapshot.signedInAs;
   deidAcknowledged = snapshot.deidAcknowledged;
+  storage = snapshot.storage;
 
   const identity = $('signed-in-as');
   if (identity) identity.textContent = signedInAs;

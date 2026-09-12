@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "Digital teaching portfolio — organise and present evidence from a teaching sequence.",
+  "description": "Digital teaching portfolio \u2014 organise and present evidence from a teaching sequence.",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -13,8 +13,9 @@
     "astro": "astro",
     "deploy": "wrangler deploy -c dist/server/wrangler.json",
     "dev:worker": "astro build && wrangler dev -c dist/server/wrangler.json --persist-to .wrangler/state --var ACCESS_DEV_BYPASS:true",
-    "db:migrate:local": "wrangler d1 execute profolio --local --persist-to .wrangler/state --file=migrations/0001_init.sql",
-    "db:migrate:remote": "wrangler d1 execute profolio --remote --file=migrations/0001_init.sql"
+    "db:migrate:local": "wrangler d1 migrations apply profolio --local --persist-to .wrangler/state",
+    "db:migrate:remote": "wrangler d1 migrations apply profolio --remote",
+    "db:migrate:status": "wrangler d1 migrations list profolio --remote"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.0",

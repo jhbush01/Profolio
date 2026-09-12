@@ -14,9 +14,15 @@
  * silently serving an unauthenticated endpoint.
  */
 
-export interface Identity {
-  /** Verified email of the signed-in user; used as the row owner. */
+/**
+ * What the Access token asserts. Deliberately not the row owner: see
+ * accounts.ts, which resolves one of these to a stable account id.
+ */
+export interface TokenIdentity {
+  /** Verified email claim. Used for display and for linking an account. */
   email: string;
+  /** The `sub` claim, when the token carries one. */
+  subject: string | null;
 }
 
 interface AccessEnv {
@@ -99,10 +105,10 @@ async function publicKeys(teamDomain: string): Promise<Map<string, CryptoKey>> {
  * Resolves the caller's verified identity, or throws AuthError.
  * `teamDomain` is the bare hostname, e.g. "yourteam.cloudflareaccess.com".
  */
-export async function requireIdentity(request: Request, env: AccessEnv): Promise<Identity> {
+export async function requireIdentity(request: Request, env: AccessEnv): Promise<TokenIdentity> {
   if (env.ACCESS_DEV_BYPASS === 'true') {
     // Only ever set in wrangler dev; see wrangler.jsonc and the README.
-    return { email: 'dev@localhost' };
+    return { email: 'dev@localhost', subject: 'dev-subject' };
   }
 
   const teamDomain = env.ACCESS_TEAM_DOMAIN?.trim();
@@ -141,6 +147,7 @@ export async function requireIdentity(request: Request, env: AccessEnv): Promise
     exp?: number;
     nbf?: number;
     email?: string;
+    sub?: string;
   };
 
   const now = Math.floor(Date.now() / 1000);
@@ -152,7 +159,10 @@ export async function requireIdentity(request: Request, env: AccessEnv): Promise
   if (!audiences.includes(audience)) throw new AuthError(401, 'Token audience does not match this application');
 
   if (!payload.email) throw new AuthError(401, 'Token carries no email claim');
-  return { email: payload.email.toLowerCase() };
+  return {
+    email: payload.email.toLowerCase(),
+    subject: typeof payload.sub === 'string' && payload.sub ? payload.sub : null,
+  };
 }
 
 /** Turns an AuthError (or anything else) into a JSON response. */
