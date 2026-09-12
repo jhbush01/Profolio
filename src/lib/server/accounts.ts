@@ -42,6 +42,27 @@ function newAccountId(): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Records that the account was used, at most once every few hours.
+ *
+ * The freshness test is in the statement rather than a read followed by a
+ * write, so the common case — signed in again today — writes no rows at all.
+ * Without this there is no way to tell a dormant account from an active one,
+ * and so no way to act on a retention rule.
+ */
+const SEEN_RESOLUTION_MS = 6 * 60 * 60 * 1000;
+
+async function touch(db: D1Database, accountId: string): Promise<void> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `UPDATE accounts SET last_seen_at = ?2
+        WHERE id = ?1 AND (last_seen_at IS NULL OR last_seen_at < ?3)`,
+    )
+    .bind(accountId, now, now - SEEN_RESOLUTION_MS)
+    .run();
+}
+
 async function lookup(db: D1Database, kind: string, value: string): Promise<string | null> {
   const row = await db
     .prepare(`SELECT account_id FROM account_identities WHERE kind = ?1 AND value = ?2`)
@@ -68,7 +89,10 @@ async function link(db: D1Database, accountId: string, kind: string, value: stri
 export async function resolveAccount(db: D1Database, token: TokenIdentity): Promise<Identity> {
   if (token.subject) {
     const bySubject = await lookup(db, 'subject', token.subject);
-    if (bySubject) return { accountId: bySubject, email: token.email };
+    if (bySubject) {
+      await touch(db, bySubject);
+      return { accountId: bySubject, email: token.email };
+    }
   }
 
   const byEmail = await lookup(db, 'email', token.email);
@@ -76,13 +100,15 @@ export async function resolveAccount(db: D1Database, token: TokenIdentity): Prom
     // Remember the subject so the next sign-in takes the cheaper path above,
     // and so this account keeps working if the email later changes.
     if (token.subject) await link(db, byEmail, 'subject', token.subject);
+    await touch(db, byEmail);
     return { accountId: byEmail, email: token.email };
   }
 
   const accountId = newAccountId();
+  const now = Date.now();
   await db
-    .prepare(`INSERT INTO accounts (id, created_at) VALUES (?1, ?2)`)
-    .bind(accountId, Date.now())
+    .prepare(`INSERT INTO accounts (id, created_at, last_seen_at) VALUES (?1, ?2, ?2)`)
+    .bind(accountId, now)
     .run();
   await link(db, accountId, 'email', token.email);
   if (token.subject) await link(db, accountId, 'subject', token.subject);

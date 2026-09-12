@@ -1,0 +1,190 @@
+---
+/**
+ * Privacy policy.
+ *
+ * Written against what the code actually does, not against a template. If a
+ * claim here stops being true, the code changed and this page is now wrong:
+ *
+ *   - "only you can see it"      → repo.ts, every query scoped by owner
+ *   - "never publicly reachable" → api/documents/[id]/content.ts, private/no-store
+ *   - "deleting removes it"      → repo.ts clearAll / deleteAccount
+ *   - "we record last sign-in"   → accounts.ts touch()
+ *
+ * Three details are not the code's to decide — who operates the service, where
+ * to write, and which region the bucket sits in. They live in
+ * src/data/privacy.json, and while any of them is unset this page says so
+ * loudly rather than reading as a finished policy.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import privacyJson from '../data/privacy.json';
+
+const privacy = privacyJson as {
+  operator: string;
+  contactEmail: string;
+  storageRegion: string;
+  updatedOn: string;
+};
+
+const PLACEHOLDER = 'TO BE COMPLETED';
+const unset = (Object.entries(privacy) as [string, string][])
+  .filter(([, value]) => value === PLACEHOLDER)
+  .map(([key]) => key);
+
+const updated = new Date(`${privacy.updatedOn}T00:00:00Z`).toLocaleDateString('en-AU', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+---
+
+<BaseLayout
+  title="Privacy"
+  description="What ProFolio stores, who can see it, how long it is kept, and how to delete it."
+  width="reading"
+>
+  <PageHeader
+    eyebrow="Privacy"
+    title="What this app stores, and what you can do about it"
+    lead="Written against what the code does. Every claim below is something you can hold the app to."
+  />
+
+  {
+    unset.length > 0 && (
+      <div class="mb-8 rounded-lg border border-critical/30 bg-critical-surface p-5">
+        <h2 class="text-base font-semibold text-critical">This policy is not finished</h2>
+        <p class="mt-1 text-sm text-critical">
+          Still unset in <code class="font-mono text-xs">src/data/privacy.json</code>:{' '}
+          <strong>{unset.join(', ')}</strong>. Fill these in before anyone but you uses ProFolio —
+          a policy with no operator named and no address to write to is not one someone can rely on.
+        </p>
+      </div>
+    )
+  }
+
+  <div class="flex flex-col gap-8">
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Who runs this</h2>
+      <p class="prose-body mt-2 text-sm">
+        ProFolio is operated by {privacy.operator}. Questions, corrections and complaints go to{' '}
+        <span class="font-medium">{privacy.contactEmail}</span>. If you are not satisfied with the
+        response, you can complain to the Office of the Australian Information Commissioner.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">What is stored</h2>
+      <ul class="prose-body mt-2 list-disc space-y-1.5 pl-5 text-sm">
+        <li>
+          Your email address and an identifier from your sign-in provider. These are how the app
+          knows which account is yours.
+        </li>
+        <li>The date you last signed in, so dormant accounts can be identified.</li>
+        <li>
+          The files you upload, held as you uploaded them, and the details you attach: captions,
+          dates, stage of the teaching cycle, evidence type, purpose, whether it covers a whole class
+          or an individual, who designed it, source, and APST focus areas.
+        </li>
+        <li>
+          Your projects: their names, date windows, and the context statement answers — sector,
+          education phase, postcode, class size, year level, learning area, class characteristics
+          and community context.
+        </li>
+        <li>The cover details you set: name, title and summary.</li>
+        <li>That you acknowledged the de-identification warning, and when.</li>
+      </ul>
+      <p class="prose-body mt-3 text-sm">
+        There is no analytics, no advertising and no tracking. The only cookie is the one your
+        sign-in provider sets to keep you signed in.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Evidence about other people</h2>
+      <p class="prose-body mt-2 text-sm">
+        Teaching evidence often concerns students, and that is the most sensitive material this app
+        will ever hold. ProFolio is built on the assumption that it never receives identifiable
+        student information: refer to individuals by a pseudonym, keep names, student numbers, dates
+        of birth and faces out of what you upload, and rename files that give someone away.
+      </p>
+      <p class="prose-body mt-2 text-sm">
+        The app warns you when a filename looks like it contains an identifier, and asks you to
+        acknowledge this before your first upload. Those are safety nets, not permission. Meeting
+        your school's and university's rules, and getting any consent they require, remains yours.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Who can see it</h2>
+      <p class="prose-body mt-2 text-sm">
+        You. Every record is tied to your account and every query is filtered by it. Your documents
+        are served only to you, marked private and never cached, and nothing is reachable by a public
+        link — there is no sharing feature, and no URL that works without your sign-in.
+      </p>
+      <p class="prose-body mt-2 text-sm">
+        Being straight about the exception: whoever operates the service has administrative access to
+        the database and file storage, as anyone running a service does. That access is used to keep
+        it working, not to read your evidence.
+      </p>
+      <p class="prose-body mt-2 text-sm">
+        Files are stored in Cloudflare R2 and the details in Cloudflare D1, on Cloudflare's network,
+        with storage in {privacy.storageRegion}. Nothing is passed to any other company, and nothing
+        is sold.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">How long it is kept</h2>
+      <p class="prose-body mt-2 text-sm">
+        Until you delete it. There is no automatic expiry, because a registration portfolio has to
+        survive a renewal cycle and evidence that vanished on a timer would be worse than useless.
+      </p>
+      <p class="prose-body mt-2 text-sm">
+        The trade-off is that an abandoned account would otherwise hold this material forever, which
+        is why the date of your last sign-in is recorded. If a dormancy rule is introduced, it will be
+        described here first, and you will be told before anything of yours is removed.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Getting it out, and getting rid of it</h2>
+      <ul class="prose-body mt-2 list-disc space-y-1.5 pl-5 text-sm">
+        <li>
+          <strong>Take a copy.</strong> Export builds a PDF of whichever projects you choose. It is
+          assembled in your browser; the documents are read one at a time and sent nowhere.
+        </li>
+        <li>
+          <strong>Delete one record.</strong> Removing a document deletes the stored file as well as
+          the row.
+        </li>
+        <li>
+          <strong>Clear everything.</strong> Removes every file, folder, project and cover detail,
+          leaving the account able to start again.
+        </li>
+        <li>
+          <strong>Delete the account.</strong> All of the above, plus the account itself and the
+          record of which sign-ins reached it. Signing in afterwards gives you a new, empty account:
+          deleting your data does not lock you out.
+        </li>
+      </ul>
+      <p class="prose-body mt-3 text-sm">
+        Deletions are immediate and are not recoverable by you. Stored files are removed from the
+        bucket at once. Cloudflare keeps a short rolling point-in-time history of the database, so
+        the database rows remain restorable by the operator for a brief period afterwards, in the way
+        any backup would be.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">If something goes wrong</h2>
+      <p class="prose-body mt-2 text-sm">
+        If there is a data breach likely to cause serious harm, affected users and the Office of the
+        Australian Information Commissioner will be notified, as the Notifiable Data Breaches scheme
+        requires. Given what this app holds, you would be told what was exposed and what to do, not
+        just that something happened.
+      </p>
+    </section>
+
+    <p class="text-xs text-ink-faint">Last updated {updated}.</p>
+  </div>
+</BaseLayout>

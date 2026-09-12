@@ -221,6 +221,11 @@ export function clearAll(): Promise<unknown> {
   return request('/api/vault', { method: 'DELETE' });
 }
 
+/** Removes the account itself, not just its contents. */
+export function deleteAccount(): Promise<unknown> {
+  return request('/api/account', { method: 'DELETE' });
+}
+
 export interface Programme {
   id: string;
   template: string;

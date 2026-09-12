@@ -767,6 +767,18 @@ export class Repo {
     return { body: object.body, mime: row.mime || 'application/octet-stream', name: row.name };
   }
 
+  /**
+   * Everything this account has put in: files, folders, projects, cover details.
+   *
+   * Projects belong in here. They were missing, which meant "Clear everything"
+   * left every context statement behind — the school, sector, year level, class
+   * characteristics and community notes are the most identifying free text in
+   * the app, and they survived the button that claimed to remove everything.
+   *
+   * The de-identification acknowledgement is deliberately kept: it is a record
+   * that the warning was shown and accepted, and clearing content is not the
+   * same as taking it back. deleteAccount removes it along with the account.
+   */
   async clearAll(): Promise<void> {
     const keys = [...(await this.objectKeys()).values()];
     if (keys.length > 0) await deleteObjects(this.bucket, keys);
@@ -774,10 +786,28 @@ export class Repo {
       this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.accountId),
       this.db.prepare(`DELETE FROM documents WHERE owner = ?1`).bind(this.who.accountId),
       this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.accountId),
-      // Clears the cover details but keeps the acknowledgement on record.
+      this.db.prepare(`DELETE FROM programmes WHERE owner = ?1`).bind(this.who.accountId),
       this.db
         .prepare(`UPDATE profiles SET name = '', title = '', summary = '' WHERE owner = ?1`)
         .bind(this.who.accountId),
+    ]);
+  }
+
+  /**
+   * Clears the content, then removes the account itself: the profile row, every
+   * identity that resolved to it, and the account record.
+   *
+   * Signing in again afterwards is not blocked — it produces a new, empty
+   * account, because deleting your data is not the same as being locked out.
+   */
+  async deleteAccount(): Promise<void> {
+    await this.clearAll();
+    await this.db.batch([
+      this.db.prepare(`DELETE FROM profiles WHERE owner = ?1`).bind(this.who.accountId),
+      this.db
+        .prepare(`DELETE FROM account_identities WHERE account_id = ?1`)
+        .bind(this.who.accountId),
+      this.db.prepare(`DELETE FROM accounts WHERE id = ?1`).bind(this.who.accountId),
     ]);
   }
 

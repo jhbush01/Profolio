@@ -13,6 +13,9 @@ const year = new Date().getFullYear();
     class="pf-shell flex flex-col gap-1 pb-28 pt-6 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between sm:pb-6"
   >
     <p>{site.name} · {year}</p>
-    <p>{site.note}</p>
+    <p class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <a href="/privacy" class="underline underline-offset-2 hover:text-accent">Privacy</a>
+      <span>{site.note}</span>
+    </p>
   </div>
 </footer>

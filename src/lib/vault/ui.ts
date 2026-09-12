@@ -15,6 +15,7 @@ import {
   isAuthError,
   reloadForAuth,
   clearAll,
+  deleteAccount,
   createFolder,
   deleteDocument,
   deleteFolderDeep,
@@ -640,7 +641,12 @@ export async function initVault() {
   });
 
   $('clear-all')?.addEventListener('click', async () => {
-    if (!window.confirm('Delete every folder and document in your portfolio? This removes them from R2 and cannot be undone.')) return;
+    if (
+      !window.confirm(
+        'Delete every file, folder and project, and your cover details? This cannot be undone. Export a PDF first if you want a copy.',
+      )
+    )
+      return;
     await guard('Clearing', async () => {
       await clearAll();
       selected = ALL;
@@ -649,6 +655,23 @@ export async function initVault() {
       if (summaryField) summaryField.value = '';
       await refresh();
       setStatus('Cleared.');
+    });
+  });
+
+  $('delete-account')?.addEventListener('click', async () => {
+    // Typed rather than clicked: this one removes the account, and a confirm
+    // dialog is a reflex by the second time you have seen it.
+    const typed = window.prompt(
+      'This deletes your evidence, your projects and the account itself. It cannot be undone.\n\nType DELETE to confirm.',
+    );
+    if (typed !== 'DELETE') {
+      if (typed !== null) setStatus('Not deleted — the confirmation did not match.');
+      return;
+    }
+    await guard('Deleting account', async () => {
+      await deleteAccount();
+      // Straight to the ProFolio, which will resolve a fresh empty account.
+      window.location.href = '/';
     });
   });
 
