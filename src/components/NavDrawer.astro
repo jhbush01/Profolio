@@ -10,6 +10,7 @@
  * Progressive enhancement: the markup is a plain <nav> with real links. If the
  * script fails, the drawer is still reachable and the links still work.
  */
+import AccountMenu from './AccountMenu.astro';
 import { portfolio } from '../lib/portfolio';
 
 const path = Astro.url.pathname;
@@ -103,6 +104,8 @@ const showBack = path !== '/';
         <a href="/" class="font-display text-base font-normal">Profolio</a>
       )
     }
+
+    <AccountMenu />
   </div>
 </header>
 

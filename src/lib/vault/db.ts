@@ -110,6 +110,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     // Access sets the CF_Authorization cookie; it must ride along.
     credentials: 'same-origin',
+    headers: {
+      ...(init?.headers as Record<string, string> | undefined),
+      // Without this, an expired Access session answers a fetch with the login
+      // page — HTML, status 200 — and the JSON parse below throws a syntax
+      // error that never reaches the auth handling. With it, Access returns a
+      // real 401 and reloadForAuth can do its job.
+      'X-Requested-With': 'XMLHttpRequest',
+    },
   });
 
   if (!response.ok) {

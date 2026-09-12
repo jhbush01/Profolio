@@ -1,0 +1,132 @@
+---
+/**
+ * Who is signed in, and how to stop being signed in.
+ *
+ * The app never said whose evidence was on screen. On a shared staffroom
+ * iPad that is not a missing convenience, it is a way to open somebody else's
+ * children's work believing it is your own.
+ *
+ * There is no sign-in button, and there cannot be: Cloudflare Access
+ * intercepts the request before this page exists, so a signed-out visitor
+ * never reaches the app to see one. Signing out is
+ * /cdn-cgi/access/logout on this same host — Access serves it on every
+ * hostname it protects, which is why no team domain is baked in here. It
+ * clears the cookie for this domain immediately and revokes the session
+ * everywhere within about half a minute.
+ *
+ * The email arrives from /api/me rather than being rendered here, because
+ * every page carrying this bar is prerendered at build time and has no idea
+ * who will open it.
+ */
+---
+
+<div class="relative ml-auto">
+  <button
+    type="button"
+    id="account-button"
+    aria-controls="account-panel"
+    aria-expanded="false"
+    class="flex min-h-9 items-center gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
+  >
+    <span
+      id="account-initials"
+      aria-hidden="true"
+      class="flex size-6 items-center justify-center rounded-sm bg-accent-soft font-display text-xs text-accent"
+    >&nbsp;</span>
+    <span class="hidden sm:inline">Account</span>
+    <i data-lucide="chevron-down" class="size-4" aria-hidden="true"></i>
+  </button>
+
+  <div
+    id="account-panel"
+    hidden
+    class="absolute right-0 z-40 mt-2 w-72 max-w-[85vw] rounded-lg border border-line bg-surface p-1.5 shadow-[0_6px_20px_rgba(77,51,22,0.10)]"
+  >
+    <div class="border-b border-line-subtle px-3 py-2.5">
+      <p class="pf-eyebrow text-ink-faint">Signed in as</p>
+      <p id="account-email" class="mt-0.5 break-all text-sm font-medium">Checking…</p>
+    </div>
+
+    <a href="/portfolio#your-data" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">
+      Your data
+      <span class="block text-xs text-ink-muted">Export, clear, or delete the account</span>
+    </a>
+    <a href="/privacy" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">
+      Privacy
+      <span class="block text-xs text-ink-muted">What is stored, and for how long</span>
+    </a>
+
+    <!-- A real navigation, not fetch(): Access has to set cookies and redirect. -->
+    <a
+      href="/cdn-cgi/access/logout"
+      class="mt-1 block rounded-md border-t border-line-subtle px-3 py-2 text-sm font-medium text-critical transition hover:bg-critical-surface"
+    >
+      Sign out
+    </a>
+  </div>
+</div>
+
+<script>
+  const button = document.getElementById('account-button');
+  const panel = document.getElementById('account-panel');
+  const emailField = document.getElementById('account-email');
+  const initialsField = document.getElementById('account-initials');
+
+  if (button && panel) {
+    const close = () => {
+      panel.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+    };
+
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const open = panel.hidden;
+      panel.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!panel.hidden && !panel.contains(event.target as Node)) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !panel.hidden) {
+        close();
+        button.focus();
+      }
+    });
+
+    // The same rule as the avatar on Your ProFolio (see initials() in
+    // home-ui.ts), so the two badges on one screen never disagree about who
+    // you are. Splitting on "@" as well means an address with no separator in
+    // its local part still yields two letters.
+    const initialsOf = (email: string) => {
+      const parts = email.split(/[\s.@_-]+/).filter(Boolean);
+      const letters = (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
+      return letters.toUpperCase() || '@';
+    };
+
+    fetch('/api/me', {
+      credentials: 'same-origin',
+      // Makes Access answer an expired session with 401 instead of the login
+      // page, so this fails quietly rather than parsing HTML as JSON.
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then((response) =>
+        response.ok
+          ? (response.json() as Promise<{ email?: string }>)
+          : Promise.reject(new Error('signed out')),
+      )
+      .then((body) => {
+        const email = body.email ?? '';
+        if (!email) throw new Error('no email');
+        if (emailField) emailField.textContent = email;
+        if (initialsField) initialsField.textContent = initialsOf(email);
+      })
+      .catch(() => {
+        // Sign out stays reachable: not knowing who you are is the moment you
+        // most want to be able to start again.
+        if (emailField) emailField.textContent = 'Not signed in';
+        if (initialsField) initialsField.textContent = '?';
+      });
+  }
+</script>
