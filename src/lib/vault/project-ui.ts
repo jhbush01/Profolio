@@ -11,6 +11,8 @@
  */
 import {
   describeError,
+  documentBytes,
+  emptyProfile,
   isAuthError,
   reloadForAuth,
   deleteProgramme,
@@ -21,6 +23,8 @@ import {
   type Programme,
 } from './db';
 import { isComplete, missingDimensions } from './dimensions';
+import { wireViewer } from './viewer';
+import { buildPortfolioPdf } from './pdf';
 import {
   currentWeek,
   elapsedFraction,
@@ -31,7 +35,7 @@ import {
   totalWeeks,
   type ProgrammeTemplate,
 } from '../programmes';
-import type { VaultDocument } from './types';
+import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
@@ -57,6 +61,9 @@ let template: ProgrammeTemplate | undefined;
 let documents: VaultDocument[] = [];
 /** Needed by the Hub tab's outputs panel. */
 let deidAcknowledged = false;
+/** Needed to export this project on its own. */
+let profile: VaultProfile = emptyProfile;
+let folders: VaultFolder[] = [];
 
 const TABS = [
   { id: 'hub', label: 'Hub' },
@@ -114,7 +121,10 @@ async function guard(label: string, action: () => Promise<unknown>) {
 function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0): string {
   return `<li class="flex items-center gap-3 border-t border-line-subtle py-2.5">
     <span class="min-w-0 flex-1">
-      <span class="block truncate text-sm font-medium" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
+      <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
+        class="block max-w-full truncate text-left text-sm font-medium transition hover:text-accent hover:underline">
+        ${escapeHtml(doc.name)}
+      </button>
       <span class="mt-0.5 block text-xs text-ink-faint">
         <span class="font-mono">${escapeHtml(shortDate(doc.addedAt))}</span>${
           isComplete(doc) ? '' : ' · <span class="text-caution">missing detail</span>'
@@ -590,6 +600,93 @@ function hubTab(): string {
   </div>`;
 }
 
+/**
+ * `final-placement-eastvale-2026.pdf`, from the project's own name and the
+ * year its window closes.
+ *
+ * The export page names every file after your profile, so every export you
+ * have ever taken is called the same thing. A submission wants to say which
+ * project it is, without being renamed in a downloads folder first.
+ */
+function exportFilename(): string {
+  if (!programme) return 'portfolio.pdf';
+  const year = programme.endsOn?.slice(0, 4) ?? new Date().getFullYear();
+  const stem = `${programme.name} ${year}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `${stem || 'project'}.pdf`;
+}
+
+/** The context statement as "Label: value" lines, or nothing when unanswered. */
+function contextLines(): string[] {
+  if (!programme || !template) return [];
+  const current = programme;
+  return template.contextFields
+    .map((field) => {
+      const value = current.context[field.id]?.trim();
+      return value ? `${field.label}: ${value}` : null;
+    })
+    .filter((line): line is string => line !== null);
+}
+
+async function exportProject() {
+  if (!programme) return;
+  const records = assigned();
+  if (records.length === 0) {
+    setStatus('Nothing to export: this project has no evidence yet.');
+    return;
+  }
+
+  const button = document.querySelector<HTMLButtonElement>('[data-export-project]');
+  if (button) button.disabled = true;
+
+  try {
+    const bytes = await buildPortfolioPdf(
+      profile,
+      folders,
+      records,
+      (doc) => documentBytes(doc.id),
+      (done, total, label) => setStatus(`Adding ${done + 1} of ${total}: ${label}`, true),
+      {
+        sections: [
+          {
+            name: programme.name,
+            window: windowLabel(),
+            contextLines: contextLines(),
+            documents: records,
+          },
+        ],
+        unassigned: [],
+        includeProfileTable: true,
+      },
+    );
+
+    // Copy into a fresh ArrayBuffer so the Blob owns its own memory.
+    const blob = new Blob([bytes.slice()], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exportFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus(`Exported ${exportFilename()}.`);
+  } catch (error) {
+    if (isAuthError(error) && reloadForAuth()) return;
+    setStatus(`Export failed: ${describeError(error)}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+/** Rendered date window, or null when the project has no dates. */
+function windowLabel(): string | null {
+  if (!programme?.startsOn || !programme.endsOn) return null;
+  return `${isoShortDate(programme.startsOn)} – ${isoShortDate(programme.endsOn)}`;
+}
+
 function render() {
   const host = $('project');
   if (!host || !programme) return;
@@ -632,9 +729,10 @@ function render() {
         <a href="/capture" class="flex-1 rounded-md bg-accent px-4 py-2 text-center text-sm font-medium text-white transition hover:opacity-90 sm:flex-none">
           Capture evidence
         </a>
-        <a href="/export" class="flex-1 rounded-md border border-line bg-surface px-4 py-2 text-center text-sm font-medium transition hover:border-accent/40 sm:flex-none">
-          Export
-        </a>
+        <button type="button" data-export-project
+          class="flex-1 rounded-md border border-line bg-surface px-4 py-2 text-center text-sm font-medium transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">
+          Export this project
+        </button>
       </div>
     </div>
 
@@ -678,6 +776,8 @@ function render() {
 async function refresh() {
   const [snapshot, programmeData] = await Promise.all([loadVault(), loadProgrammes()]);
   documents = snapshot.documents;
+  profile = snapshot.profile;
+  folders = snapshot.folders;
   deidAcknowledged = snapshot.deidAcknowledged;
   programme = programmeData.programmes.find((p) => p.id === projectId());
   template = programme ? templateFor(programme.template) : undefined;
@@ -686,6 +786,8 @@ async function refresh() {
 export async function initProject() {
   const host = $('project');
   if (!host) return;
+
+  wireViewer(host, (id) => documents.find((doc) => doc.id === id));
 
   // setTab has always written ?tab= to the URL, and nothing ever read it back,
   // so a deep link or a refresh silently landed on the default tab. Every link
@@ -800,6 +902,11 @@ export async function initProject() {
         render();
         setStatus('Removed from this project. The record is untouched.');
       });
+    }
+
+    if (button.dataset.exportProject !== undefined) {
+      await exportProject();
+      return;
     }
 
     if (button.dataset.archive !== undefined) {

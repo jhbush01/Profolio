@@ -39,6 +39,7 @@ import {
 import standardsJson from '../../data/standards.json';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 import { renderKindFor } from './types';
+import { wireViewer } from './viewer';
 
 const ALL = '__all__';
 const UNFILED = '__unfiled__';
@@ -334,7 +335,12 @@ function renderDocuments() {
               class="mt-0.5 cursor-grab select-none text-ink-muted"
             >⠿</span>
           <div class="min-w-0">
-            <h3 class="truncate text-sm font-semibold" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h3>
+            <h3 class="truncate text-sm font-semibold">
+              <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
+                class="max-w-full truncate text-left transition hover:text-accent hover:underline">
+                ${escapeHtml(doc.name)}
+              </button>
+            </h3>
             <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
               ${kindBadge(doc)} ${formatBytes(doc.size)}
               ${doc.folderId ? `· ${escapeHtml(folderPath(doc.folderId))}` : ''}
@@ -662,6 +668,9 @@ export async function initVault() {
       setStatus('Uploads are now enabled.');
     });
   });
+
+  const documentList = $('document-list');
+  if (documentList) wireViewer(documentList, (id) => documents.find((doc) => doc.id === id));
 
   $<HTMLInputElement>('doc-search')?.addEventListener('input', (event) => {
     search = (event.target as HTMLInputElement).value;

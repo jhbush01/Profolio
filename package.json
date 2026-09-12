@@ -15,7 +15,8 @@
     "dev:worker": "astro build && wrangler dev -c dist/server/wrangler.json --persist-to .wrangler/state --var ACCESS_DEV_BYPASS:true",
     "db:migrate:local": "wrangler d1 migrations apply profolio --local --persist-to .wrangler/state",
     "db:migrate:remote": "wrangler d1 migrations apply profolio --remote",
-    "db:migrate:status": "wrangler d1 migrations list profolio --remote"
+    "db:migrate:status": "wrangler d1 migrations list profolio --remote",
+    "release": "npm run db:migrate:remote && npm run build && npm run deploy"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.0",

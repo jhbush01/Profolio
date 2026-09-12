@@ -3,7 +3,7 @@
  * scoped to them, run the handler, and turn anything thrown into JSON.
  */
 import { env } from 'cloudflare:workers';
-import { errorResponse, requireIdentity } from './access';
+import { errorResponse, HttpError, requireIdentity } from './access';
 import { resolveAccount } from './accounts';
 import { Repo } from './repo';
 
@@ -25,6 +25,31 @@ export async function withRepo(
     const repo = new Repo(bindings.DB, bindings.DOCUMENTS, who);
     return await run(repo, who.email);
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(schemaDrift(error) ?? error);
   }
+}
+
+/**
+ * Turns the one failure this app keeps having into a sentence that says what
+ * happened.
+ *
+ * Deploys land from GitHub the moment main moves, and migrations are applied
+ * by hand afterwards, so there is a window where the code expects a column the
+ * database does not have. Twice now that window has shown users
+ * "D1_ERROR: no such column: last_seen_at: SQLITE_ERROR", which tells someone
+ * who did not write the schema precisely nothing.
+ *
+ * 503, not 500: the database is fine and the request is fine — the two are
+ * briefly out of step, and it is worth retrying after the migration runs.
+ */
+function schemaDrift(error: unknown): HttpError | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const missing = /no such (column|table): ([\w.]+)/i.exec(message);
+  if (!missing) return null;
+  return new HttpError(
+    503,
+    `the database is behind the app: no such ${missing[1]} "${missing[2]}". ` +
+      `A migration in migrations/ has not been applied yet. Nothing is lost; ` +
+      `applying it puts this right.`,
+  );
 }
