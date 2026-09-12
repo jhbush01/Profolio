@@ -28,6 +28,9 @@
   --color-ink: #20251d; /* ink-900 — a very dark olive, never pure black */
   --color-ink-muted: #5f6659; /* ink-500 */
   --color-ink-faint: #828a7c; /* ink-400 */
+  /* The page itself. White is reserved for cards, so the chrome sits on this
+     and only a raised object is allowed to be brighter than its ground. */
+  --color-paper: #fbf9f5;
   --color-surface: #ffffff; /* paper-raised — cards */
   --color-canvas: #f4f1ea; /* paper-sunken — chips, sunken panels */
   --color-line: #d3d6cc; /* border-default */
@@ -65,10 +68,9 @@
        this is actually used on it means no dead gutter. */
     --pf-shell: 90rem;
 
-    /* Paper page background — one step lighter than the sunken --color-canvas
-       used for chips and panels, per the design system's "two backgrounds
-       per artefact" ceiling. */
-    background-color: #fbf9f5;
+    /* One step lighter than the sunken --color-canvas used for chips and
+       panels, per the design system's "two backgrounds per artefact" ceiling. */
+    background-color: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
