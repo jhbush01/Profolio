@@ -148,29 +148,32 @@ export function folderRow(options: BrowserOptions, folder: VaultFolder): string 
   </li>`;
 }
 
-export function fileRow(doc: VaultDocument, frozen: boolean, extra = ''): string {
-  return `<li class="flex items-center gap-3 border-t border-line-subtle py-2.5">
-    <span class="min-w-0 flex-1">
-      <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
-        class="block max-w-full truncate text-left text-sm font-medium transition hover:text-accent hover:underline">
-        ${escapeHtml(doc.name)}
-      </button>
-      <span class="mt-0.5 block text-xs text-ink-faint">
-        <span class="font-mono">${escapeHtml(kindLabel(doc))} · ${escapeHtml(fileSize(doc.size))} · ${escapeHtml(shortDate(doc.addedAt))}</span>${
-          isComplete(doc) ? '' : ' · <span class="text-caution">needs detail</span>'
-        }${extra ? ` · ${extra}` : ''}
+export function fileRow(
+  doc: VaultDocument,
+  frozen: boolean,
+  /** The details panel for this record, or '' where the page has none. */
+  panel = '',
+): string {
+  return `<li class="border-t border-line-subtle" data-doc-id="${doc.id}">
+    <div class="flex items-center gap-3 py-2.5">
+      <span class="min-w-0 flex-1">
+        <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
+          class="block max-w-full truncate text-left text-sm font-medium transition hover:text-accent hover:underline">
+          ${escapeHtml(doc.name)}
+        </button>
+        <span class="mt-0.5 block text-xs text-ink-faint">
+          <span class="font-mono">${escapeHtml(kindLabel(doc))} · ${escapeHtml(fileSize(doc.size))} · ${escapeHtml(shortDate(doc.addedAt))}</span>
+          <span data-needs-detail ${isComplete(doc) ? 'hidden' : ''} class="text-caution">· needs detail</span>
+        </span>
       </span>
-    </span>
-    ${
-      frozen
-        ? ''
-        : `<span class="flex shrink-0 gap-2">
-             <button type="button" data-details="${doc.id}"
-               class="text-xs text-ink-faint underline underline-offset-2 hover:text-accent">Details</button>
-             <button type="button" data-move="${doc.id}"
-               class="text-xs text-ink-faint underline underline-offset-2 hover:text-accent">Move</button>
-           </span>`
-    }
+      ${
+        frozen
+          ? ''
+          : `<button type="button" data-unassign="${doc.id}"
+               class="shrink-0 text-xs text-ink-faint underline underline-offset-2 hover:text-critical">Remove</button>`
+      }
+    </div>
+    ${panel}
   </li>`;
 }
 

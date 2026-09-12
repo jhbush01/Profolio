@@ -21,20 +21,12 @@ import {
   emptyProfile,
   loadProgrammes,
   loadVault,
-  updateDocument,
   updateFolder,
   type Programme,
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
-import {
-  CYCLE_PHASES,
-  EVIDENCE_TYPES,
-  isComplete,
-  missingDimensions,
-  PURPOSES,
-  SUBJECT_SCOPES,
-} from './dimensions';
-import standardsJson from '../../data/standards.json';
+import { isComplete } from './dimensions';
+import { detailPanel, wireDetails } from './detail-panel';
 import {
   breadcrumbHtml,
   childFolders,
@@ -73,150 +65,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-const STANDARDS = standardsJson as Array<{ code: string; focus: string; domain: string }>;
-
-type Option = { readonly value: string; readonly label: string };
-
-/** A <select> with a blank "not set" option, since every dimension is optional. */
-function selectFor(
-  attribute: string,
-  id: string,
-  options: readonly Option[],
-  current: string | null,
-  placeholder: string,
-): string {
-  const items = options
-    .map(
-      (option) =>
-        `<option value="${option.value}"${current === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`,
-    )
-    .join('');
-  return `<select data-${attribute}="${id}" class="w-full rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-    <option value=""${current ? '' : ' selected'}>${escapeHtml(placeholder)}</option>${items}
-  </select>`;
-}
-
-/**
- * Programme membership for one record.
- *
- * Closed programmes are left out: they cannot take new evidence, and offering
- * a control the server will refuse is worse than not offering it.
- */
-function programmeChips(doc: VaultDocument): string {
-  if (openProgrammes.length === 0) {
-    return `<p class="text-[0.7rem] text-ink-muted">
-      No open projects. <a href="/programmes" class="text-accent underline underline-offset-2">Start one</a> to assign this record.
-    </p>`;
-  }
-
-  const chips = openProgrammes
-    .map((programme) => {
-      const on = doc.programmes.includes(programme.id);
-      return `<button
-        type="button"
-        data-programme-toggle="${doc.id}"
-        data-programme="${programme.id}"
-        aria-pressed="${on}"
-        class="rounded-sm border px-2 py-0.5 text-[0.7rem] transition ${
-          on ? 'border-mint bg-selected font-medium text-positive' : 'border-line text-ink-muted'
-        }"
-      >${escapeHtml(programme.name)}</button>`;
-    })
-    .join('');
-
-  return `<div class="flex flex-wrap gap-1">${chips}</div>`;
-}
-
-/** The evidence-dimension panel, collapsed by default so the list stays scannable. */
-function detailPanel(doc: VaultDocument): string {
-  const gaps = missingDimensions(doc);
-  const summary =
-    gaps.length === 0
-      ? '<span class="text-ink-muted">Details</span> <span class="text-positive">· complete</span>'
-      : `<span class="text-ink-muted">Details</span> <span class="text-caution">· missing ${escapeHtml(gaps.join(', '))}</span>`;
-
-  const standardChips = STANDARDS.map(
-    (standard) => `<label
-        title="${escapeHtml(standard.focus)}"
-        class="cursor-pointer rounded-sm border border-line px-2 py-0.5 font-mono text-[0.7rem] text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent"
-      >
-        <input
-          type="checkbox"
-          data-standard="${doc.id}"
-          value="${standard.code}"
-          ${doc.standards.includes(standard.code) ? 'checked' : ''}
-          class="sr-only"
-        />${standard.code}
-      </label>`,
-  ).join('');
-
-  const designed = doc.selfDesigned;
-
-  // The folder list, so a file can be moved from the panel that already holds
-  // everything else about it.
-  const folderOptions = (() => {
-    const opts = [`<option value="">Top level</option>`];
-    const walk = (parentId: string | null, depth: number) => {
-      for (const folder of childFolders(folders, parentId)) {
-        opts.push(
-          `<option value="${folder.id}"${doc.folderId === folder.id ? ' selected' : ''}>${escapeHtml(
-            `${'— '.repeat(depth)}${folder.name}`,
-          )}</option>`,
-        );
-        walk(folder.id, depth + 1);
-      }
-    };
-    walk(null, 0);
-    return opts.join('');
-  })();
-
-  return `<details class="mb-2.5 rounded-lg border border-line">
-    <summary class="cursor-pointer px-3 py-2 text-xs">${summary}</summary>
-    <div class="grid gap-2 border-t border-line p-3 sm:grid-cols-2">
-      <input
-        type="text"
-        data-caption="${doc.id}"
-        value="${escapeHtml(doc.caption)}"
-        placeholder="Caption, printed under this file in the export"
-        class="rounded-lg border border-line bg-surface px-2 py-1 text-xs sm:col-span-2"
-      />
-      ${selectFor('phase', doc.id, CYCLE_PHASES, doc.cyclePhase, 'Stage of the cycle…')}
-      ${selectFor('etype', doc.id, EVIDENCE_TYPES, doc.evidenceType, 'Evidence type…')}
-      ${selectFor('purpose', doc.id, PURPOSES, doc.purpose, 'Purpose…')}
-      ${selectFor('scope', doc.id, SUBJECT_SCOPES, doc.subjectScope, 'Whole class or individual…')}
-      <input
-        type="text"
-        data-source="${doc.id}"
-        value="${escapeHtml(doc.source ?? '')}"
-        placeholder="Source, e.g. school NAPLAN summary"
-        class="rounded-lg border border-line bg-surface px-2 py-1 text-xs sm:col-span-2"
-      />
-      <label class="flex items-center gap-2 text-xs text-ink-muted sm:col-span-2">
-        <span>Who designed it?</span>
-        <select data-designed="${doc.id}" class="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-          <option value=""${designed === null ? ' selected' : ''}>Not set</option>
-          <option value="yes"${designed === true ? ' selected' : ''}>I designed it</option>
-          <option value="no"${designed === false ? ' selected' : ''}>Someone else / commercial</option>
-        </select>
-      </label>
-      <div class="sm:col-span-2">
-        <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">APST focus areas</p>
-        <div class="flex flex-wrap gap-1">${standardChips}</div>
-      </div>
-      <div class="sm:col-span-2">
-        <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">Counts toward</p>
-        ${programmeChips(doc)}
-      </div>
-      <label class="flex items-center gap-2 text-xs text-ink-muted sm:col-span-2">
-        <span>Folder</span>
-        <select data-move="${doc.id}" class="flex-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-          ${folderOptions}
-        </select>
-      </label>
-    </div>
-  </details>`;
 }
 
 /**
@@ -343,34 +191,8 @@ function artefactRow(doc: VaultDocument, searching: boolean): string {
       <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}"
         class="shrink-0 rounded p-1 text-xs text-ink-faint hover:text-critical">✕</button>
     </div>
-    ${detailPanel(doc)}
+    ${detailPanel(doc, { programmes: openProgrammes, folders })}
   </li>`;
-}
-
-/**
- * Updates one card's badge and panel summary without re-rendering the list.
- *
- * A full refresh would close the <details> the user is actively filling in and
- * lose their scroll position, which makes enriching a dozen records miserable.
- */
-function refreshCardStatus(doc: VaultDocument) {
-  const card = document.querySelector<HTMLElement>(`[data-doc-id="${doc.id}"]`);
-  if (!card) return;
-
-  const gaps = missingDimensions(doc);
-
-  const badge = card.querySelector<HTMLElement>('[data-needs-detail]');
-  if (badge) badge.hidden = gaps.length === 0;
-
-  const summary = card.querySelector<HTMLElement>('details > summary');
-  if (summary) {
-    summary.innerHTML =
-      gaps.length === 0
-        ? '<span class="text-ink-muted">Details</span> <span class="text-positive">· complete</span>'
-        : `<span class="text-ink-muted">Details</span> <span class="text-caution">· missing ${escapeHtml(gaps.join(', '))}</span>`;
-  }
-
-  renderPendingCount();
 }
 
 /** "N need detail" in the list header — the nudge to come back and enrich. */
@@ -668,98 +490,22 @@ export async function initVault() {
       await refresh();
     });
   });
-  list?.addEventListener('click', async (event) => {
-    const toggle = (event.target as HTMLElement).closest<HTMLElement>('button[data-programme-toggle]');
-    if (!toggle) return;
-
-    const id = toggle.dataset.programmeToggle!;
-    const programmeId = toggle.dataset.programme!;
-    const doc = documents.find((d) => d.id === id);
-    if (!doc) return;
-
-    const next = doc.programmes.includes(programmeId)
-      ? doc.programmes.filter((p) => p !== programmeId)
-      : [...doc.programmes, programmeId];
-
-    await guard('Saving project', async () => {
-      await updateDocument(id, { programmes: next });
-      doc.programmes = next;
-      // Re-render just this card's chips, so an open <details> stays open.
-      const host = toggle.parentElement;
-      if (host) host.outerHTML = programmeChips(doc);
-      setStatus('Saved.');
-    });
-  });
-
-  list?.addEventListener('change', async (event) => {
-    const target = event.target as HTMLInputElement | HTMLSelectElement;
-
-    /** Saves one dimension, then updates the badge in place. */
-    const saveDimension = async (id: string, patch: Record<string, unknown>, apply: (doc: VaultDocument) => void) => {
-      await guard('Saving detail', async () => {
-        await updateDocument(id, patch);
-        const doc = documents.find((d) => d.id === id);
-        if (doc) {
-          apply(doc);
-          refreshCardStatus(doc);
-        }
-        setStatus('Saved.');
-      });
-    };
-
-    const blank = (value: string) => (value === '' ? null : value);
-
-    if (target.dataset.phase) {
-      const v = blank(target.value);
-      return saveDimension(target.dataset.phase, { cyclePhase: v }, (d) => (d.cyclePhase = v));
-    }
-    if (target.dataset.etype) {
-      const v = blank(target.value);
-      return saveDimension(target.dataset.etype, { evidenceType: v }, (d) => (d.evidenceType = v));
-    }
-    if (target.dataset.purpose) {
-      const v = blank(target.value);
-      return saveDimension(target.dataset.purpose, { purpose: v }, (d) => (d.purpose = v));
-    }
-    if (target.dataset.scope) {
-      const v = blank(target.value);
-      return saveDimension(target.dataset.scope, { subjectScope: v }, (d) => (d.subjectScope = v));
-    }
-    if (target.dataset.source) {
-      const v = target.value;
-      return saveDimension(target.dataset.source, { source: v }, (d) => (d.source = v));
-    }
-    if (target.dataset.designed) {
-      const v = target.value === '' ? null : target.value === 'yes';
-      return saveDimension(target.dataset.designed, { selfDesigned: v }, (d) => (d.selfDesigned = v));
-    }
-    if (target.dataset.standard) {
-      const id = target.dataset.standard;
-      const card = document.querySelector<HTMLElement>(`[data-doc-id="${id}"]`);
-      const codes = [...(card?.querySelectorAll<HTMLInputElement>('[data-standard]') ?? [])]
-        .filter((box) => box.checked)
-        .map((box) => box.value);
-      return saveDimension(id, { standards: codes }, (d) => (d.standards = codes));
-    }
-
-    if (target.dataset.caption) {
-      const id = target.dataset.caption;
-      await guard('Saving caption', async () => {
-        await updateDocument(id, { caption: target.value });
-        const doc = documents.find((d) => d.id === id);
-        if (doc) doc.caption = target.value;
-      });
-      return;
-    }
-    if (target.dataset.move) {
-      const id = target.dataset.move;
-      await guard('Moving document', async () => {
-        await updateDocument(id, { folderId: target.value || null });
+  if (list) {
+    wireDetails(list, {
+      find: (id) => documents.find((doc) => doc.id === id),
+      setStatus: (message) => {
+        setStatus(message);
+        // The "N need detail" badge is this page's own, so it is refreshed here
+        // rather than inside the shared panel that knows nothing about it.
+        renderPendingCount();
+      },
+      guard,
+      reload: async () => {
         await refresh();
-      });
-    }
-  });
-
+      },
+      programmes: () => openProgrammes,
+    });
+  }
 
   // Dropping onto the zone, and only onto the zone. This used to be bound to
   // the window with a full-screen overlay; see the note above enableDocument-

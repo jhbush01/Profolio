@@ -27,6 +27,7 @@ import {
   type Programme,
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
+import { detailPanel, wireDetails } from './detail-panel';
 import { isComplete, missingDimensions } from './dimensions';
 import {
   breadcrumbHtml,
@@ -87,6 +88,13 @@ let deidAcknowledged = false;
 /** Needed to export this project on its own. */
 let profile: VaultProfile = emptyProfile;
 let folders: VaultFolder[] = [];
+/** Every project, so the details panel can offer membership like Artefacts does. */
+let allProgrammes: Programme[] = [];
+
+/** Projects still accepting evidence. A closed one refuses, so it is not shown. */
+function openProjects(): Programme[] {
+  return allProgrammes.filter((p) => p.closedAt === null && !p.archived);
+}
 
 /**
  * Context is not here, on purpose. It used to be a tab of its own, which made
@@ -177,7 +185,11 @@ function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0): strin
       </button>
       <span class="mt-0.5 block text-xs text-ink-faint">
         <span class="font-mono">${escapeHtml(shortDate(doc.addedAt))}</span>${
-          isComplete(doc) ? '' : ' · <span class="text-caution">missing detail</span>'
+          // Not a label: the gap is fixable, and the fix is two tabs away, so
+          // this takes you to the record with its details already open.
+          isComplete(doc)
+            ? ''
+            : ` · <button type="button" data-fix="${doc.id}" class="text-caution underline underline-offset-2 hover:text-ink">missing detail</button>`
         }${
           // One record can answer several items, so it is listed under each.
           // Say so, or the repeat reads as the page rendering it twice.
@@ -517,7 +529,9 @@ function evidenceTab(closed: boolean): string {
              </p>`
           : `<ul class="mt-3">${subfolders
               .map((folder) => folderRow(options, folder))
-              .join('')}${here.map((doc) => fileRow(doc, closed)).join('')}</ul>`
+              .join('')}${here
+              .map((doc) => fileRow(doc, closed, detailPanel(doc, { programmes: openProjects(), folders })))
+              .join('')}</ul>`
       }
     </section>
   </div>`;
@@ -1126,6 +1140,7 @@ function render() {
 
 async function refresh() {
   const [snapshot, programmeData] = await Promise.all([loadVault(), loadProgrammes()]);
+  allProgrammes = programmeData.programmes;
   documents = snapshot.documents;
   profile = snapshot.profile;
   folders = snapshot.folders;
@@ -1193,6 +1208,20 @@ export async function initProject() {
   if (!host) return;
 
   wireViewer(host, (id) => documents.find((doc) => doc.id === id));
+
+  // The same details editor the Artefacts page uses. Noticing here that a file
+  // is missing its purpose used to mean leaving the project, finding the file
+  // again in a list of everything you own, and coming back.
+  wireDetails(host, {
+    find: (id) => documents.find((doc) => doc.id === id),
+    setStatus: (message) => setStatus(message),
+    guard,
+    reload: async () => {
+      await refresh();
+      render();
+    },
+    programmes: openProjects,
+  });
 
   // The file picker, and dropping onto the zone. Both delegated, because the
   // Evidence tab is re-rendered wholesale after every change.
@@ -1358,6 +1387,22 @@ export async function initProject() {
         render();
         setStatus(`Filed ${pending.length} file${pending.length === 1 ? '' : 's'}.`);
       });
+    }
+
+    const fix = button.dataset.fix;
+    if (fix) {
+      const doc = documents.find((d) => d.id === fix);
+      if (!doc) return;
+      setTab('evidence');
+      setFolder(doc.folderId ?? null);
+      render();
+      // After the re-render, so the row exists to be opened and scrolled to.
+      requestAnimationFrame(() => {
+        const row = host.querySelector<HTMLElement>(`[data-doc-id="${CSS.escape(fix)}"]`);
+        row?.querySelector('details')?.setAttribute('open', '');
+        row?.scrollIntoView({ block: 'center' });
+      });
+      return;
     }
 
     if (button.dataset.newFolder !== undefined) {

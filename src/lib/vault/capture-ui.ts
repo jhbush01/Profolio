@@ -191,7 +191,9 @@ function reviewCard(): string {
       }">${escapeHtml(standard.code)}</button>`;
   }).join('');
 
-  return `<section class="card flex flex-col gap-5 p-5">
+  // scroll-mt clears the sticky top bar, which would otherwise sit over the
+  // first line of whichever card scrollToReview() brings into view.
+  return `<section class="card flex scroll-mt-20 flex-col gap-5 p-5">
     <div class="border-b border-line-subtle pb-4">
       <p class="pf-eyebrow text-ink-faint">Review${escapeHtml(position)}</p>
       ${previewBlock(doc)}
@@ -319,6 +321,23 @@ function render() {
   if (bar) bar.hidden = queue.length > 0;
 }
 
+/**
+ * Puts the next document's review card back at the top of the screen.
+ *
+ * Saving happens at the bottom of a long form, and the next document's card
+ * renders in place — so without this you land halfway down the next one,
+ * looking at its Save button, having never seen the file it is about. With
+ * several uploads queued that is the difference between reviewing them and
+ * guessing at them.
+ */
+function scrollToReview() {
+  const card = document.querySelector('#capture-body section');
+  if (!card) return;
+  // `auto`, not `smooth`: this follows a tap, and an animation between one
+  // document and the next reads as lag rather than as polish.
+  card.scrollIntoView({ block: 'start', behavior: 'auto' });
+}
+
 /* ----------------------------------------------------------------- upload */
 
 async function handleFiles(files: FileList | File[]) {
@@ -382,6 +401,7 @@ async function saveDraft() {
     queue = queue.slice(1);
     draft = queue.length > 0 ? freshDraft() : null;
     render();
+    if (queue.length > 0) scrollToReview();
 
     const into = openProgrammes.filter((p) => pending.programmes.includes(p.id)).map((p) => p.name);
     setStatus(into.length > 0 ? `Saved into ${into.join(' and ')}.` : 'Saved to your evidence.');
@@ -400,6 +420,7 @@ async function discardDraft() {
     queue = queue.slice(1);
     draft = queue.length > 0 ? freshDraft() : null;
     render();
+    if (queue.length > 0) scrollToReview();
     setStatus('Discarded.');
   });
 }
