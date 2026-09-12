@@ -60,6 +60,24 @@ const sections: { label: string | null; links: NavLink[] }[] = [
 
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 
+/**
+ * The same four destinations the phone bar carries, as a row on wider screens.
+ *
+ * One workflow, two shapes: a bar along the bottom under a thumb, a row along
+ * the top under a cursor. The drawer stays the full map on both.
+ */
+const primary = [
+  { href: '/', label: 'Home' },
+  { href: '/programmes', label: 'Projects', also: ['/project'] },
+  { href: '/capture', label: 'Capture' },
+  { href: '/export', label: 'Export' },
+];
+
+const primaryActive = (link: { href: string; also?: string[] }) =>
+  link.href === '/'
+    ? path === '/'
+    : path.startsWith(link.href) || (link.also ?? []).some((p) => path.startsWith(p));
+
 // Every page but the ProFolio itself is somewhere you came from somewhere.
 // A link rather than history.back(), which sends a deep link or a refreshed
 // tab out of the app entirely.
@@ -94,25 +112,42 @@ const showBack = path !== '/';
           class="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-ink-muted transition hover:bg-canvas hover:text-accent"
         >
           <i data-lucide="arrow-left" class="size-5" aria-hidden="true" />
-          <span class="sm:hidden">Back</span>
-          <span class="hidden sm:inline">Home</span>
+          {/* "Back", not "Home", at every width: the nav row beside this one
+              carries Home, and a bar that says the same word twice a
+              centimetre apart is a bar nobody reads. Always a word, because
+              the icon comes from a CDN. */}
+          <span>Back</span>
         </a>
       )
     }
 
-    {/* The wordmark is only a link when nothing else in the bar already goes
-        home. With the back arrow present it is identity, not navigation —
-        two links to the same place, a thumb apart, is how a bar stops being
-        read. */}
-    {
-      showBack ? (
-        <span class="font-display text-base font-normal">Profolio</span>
-      ) : (
-        <a href="/" class="font-display text-base font-normal">Profolio</a>
-      )
-    }
+    {/* Desktop only: the phone bar's workflow, in the top bar. */}
+    <nav class="ml-2 hidden items-center gap-1 sm:flex" aria-label="Primary">
+      {primary.map((link) => (
+        <a
+          href={link.href}
+          aria-current={primaryActive(link) ? 'page' : undefined}
+          class:list={[
+            'rounded-md px-2.5 py-1.5 text-sm font-medium transition',
+            primaryActive(link)
+              ? 'bg-accent-soft text-accent'
+              : 'text-ink-muted hover:bg-canvas hover:text-ink',
+          ]}
+        >
+          {link.label}
+        </a>
+      ))}
+    </nav>
 
-    <AccountMenu />
+    {/* The wordmark sits with the account button, at the right end. It used to
+        follow the back arrow, which meant it moved every time the arrow came
+        and went — a fixed point that is not fixed is worse than no fixed
+        point. It is identity here, not navigation: the nav row and the Home
+        link already go home, and a third link to the same place is noise. */}
+    <div class="ml-auto flex items-center gap-3">
+      <span class="hidden font-display text-base font-normal sm:inline">Profolio</span>
+      <AccountMenu />
+    </div>
   </div>
 </header>
 

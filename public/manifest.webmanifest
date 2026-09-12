@@ -1,5 +1,6 @@
 {
-  "name": "Profolio — professional evidence vault",
+  "name": "Profolio \u2014 professional evidence vault",
+  "id": "/",
   "short_name": "Profolio",
   "description": "Capture and organise the evidence of your professional practice.",
   "start_url": "/",
@@ -9,8 +10,23 @@
   "theme_color": "#1f5d8b",
   "orientation": "portrait",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

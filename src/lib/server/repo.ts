@@ -34,6 +34,14 @@ export interface ProfileRow {
   name: string;
   title: string;
   summary: string;
+  /** Long-form statement of practice. Printed after the cover on export. */
+  philosophy: string;
+  /** How someone reaches you. Shown on the cover page. */
+  contactEmail: string;
+  contactPhone: string;
+  contactLocation: string;
+  /** Free text, one per line: a portfolio site, a professional profile. */
+  contactLinks: string;
   /**
    * When the picture was last replaced, or null when there is none. Read-only:
    * saveProfile does not touch it, and it doubles as the cache-buster on the
@@ -262,13 +270,23 @@ export class Repo {
 
   async profile(): Promise<ProfileRow> {
     const row = await this.db
-      .prepare(`SELECT name, title, summary, avatar_updated_at FROM profiles WHERE owner = ?1`)
+      .prepare(
+        `SELECT name, title, summary, philosophy,
+                contact_email, contact_phone, contact_location, contact_links,
+                avatar_updated_at
+           FROM profiles WHERE owner = ?1`,
+      )
       .bind(this.who.accountId)
       .first<Record<string, unknown>>();
     return {
       name: (row?.name as string) ?? '',
       title: (row?.title as string) ?? '',
       summary: (row?.summary as string) ?? '',
+      philosophy: (row?.philosophy as string) ?? '',
+      contactEmail: (row?.contact_email as string) ?? '',
+      contactPhone: (row?.contact_phone as string) ?? '',
+      contactLocation: (row?.contact_location as string) ?? '',
+      contactLinks: (row?.contact_links as string) ?? '',
       avatarUpdatedAt: (row?.avatar_updated_at as number | null) ?? null,
     };
   }
@@ -303,10 +321,26 @@ export class Repo {
       .prepare(
         // Only the cover fields are touched; deid_ack_at is a compliance
         // record and must survive a profile edit.
-        `INSERT INTO profiles (owner, name, title, summary) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(owner) DO UPDATE SET name = ?2, title = ?3, summary = ?4`,
+        `INSERT INTO profiles
+           (owner, name, title, summary, philosophy,
+            contact_email, contact_phone, contact_location, contact_links)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+         ON CONFLICT(owner) DO UPDATE SET
+           name = ?2, title = ?3, summary = ?4, philosophy = ?5,
+           contact_email = ?6, contact_phone = ?7,
+           contact_location = ?8, contact_links = ?9`,
       )
-      .bind(this.who.accountId, profile.name, profile.title, profile.summary)
+      .bind(
+        this.who.accountId,
+        profile.name,
+        profile.title,
+        profile.summary,
+        profile.philosophy,
+        profile.contactEmail,
+        profile.contactPhone,
+        profile.contactLocation,
+        profile.contactLinks,
+      )
       .run();
   }
 

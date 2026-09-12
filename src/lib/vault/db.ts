@@ -8,7 +8,16 @@
  */
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
 
-export const emptyProfile: VaultProfile = { name: '', title: '', summary: '' };
+export const emptyProfile: VaultProfile = {
+  name: '',
+  title: '',
+  summary: '',
+  philosophy: '',
+  contactEmail: '',
+  contactPhone: '',
+  contactLocation: '',
+  contactLinks: '',
+};
 
 /** Thrown when the API rejects a call; `status` lets the UI treat 401 specially. */
 export class ApiError extends Error {

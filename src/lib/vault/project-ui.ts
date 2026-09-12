@@ -20,7 +20,7 @@ import {
   updateProgramme,
   type Programme,
 } from './db';
-import { isComplete } from './dimensions';
+import { isComplete, missingDimensions } from './dimensions';
 import {
   currentWeek,
   elapsedFraction,
@@ -55,8 +55,11 @@ function shortDate(ms: number): string {
 let programme: Programme | undefined;
 let template: ProgrammeTemplate | undefined;
 let documents: VaultDocument[] = [];
+/** Needed by the Hub tab's outputs panel. */
+let deidAcknowledged = false;
 
 const TABS = [
+  { id: 'hub', label: 'Hub' },
   { id: 'checklist', label: 'Checklist' },
   { id: 'evidence', label: 'Evidence' },
   { id: 'context', label: 'Context' },
@@ -70,13 +73,13 @@ type TabId = (typeof TABS)[number]['id'];
  * survives a refresh — and so the browser's own back button works inside a
  * project, rather than throwing you out to the grid.
  */
-let tab: TabId = 'checklist';
+let tab: TabId = 'hub';
 
 const projectId = () => new URLSearchParams(window.location.search).get('id') ?? '';
 
 function readTab(): TabId {
   const raw = new URLSearchParams(window.location.search).get('tab');
-  return TABS.some((t) => t.id === raw) ? (raw as TabId) : 'checklist';
+  return TABS.some((t) => t.id === raw) ? (raw as TabId) : 'hub';
 }
 
 function setTab(next: TabId) {
@@ -374,6 +377,204 @@ function closureBlock(closed: boolean): string {
   </section>`;
 }
 
+interface Attention {
+  tone: 'critical' | 'caution' | 'muted';
+  title: string;
+  detail: string;
+  href: string;
+  action: string;
+}
+
+/**
+ * Unfinished business in THIS project, and only things that can reach zero.
+ * No completeness meter: a permanent nag is not a task.
+ *
+ * Scoped to the project on purpose. Averaged across every project these
+ * counts answered a question nobody asks — "how am I going overall" — while
+ * the one that matters is "what does this placement still need".
+ */
+function attentionItems(): Attention[] {
+  if (!programme) return [];
+  const items: Attention[] = [];
+  const records = assigned();
+  const closed = programme.closedAt !== null;
+
+  if (template && !closed) {
+    const elapsed = elapsedFraction(programme.startsOn, programme.endsOn);
+    const overdue = scoreProgramme(template, records, elapsed).filter((p) => p.overdue);
+    if (overdue.length > 0) {
+      items.push({
+        tone: 'critical',
+        title: `${overdue.length} checklist item${overdue.length === 1 ? '' : 's'} behind schedule`,
+        detail: `${overdue.map((p) => escapeHtml(p.item.label.toLowerCase())).slice(0, 2).join(', ')}.`,
+        href: `/project?id=${encodeURIComponent(programme.id)}&tab=checklist`,
+        action: 'Open',
+      });
+    }
+  }
+
+  const incomplete = records.filter((doc) => !isComplete(doc));
+  if (incomplete.length > 0) {
+    const gap = missingDimensions(incomplete[0]!)[0] ?? 'detail';
+    items.push({
+      tone: 'caution',
+      title: `${incomplete.length} record${incomplete.length === 1 ? '' : 's'} missing detail`,
+      detail: `Missing ${escapeHtml(gap)}. Left out of the data collection profile until it is filled in.`,
+      href: '/portfolio',
+      action: 'Review',
+    });
+  }
+
+  return items;
+}
+
+function attentionBlock(items: Attention[]): string {
+  if (items.length === 0) return '';
+
+  const rows = items
+    .map(
+      (item, index) => `<div class="flex items-start gap-3 border-t border-line py-3.5 ${index === items.length - 1 ? 'pb-0' : ''}">
+        <span class="mt-1.5 size-2 shrink-0 rounded-full ${
+          item.tone === 'critical' ? 'bg-critical' : item.tone === 'caution' ? 'bg-caution' : 'bg-taupe'
+        }"></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium">${escapeHtml(item.title)}</p>
+          <p class="prose-body mt-0.5 text-xs">${item.detail}</p>
+        </div>
+        <a href="${item.href}" class="shrink-0 self-center text-xs font-medium text-accent hover:underline">${escapeHtml(item.action)}</a>
+      </div>`,
+    )
+    .join('');
+
+  return `<section class="card p-6">
+    <div class="flex items-center gap-2.5 pb-1.5">
+      <h2 class="text-xl font-semibold">Needs attention</h2>
+      <span class="rounded-sm bg-caution-surface px-2 py-0.5 text-xs font-medium text-caution">${items.length}</span>
+    </div>
+    ${rows}
+  </section>`;
+}
+
+/** The last few things added to this project. */
+function recentBlock(): string {
+  const recent = [...assigned()].sort((a, b) => b.addedAt - a.addedAt).slice(0, 5);
+  if (recent.length === 0) return '';
+
+  const rows = recent
+    .map((doc, index) => {
+      return `<div class="flex flex-wrap items-center gap-3 border-t border-line py-3 ${index === recent.length - 1 ? 'pb-0' : ''}">
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
+          <p class="mt-0.5 text-xs text-ink-faint">
+            <span class="font-mono">${escapeHtml(shortDate(doc.addedAt))}</span>
+          </p>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-1.5">
+          ${
+            doc.programmes.length > 1
+              ? `<span class="rounded-sm bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">also in ${doc.programmes.length - 1} other</span>`
+              : ''
+          }
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  return `<section class="card p-6">
+    <div class="flex items-baseline justify-between gap-4 pb-1.5">
+      <h2 class="text-xl font-semibold">Recently captured</h2>
+      <a href="/portfolio" class="text-xs font-medium text-accent hover:underline">All artefacts</a>
+    </div>
+    ${rows}
+  </section>`;
+}
+
+/**
+ * What this project produces on export. A different template asks for
+ * different things, which is the point — this is where a project's own
+ * character shows.
+ */
+function outputsBlock(acknowledged: boolean): string {
+  // Bound locally: `programme` is a module-level `let`, so a narrowing check
+  // does not survive into the callback below.
+  const current = programme;
+  if (!current || !template) return '';
+
+  const rows: string[] = [];
+
+  if (template.contextFields.length > 0) {
+    const answered = template.contextFields.filter((f) => current.context[f.id]?.trim()).length;
+    const total = template.contextFields.length;
+    rows.push(
+      row(
+        answered === total,
+        'Context statement',
+        `${answered} of ${total} answered`,
+        `/project?id=${encodeURIComponent(current.id)}&tab=context`,
+        answered === total ? 'View' : 'Finish',
+      ),
+    );
+  }
+
+  const records = assigned();
+  const incomplete = records.filter((doc) => !isComplete(doc)).length;
+  rows.push(
+    row(
+      incomplete === 0 && records.length > 0,
+      'Data collection profile',
+      records.length === 0
+        ? 'Nothing assigned to this project yet'
+        : incomplete === 0
+          ? `${records.length} row${records.length === 1 ? '' : 's'}, all complete`
+          : `${incomplete} row${incomplete === 1 ? '' : 's'} incomplete`,
+      '/data-profile',
+      incomplete === 0 ? 'View' : 'Fix',
+    ),
+  );
+
+  rows.push(
+    row(acknowledged, 'De-identification', acknowledged ? 'Acknowledged' : 'Not acknowledged yet', '/portfolio', acknowledged ? '' : 'Read'),
+  );
+
+  return `<section class="card p-6">
+    <h2 class="text-lg font-semibold">What this project produces</h2>
+    ${rows.join('')}
+  </section>`;
+
+  function row(ok: boolean, title: string, detail: string, href: string, action: string): string {
+    return `<div class="flex items-center gap-3 border-t border-line py-3">
+      <span class="mt-0 size-2 shrink-0 rounded-full ${ok ? 'bg-positive' : 'bg-caution'}"></span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium">${escapeHtml(title)}</p>
+        <p class="text-xs text-ink-muted">${escapeHtml(detail)}</p>
+      </div>
+      ${action ? `<a href="${href}" class="shrink-0 text-xs font-medium text-accent hover:underline">${escapeHtml(action)}</a>` : ''}
+    </div>`;
+  }
+}
+
+/**
+ * Hub: what this project still needs, what went into it lately, and what it
+ * produces when exported.
+ *
+ * These three panels used to sit on Home, averaged across every project. That
+ * answered a question nobody asks. Here they answer the one that matters.
+ */
+function hubTab(): string {
+  const attention = attentionBlock(attentionItems());
+  const recent = recentBlock();
+  const outputs = outputsBlock(deidAcknowledged);
+
+  if (!attention && !recent && !outputs) {
+    return `<p class="prose-body text-sm">Nothing to report yet. Capture something and assign it here.</p>`;
+  }
+
+  return `<div class="grid gap-7 lg:grid-cols-[1.6fr_1fr]">
+    <div class="flex flex-col gap-5">${attention}${recent}</div>
+    <div class="flex flex-col gap-5">${outputs}</div>
+  </div>`;
+}
+
 function render() {
   const host = $('project');
   if (!host || !programme) return;
@@ -444,13 +645,15 @@ function render() {
 
     <div class="flex flex-col gap-5">
       ${
-        tab === 'checklist'
-          ? `${checklistBlock(closed)}${extraBlock(closed)}${suggestionBlock(closed)}`
-          : tab === 'evidence'
-            ? evidenceTab(closed)
-            : tab === 'context'
-              ? contextBlock()
-              : settingsTab(closed)
+        tab === 'hub'
+          ? hubTab()
+          : tab === 'checklist'
+            ? `${checklistBlock(closed)}${extraBlock(closed)}${suggestionBlock(closed)}`
+            : tab === 'evidence'
+              ? evidenceTab(closed)
+              : tab === 'context'
+                ? contextBlock()
+                : settingsTab(closed)
       }
     </div>`;
 }
@@ -460,6 +663,7 @@ function render() {
 async function refresh() {
   const [snapshot, programmeData] = await Promise.all([loadVault(), loadProgrammes()]);
   documents = snapshot.documents;
+  deidAcknowledged = snapshot.deidAcknowledged;
   programme = programmeData.programmes.find((p) => p.id === projectId());
   template = programme ? templateFor(programme.template) : undefined;
 }

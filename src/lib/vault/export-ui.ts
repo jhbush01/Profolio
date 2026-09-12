@@ -10,6 +10,7 @@
  */
 import {
   describeError,
+  emptyProfile,
   documentBytes,
   isAuthError,
   loadProgrammes,
@@ -41,7 +42,7 @@ function windowLabel(programme: Programme): string | null {
   return `${isoShortDate(programme.startsOn)} – ${isoShortDate(programme.endsOn)}`;
 }
 
-let profile: VaultProfile = { name: '', title: '', summary: '' };
+let profile: VaultProfile = emptyProfile;
 let folders: VaultFolder[] = [];
 let documents: VaultDocument[] = [];
 let programmes: Programme[] = [];

@@ -101,6 +101,71 @@ import PageHeader from '../components/PageHeader.astro';
       </div>
     </section>
 
+    <section class="card p-6">
+      <h2 class="text-base font-semibold">Teaching philosophy</h2>
+      <p class="prose-body mb-3 mt-1 text-xs">
+        Your statement of practice, in your own words. It follows the cover page on export.
+      </p>
+      <textarea
+        id="profile-philosophy"
+        rows="10"
+        placeholder="What you believe about teaching and learning, and how that shows up in your classroom."
+        class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed"></textarea>
+      <p class="prose-body mt-2 text-xs">
+        Nobody drafts this for you. It is the one part of a portfolio that has to be yours.
+      </p>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="text-base font-semibold">Contact details</h2>
+      <p class="prose-body mb-4 mt-1 text-xs">
+        Printed on the cover page so whoever reads your portfolio can reach you. All optional.
+      </p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">Email</span>
+          <input
+            id="contact-email"
+            type="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+            class="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">Phone</span>
+          <input
+            id="contact-phone"
+            type="tel"
+            autocomplete="tel"
+            placeholder="e.g. 0400 000 000"
+            class="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1.5 sm:col-span-2">
+          <span class="text-xs font-medium">Location</span>
+          <input
+            id="contact-location"
+            type="text"
+            placeholder="e.g. Brisbane, QLD"
+            class="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1.5 sm:col-span-2">
+          <span class="text-xs font-medium">Links</span>
+          <textarea
+            id="contact-links"
+            rows="3"
+            placeholder="One per line — a portfolio site, a professional profile."
+            class="rounded-lg border border-line bg-surface px-3 py-2 text-sm"></textarea>
+        </label>
+      </div>
+      <p class="prose-body mt-3 text-xs">
+        This is the one place in ProFolio where a real name and address belong. Everything you
+        upload still follows the de-identification rules.
+      </p>
+    </section>
+
     <section id="your-data" class="scroll-mt-24">
       <h2 class="text-lg font-semibold">Your data</h2>
       <p class="prose-body mt-1 text-sm">

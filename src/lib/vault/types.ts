@@ -51,6 +51,13 @@ export interface VaultProfile {
   name: string;
   title: string;
   summary: string;
+  /** Long-form statement of practice. */
+  philosophy: string;
+  contactEmail: string;
+  contactPhone: string;
+  contactLocation: string;
+  /** Free text, one per line. */
+  contactLinks: string;
   /**
    * When the profile picture was last replaced, or null when there is none.
    * Server-set: saving a profile never writes it. Appended to the picture's

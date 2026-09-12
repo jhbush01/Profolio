@@ -18,6 +18,7 @@ import {
   deleteDocument,
   deleteFolderDeep,
   documentBytes,
+  emptyProfile,
   loadProgrammes,
   loadVault,
   saveOrder,
@@ -44,7 +45,7 @@ const UNFILED = '__unfiled__';
 
 let folders: VaultFolder[] = [];
 let documents: VaultDocument[] = [];
-let profile: VaultProfile = { name: '', title: '', summary: '' };
+let profile: VaultProfile = emptyProfile;
 let selected: string = ALL;
 /** Free-text filter applied on top of the folder selection. */
 let search = '';

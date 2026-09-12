@@ -58,11 +58,22 @@ export async function initAccount() {
   const emailField = $('account-page-email');
   const usageField = $('account-usage');
 
+  const philosophyField = $<HTMLTextAreaElement>('profile-philosophy');
+  const contactEmailField = $<HTMLInputElement>('contact-email');
+  const contactPhoneField = $<HTMLInputElement>('contact-phone');
+  const contactLocationField = $<HTMLInputElement>('contact-location');
+  const contactLinksField = $<HTMLTextAreaElement>('contact-links');
+
   const persist = async () => {
     const next: VaultProfile = {
       name: nameField?.value ?? '',
       title: titleField?.value ?? '',
       summary: summaryField?.value ?? '',
+      philosophy: philosophyField?.value ?? '',
+      contactEmail: contactEmailField?.value ?? '',
+      contactPhone: contactPhoneField?.value ?? '',
+      contactLocation: contactLocationField?.value ?? '',
+      contactLinks: contactLinksField?.value ?? '',
     };
     await guard('Saving cover details', async () => {
       await saveProfile(next);
@@ -72,7 +83,16 @@ export async function initAccount() {
 
   // On `change`, not on every keystroke: a PUT per character is a lot of
   // writes to say the same thing.
-  for (const field of [nameField, titleField, summaryField]) {
+  for (const field of [
+    nameField,
+    titleField,
+    summaryField,
+    philosophyField,
+    contactEmailField,
+    contactPhoneField,
+    contactLocationField,
+    contactLinksField,
+  ]) {
     field?.addEventListener('change', persist);
   }
 
@@ -85,9 +105,18 @@ export async function initAccount() {
       return;
     await guard('Clearing', async () => {
       await clearAll();
-      if (nameField) nameField.value = '';
-      if (titleField) titleField.value = '';
-      if (summaryField) summaryField.value = '';
+      for (const field of [
+        nameField,
+        titleField,
+        summaryField,
+        philosophyField,
+        contactEmailField,
+        contactPhoneField,
+        contactLocationField,
+        contactLinksField,
+      ]) {
+        if (field) field.value = '';
+      }
       setStatus('Cleared.');
       await load();
     });
@@ -158,6 +187,11 @@ export async function initAccount() {
     if (nameField) nameField.value = snapshot.profile.name;
     if (titleField) titleField.value = snapshot.profile.title;
     if (summaryField) summaryField.value = snapshot.profile.summary;
+    if (philosophyField) philosophyField.value = snapshot.profile.philosophy;
+    if (contactEmailField) contactEmailField.value = snapshot.profile.contactEmail;
+    if (contactPhoneField) contactPhoneField.value = snapshot.profile.contactPhone;
+    if (contactLocationField) contactLocationField.value = snapshot.profile.contactLocation;
+    if (contactLinksField) contactLinksField.value = snapshot.profile.contactLinks;
     if (emailField) emailField.textContent = snapshot.signedInAs;
     showAvatar(snapshot.profile.avatarUpdatedAt ?? null, snapshot.profile.name, snapshot.signedInAs);
     if (usageField) {
