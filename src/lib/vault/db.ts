@@ -408,6 +408,26 @@ export interface Programme {
   /** Set while closed: nothing joins or leaves until it is reopened. */
   closedAt: number | null;
   reopenedAt: number | null;
+  /** When the cover image was last replaced, or null when there is none. */
+  imageUpdatedAt?: number | null;
+}
+
+/**
+ * Replaces a project's cover image. Cropped and resized in the browser first,
+ * like the profile picture, so a phone photo goes up as a modest square rather
+ * than a 12-megapixel portrait nobody will ever see at that size.
+ */
+export async function uploadProgrammeImage(
+  id: string,
+  file: File,
+): Promise<{ imageUpdatedAt: number }> {
+  const form = new FormData();
+  form.set('file', file);
+  return request(`/api/programmes/${id}/image`, { method: 'PUT', body: form });
+}
+
+export function removeProgrammeImage(id: string): Promise<unknown> {
+  return request(`/api/programmes/${id}/image`, { method: 'DELETE' });
 }
 
 export function loadProgrammes(): Promise<{ programmes: Programme[] }> {

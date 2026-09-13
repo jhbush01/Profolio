@@ -68,6 +68,8 @@ export interface ProgrammeRow {
   closedAt: number | null;
   /** Last time it was reopened, so a changed submission is traceable. */
   reopenedAt: number | null;
+  /** When the cover image was last replaced, or null when there is none. */
+  imageUpdatedAt: number | null;
 }
 
 /** Tolerates null and malformed JSON rather than failing a whole page load. */
@@ -722,7 +724,7 @@ export class Repo {
     const { results } = await this.db
       .prepare(
         `SELECT id, template, name, starts_on, ends_on, created_at, archived, context, report,
-                closed_at, reopened_at
+                closed_at, reopened_at, image_updated_at
            FROM programmes WHERE owner = ?1
           ORDER BY archived, created_at DESC`,
       )
@@ -741,7 +743,83 @@ export class Repo {
       report: parseContext(row.report),
       closedAt: (row.closed_at as number | null) ?? null,
       reopenedAt: (row.reopened_at as number | null) ?? null,
+      imageUpdatedAt: (row.image_updated_at as number | null) ?? null,
     }));
+  }
+
+  /* ------------------------------------------------------ project images */
+
+  /**
+   * A cover image for one project.
+   *
+   * Same shape as the profile picture — one object per replacement, the old one
+   * deleted after the row is repointed — and the same reason for the timestamp
+   * in the key: an object that is never overwritten in place cannot be served
+   * stale, whatever a cache believes.
+   */
+  async saveProgrammeImage(id: string, file: File): Promise<number> {
+    if (!(await this.ownsProgramme(id))) throw new HttpError(404, 'Project not found');
+    if (!file.type.startsWith('image/')) {
+      throw new HttpError(415, 'A project picture has to be an image');
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      throw new HttpError(413, `Pictures are limited to ${MAX_AVATAR_BYTES / (1024 * 1024)}MB`);
+    }
+
+    const previous = await this.programmeImageKey(id);
+    const updatedAt = Date.now();
+    const key = `${this.who.accountId}/project/${id}/${updatedAt}`;
+
+    await this.bucket.put(key, file.stream(), {
+      httpMetadata: { contentType: file.type },
+      customMetadata: { owner: this.who.accountId },
+    });
+
+    await this.db
+      .prepare(
+        `UPDATE programmes SET image_key = ?3, image_mime = ?4, image_updated_at = ?5
+          WHERE id = ?1 AND owner = ?2`,
+      )
+      .bind(id, this.who.accountId, key, file.type, updatedAt)
+      .run();
+
+    // After the row is repointed, so a failure here orphans an object rather
+    // than leaving the row pointing at bytes that are gone.
+    if (previous) await this.bucket.delete(previous);
+    return updatedAt;
+  }
+
+  async deleteProgrammeImage(id: string): Promise<void> {
+    if (!(await this.ownsProgramme(id))) throw new HttpError(404, 'Project not found');
+    const key = await this.programmeImageKey(id);
+    await this.db
+      .prepare(
+        `UPDATE programmes SET image_key = NULL, image_mime = NULL, image_updated_at = NULL
+          WHERE id = ?1 AND owner = ?2`,
+      )
+      .bind(id, this.who.accountId)
+      .run();
+    if (key) await this.bucket.delete(key);
+  }
+
+  async programmeImageBody(id: string): Promise<{ body: ReadableStream; mime: string } | null> {
+    const row = await this.db
+      .prepare(`SELECT image_key, image_mime FROM programmes WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.accountId)
+      .first<{ image_key: string | null; image_mime: string | null }>();
+    if (!row?.image_key) return null;
+
+    const object = await this.bucket.get(row.image_key);
+    if (!object?.body) return null;
+    return { body: object.body, mime: row.image_mime || 'application/octet-stream' };
+  }
+
+  private async programmeImageKey(id: string): Promise<string | null> {
+    const row = await this.db
+      .prepare(`SELECT image_key FROM programmes WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.accountId)
+      .first<{ image_key: string | null }>();
+    return row?.image_key ?? null;
   }
 
   async createProgramme(input: {
@@ -762,6 +840,7 @@ export class Repo {
       report: {},
       closedAt: null,
       reopenedAt: null,
+      imageUpdatedAt: null,
     };
 
     await this.db
@@ -909,6 +988,10 @@ export class Repo {
 
   /** Removes the programme and its assignments. Evidence itself is never touched. */
   async deleteProgramme(id: string): Promise<void> {
+    // The cover image is not in `documents`, so nothing else will ever find it.
+    // A bucket only forgets what something explicitly deletes.
+    const image = await this.programmeImageKey(id);
+
     // The assignments are deleted explicitly rather than left to the foreign
     // key: a stale join row would make documents report a programme that no
     // longer exists.
@@ -918,6 +1001,8 @@ export class Repo {
         .bind(id, this.who.accountId),
       this.db.prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`).bind(id, this.who.accountId),
     ]);
+
+    if (image) await this.bucket.delete(image);
   }
 
   async deleteDocument(id: string): Promise<void> {
@@ -997,6 +1082,13 @@ export class Repo {
     // what something explicitly deletes.
     const avatar = await this.avatarKey();
     if (avatar) keys.push(avatar);
+    // Project covers are the same case: their own objects, on programme rows
+    // that are about to be deleted.
+    const { results: covers } = await this.db
+      .prepare(`SELECT image_key FROM programmes WHERE owner = ?1 AND image_key IS NOT NULL`)
+      .bind(this.who.accountId)
+      .all<{ image_key: string }>();
+    keys.push(...covers.map((row) => row.image_key));
     if (keys.length > 0) await deleteObjects(this.bucket, keys);
     await this.db.batch([
       this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.accountId),
@@ -1101,6 +1193,14 @@ export class Repo {
       .bind(this.who.accountId)
       .first<{ avatar_key: string | null }>();
     return row?.avatar_key ?? null;
+  }
+
+  private async ownsProgramme(id: string): Promise<boolean> {
+    const row = await this.db
+      .prepare(`SELECT 1 AS ok FROM programmes WHERE id = ?1 AND owner = ?2`)
+      .bind(id, this.who.accountId)
+      .first<{ ok: number }>();
+    return Boolean(row);
   }
 
   private async ownsFolder(id: string): Promise<boolean> {

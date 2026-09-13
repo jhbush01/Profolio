@@ -22,8 +22,10 @@ import {
   loadVault,
   updateDocument,
   updateFolder,
+  removeProgrammeImage,
   updateProgramme,
   uploadFiles,
+  uploadProgrammeImage,
   type Programme,
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
@@ -601,6 +603,36 @@ function settingsTab(closed: boolean): string {
   if (!programme) return '';
 
   return `<div class="flex flex-col gap-5">
+    <section class="card p-6">
+      <h2 class="text-lg font-semibold">Cover image</h2>
+      <p class="prose-body mb-3 mt-1 text-xs">
+        Shown on the card for this project. Optional, and the only colour on a page of cards —
+        four placements with four pictures are four things; four without are four forms.
+      </p>
+      <div class="flex items-center gap-4">
+        <div class="flex h-20 w-36 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line-subtle bg-canvas text-xs text-ink-faint">
+          ${
+            programme.imageUpdatedAt
+              ? `<img src="/api/programmes/${encodeURIComponent(programme.id)}/image?v=${programme.imageUpdatedAt}"
+                   alt="" class="size-full object-cover" />`
+              : 'No image'
+          }
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <label class="pf-press cursor-pointer rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent">
+            ${programme.imageUpdatedAt ? 'Replace' : 'Choose image'}
+            <input type="file" accept="image/*" data-project-image class="sr-only" />
+          </label>
+          ${
+            programme.imageUpdatedAt
+              ? `<button type="button" data-remove-image
+                   class="pf-press rounded-md px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:text-critical">Remove</button>`
+              : ''
+          }
+        </div>
+      </div>
+    </section>
+
     <section class="card p-6">
       <h2 class="text-lg font-semibold">Window</h2>
       <p class="prose-body mb-3 mt-1 text-xs">
@@ -1352,6 +1384,30 @@ export async function initProject() {
 
   // The file picker, and dropping onto the zone. Both delegated, because the
   // Evidence tab is re-rendered wholesale after every change.
+  // The cover image, positioned in the same cropper the profile picture uses:
+  // a card is 16:7, so an uncropped phone photo would be a band across the
+  // middle of somebody's classroom with the useful part off-screen.
+  host.addEventListener('change', async (event) => {
+    const input = event.target as HTMLInputElement;
+    if (input.dataset?.projectImage === undefined || !programme) return;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    const { cropToSquare } = await import('./avatar-crop');
+    const square = await cropToSquare(file);
+    if (!square) {
+      setStatus('Image not changed.');
+      return;
+    }
+    await guard('Saving the image', async () => {
+      await uploadProgrammeImage(programme!.id, square);
+      await refresh();
+      render();
+      setStatus('Image saved.');
+    });
+  });
+
   host.addEventListener('change', (event) => {
     const input = event.target as HTMLInputElement;
     if (input.dataset?.upload === undefined) return;
@@ -1549,6 +1605,15 @@ export async function initProject() {
         row?.scrollIntoView({ block: 'center' });
       });
       return;
+    }
+
+    if (button.dataset.removeImage !== undefined) {
+      return guard('Removing the image', async () => {
+        await removeProgrammeImage(id);
+        await refresh();
+        render();
+        setStatus('Image removed.');
+      });
     }
 
     if (button.dataset.newFolder !== undefined) {

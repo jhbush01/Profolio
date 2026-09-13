@@ -70,8 +70,31 @@ export function projectCard(programme: Programme, documents: VaultDocument[]): s
     }
   }
 
+  /*
+   * Every card has a band, whether or not it has a picture.
+   *
+   * Two reasons. A grid where some cards carry an image and some do not is a
+   * grid of two different heights, and a row of cards that do not line up
+   * reads as broken rather than varied. And the fallback is where the colour
+   * comes from: a page of cream cards with one photograph on it looks like a
+   * mistake, where a page of cards each with its own tint looks designed.
+   *
+   * The tint is derived from the project's own id, so it is stable for the
+   * life of the project and two projects side by side are rarely the same.
+   */
+  const hue = [...programme.id].reduce((total, character) => total + character.charCodeAt(0), 0) % 360;
+  const cover = programme.imageUpdatedAt
+    ? `<img src="/api/programmes/${encodeURIComponent(programme.id)}/image?v=${programme.imageUpdatedAt}"
+         alt="" loading="lazy"
+         class="size-full object-cover ${resting ? 'opacity-70 saturate-50' : ''}" />`
+    : `<span aria-hidden="true" class="block size-full"
+         style="background:linear-gradient(135deg,
+           hsl(${hue} 32% ${resting ? 88 : 82}%),
+           hsl(${(hue + 40) % 360} 26% ${resting ? 93 : 90}%))"></span>`;
+
   return `<a href="/project?id=${encodeURIComponent(programme.id)}"
-    class="card flex flex-col p-0 transition hover:border-accent/40 hover:shadow-[0_4px_14px_rgba(77,51,22,0.08)]">
+    class="card flex flex-col overflow-hidden p-0 transition hover:border-accent/40 hover:shadow-[0_4px_14px_rgba(77,51,22,0.08)]">
+    <div class="aspect-[16/6] w-full overflow-hidden border-b border-line-subtle bg-canvas">${cover}</div>
     <!-- Fixed header height, so the rules line up across a row whether a
          title runs to one line or two. -->
     <div class="flex min-h-[6.25rem] items-start justify-between gap-3 border-b border-line-subtle px-5 py-4">
