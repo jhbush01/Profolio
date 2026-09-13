@@ -110,6 +110,21 @@ page — the evidence would have to be rasterised, losing its text and its
 selectability. Revisit only if an institution mandates .docx, and treat it as a
 second exporter rather than a replacement.
 
+**One export instead of two.** There are two, deliberately. `/showcase`
+renders a project as a page and prints through the browser: real typography,
+real page breaks, images at real resolution, recordings that play on screen and
+collapse to a line on paper. The pdf-lib bundle stays because it is the only
+one that can copy an uploaded PDF in page-for-page. The document is to be read;
+the bundle is to be submitted. Collapsing them loses one or the other.
+
+**A public shareable portfolio.** Asked for, and not built. A URL anyone can
+open is a URL behind which children's work sits, and PRODUCT.md rules that out
+flatly. It is a good product idea and a different product: it needs per-artefact
+opt-in with a default of off, revocation, expiry, and an explicit
+this-leaves-your-vault acknowledgement, and those need deciding before anything
+renders. `/showcase` is the same page minus the sharing, behind Access, and
+"Copy link" says so.
+
 **Video embedded in the export.** Not possible in practice. No PDF reader an
 assessor realistically uses will play an embedded movie, and shipping one that
 silently does nothing is worse than saying so. Recordings are stored, viewable
@@ -160,6 +175,26 @@ overall" — while the one that matters is "what does this placement still need"
 
 **A dashed 'start a project' tile in the project grid.** Removed. A tile that
 is not a project should not sit in the row of projects at project size.
+
+**A permanent "Drop files here" panel.** Removed from both browsers. It took a
+fifth of the screen on every visit to advertise a gesture that only exists on a
+desktop, while the button people actually press on a phone was nowhere. Dropping
+still works: the surrounding card is a silent target that reveals itself only
+while files are over it.
+
+**A tinted warning box on every incomplete record.** Fine on one row, unbearable
+on twenty — a folder of fresh uploads was a wall of orange until the warning
+meant nothing. A dot and a count, with the specifics one click away, and a
+filter that turns "which ones" into an answer.
+
+**Rendering the details panel for every row.** The APST picker at its full 37
+focus areas put 666 checkboxes on a page of eighteen files. A `<details>` hides
+its content; it does not avoid building it. Panel bodies are built on first
+open.
+
+**Capture as its own page.** It cost you whatever you were doing. It is an
+overlay now, on every page, and closing it returns you to the exact tab, folder
+and scroll position. `/capture` survives as a door for the home-screen shortcut.
 
 **A subtitle under every page heading.** Removed. A paragraph explaining what
 "Projects" means is a paragraph nobody reads twice and everybody scrolls past
