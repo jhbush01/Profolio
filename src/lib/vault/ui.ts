@@ -26,7 +26,15 @@ import {
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
 import { isComplete } from './dimensions';
-import { detailPanel, wireDetails } from './detail-panel';
+import { detailBody, detailPanel, wireDetails } from './detail-panel';
+import {
+  applyFilters,
+  filterBar,
+  filterFromEvent,
+  filterSummary,
+  NO_FILTERS,
+  type Filters,
+} from './filters';
 import {
   breadcrumbHtml,
   childFolders,
@@ -47,6 +55,8 @@ let profile: VaultProfile = emptyProfile;
 let cursor: string | null = null;
 /** Free-text filter applied on top of the folder selection. */
 let search = '';
+/** Faceted filters, applied on top of both. */
+let filters: Filters = { ...NO_FILTERS };
 let deidAcknowledged = false;
 /** Account storage allowance, from the last snapshot. */
 let storage: { usedBytes: number; limitBytes: number } | null = null;
@@ -80,9 +90,13 @@ function visibleDocuments(): VaultDocument[] {
   // folder you happen to have open is a search that cannot find anything you
   // have lost, which is the only reason to search.
   const needle = search.trim().toLowerCase();
-  const inFolder = needle
-    ? documents
-    : documents.filter((doc) => (doc.folderId ?? null) === cursor);
+  const narrowed = applyFilters(documents, filters);
+  // A filter, like a search, reaches across every folder: "show me what still
+  // needs detail" is not a question about the folder you happen to have open.
+  const inFolder =
+    needle || anyFilter()
+      ? narrowed
+      : narrowed.filter((doc) => (doc.folderId ?? null) === cursor);
   if (!needle) return inFolder;
 
   const programmeName = new Map(openProgrammes.map((p) => [p.id, p.name.toLowerCase()]));
@@ -97,6 +111,10 @@ function visibleDocuments(): VaultDocument[] {
       .toLowerCase()
       .includes(needle),
   );
+}
+
+function anyFilter(): boolean {
+  return Object.values(filters).some(Boolean);
 }
 
 function folderPath(id: string | null): string {
@@ -148,9 +166,15 @@ function renderDocuments() {
   const crumbs = $('folder-crumbs');
   if (crumbs) crumbs.innerHTML = breadcrumbHtml(folders, cursor, 'All artefacts');
 
-  const searching = search.trim().length > 0;
+  const bar = $('filter-bar');
+  if (bar) bar.innerHTML = filterBar(documents, filters);
+
+  const searching = search.trim().length > 0 || anyFilter();
   const items = visibleDocuments();
   const subfolders = searching ? [] : childFolders(folders, cursor);
+
+  const summary = $('filter-summary');
+  if (summary) summary.textContent = filterSummary(items.length, documents.length, filters);
 
   if (items.length === 0 && subfolders.length === 0) {
     host.innerHTML = `<p class="rounded-lg border border-dashed border-line bg-canvas px-4 py-8 text-center text-sm text-ink-muted">
@@ -191,7 +215,7 @@ function artefactRow(doc: VaultDocument, searching: boolean): string {
       <button type="button" data-delete-doc="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}"
         class="shrink-0 rounded p-1 text-xs text-ink-faint hover:text-critical">✕</button>
     </div>
-    ${detailPanel(doc, { programmes: openProgrammes, folders })}
+    ${detailPanel(doc)}
   </li>`;
 }
 
@@ -409,6 +433,16 @@ export async function initVault() {
   const documentList = $('document-list');
   if (documentList) wireViewer(documentList, (id) => documents.find((doc) => doc.id === id));
 
+  const onFilter = (event: Event) => {
+    const next = filterFromEvent(event, filters);
+    if (!next) return;
+    filters = next;
+    renderDocuments();
+    renderPendingCount();
+  };
+  $('filter-bar')?.addEventListener('click', onFilter);
+  $('filter-bar')?.addEventListener('change', onFilter);
+
   $<HTMLInputElement>('doc-search')?.addEventListener('input', (event) => {
     search = (event.target as HTMLInputElement).value;
     renderDocuments();
@@ -504,6 +538,7 @@ export async function initVault() {
         await refresh();
       },
       programmes: () => openProgrammes,
+      body: (doc) => detailBody(doc, { programmes: openProgrammes, folders }),
     });
   }
 

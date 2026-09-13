@@ -145,6 +145,42 @@
     display: block;
   }
 
+  /*
+   * Press feedback.
+   *
+   * A tap with no reaction reads as a tap that did not land, and on a phone —
+   * where there is no hover state to tell you the control noticed you — that
+   * is the whole of the feedback the interface can give before the network
+   * answers. 60ms, because anything slower feels like lag rather than touch.
+   */
+  .pf-press {
+    transition:
+      transform 60ms ease-out,
+      filter 60ms ease-out;
+  }
+
+  .pf-press:active {
+    transform: scale(0.96);
+    filter: brightness(0.94);
+  }
+
+  /* Big thumb targets compress less: the same 4% on a 56px button looks like
+     a lurch, where on a 36px chip it is barely a nudge. */
+  .pf-press-lg:active {
+    transform: scale(0.975);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pf-press,
+    .pf-press-lg {
+      transition: none;
+    }
+    .pf-press:active,
+    .pf-press-lg:active {
+      transform: none;
+    }
+  }
+
   /* The one measure every band of the page agrees on: top bar, content and
      footer all sit on it, so their left edges line up down the whole screen.
      Width comes from --pf-shell on <body> rather than a class per band, so a

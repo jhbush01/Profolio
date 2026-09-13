@@ -14,10 +14,16 @@ export interface Standard {
   code: string;
   /** Top-level grouping, e.g. "Professional Practice". */
   domain: string;
-  /** Short focus-area label. */
+  /** Short focus-area label. This is what a person recognises; always present. */
   focus: string;
-  /** Full descriptor text. */
-  descriptor: string;
+  /**
+   * Full descriptor text, where we hold it verbatim.
+   *
+   * Optional on purpose. A descriptor a candidate will cite in a submission is
+   * not something to paraphrase from memory, so a focus area we do not have
+   * the exact wording for carries its title and nothing else.
+   */
+  descriptor?: string;
 }
 
 /** One phase of the sequence — a week, in the teaching MVP. */

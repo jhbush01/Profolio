@@ -52,13 +52,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   </section>
 
   <div class="mb-5 flex flex-wrap items-center gap-2">
-    <button id="add-files" type="button" disabled class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
-      Add files
+    <button id="add-files" type="button" disabled class="pf-press rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+      Upload
     </button>
-    <button id="new-folder" type="button" class="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
+    <button id="new-folder" type="button" class="pf-press rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
       New folder
     </button>
-    <button id="export-pdf" type="button" disabled class="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50">
+    <button id="export-pdf" type="button" disabled class="pf-press rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50">
       Export PDF
     </button>
     <p id="export-status" role="status" aria-live="polite" class="text-xs text-ink-muted"></p>
@@ -77,14 +77,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <p id="search-summary" class="mt-1.5 text-xs text-ink-muted"></p>
   </div>
 
-  <!-- Scoped drop target. Never the whole window: an overlay that appeared on
-       any drag, including a drag inside the page, had no way out. -->
-  <div
-    data-drop
-    class="mb-5 rounded-lg border border-dashed border-line bg-canvas px-4 py-4 text-center text-sm text-ink-muted transition"
-  >
-    Drop files here
-  </div>
+  <!-- Filled by the controller: the unfinished toggle and three facets. -->
+  <div id="filter-bar" class="mb-3"></div>
+  <p id="filter-summary" class="mb-3 text-xs text-ink-muted"></p>
 
   <section class="card p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">

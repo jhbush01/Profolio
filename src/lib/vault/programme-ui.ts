@@ -134,12 +134,31 @@ function renderProgrammes() {
     ${body}`;
 }
 
+/**
+ * Templates you have not started yet.
+ *
+ * A template already in use drops off the list. The picker is an answer to
+ * "what else could I be collecting for", and a card saying "Start this" under
+ * a project you are already three weeks into is an invitation to make a
+ * duplicate — which is a real hazard here, because two final placements with
+ * the same name and different evidence is a mess that takes an export to spot.
+ *
+ * Starting a second one of the same kind is still possible and sometimes
+ * right — two placements in two years — it is just not the thing this list is
+ * for. That lives behind "Start another" below, where the consequence is
+ * visible.
+ */
 function renderTemplates() {
   const host = $('template-list');
   if (!host) return;
 
-  host.innerHTML = TEMPLATES.map(
-    (template) => `<article class="card flex flex-col gap-2">
+  // Archived projects still count as started: the template is in your history
+  // whether or not it is on your screen.
+  const used = new Set(programmes.map((programme) => programme.template));
+  const fresh = TEMPLATES.filter((template) => !used.has(template.key));
+  const started = TEMPLATES.filter((template) => used.has(template.key));
+
+  const card = (template: (typeof TEMPLATES)[number], again: boolean) => `<article class="card flex flex-col gap-2">
       <h3 class="text-base font-semibold">${escapeHtml(template.name)}</h3>
       <p class="prose-body text-sm">${escapeHtml(template.tagline)}</p>
       <p class="text-xs text-ink-muted">${escapeHtml(template.audience)}</p>
@@ -149,10 +168,29 @@ function renderTemplates() {
       <button
         type="button"
         data-start="${template.key}"
-        class="mt-auto rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
-      >Start this</button>
-    </article>`,
-  ).join('');
+        class="pf-press mt-auto rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+          again
+            ? 'border border-line bg-surface text-ink-muted hover:border-accent/40 hover:text-accent'
+            : 'bg-accent text-white hover:opacity-90'
+        }"
+      >${again ? 'Start another' : 'Start this'}</button>
+    </article>`;
+
+  host.innerHTML =
+    fresh.length === 0 && started.length === 0
+      ? ''
+      : `${fresh.map((template) => card(template, false)).join('')}${
+          started.length > 0
+            ? `<details class="sm:col-span-2">
+                 <summary class="cursor-pointer text-xs text-ink-muted transition hover:text-ink">
+                   Start another of a kind you already have
+                 </summary>
+                 <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                   ${started.map((template) => card(template, true)).join('')}
+                 </div>
+               </details>`
+            : ''
+        }`;
 }
 
 /* --------------------------------------------------------------- wiring */
@@ -161,12 +199,14 @@ async function refresh() {
   const [programmeData, vault] = await Promise.all([loadProgrammes(), loadVault()]);
   programmes = programmeData.programmes;
   documents = vault.documents;
+  // After the load, not before: which templates are already in use is the
+  // whole point of the list and it is unknown until the projects arrive.
+  renderTemplates();
   renderProgrammes();
 }
 
 export async function initProgrammes() {
   state = readState();
-  renderTemplates();
 
   $('programme-list')?.addEventListener('click', (event) => {
     const next = (event.target as HTMLElement).closest<HTMLElement>('[data-state]')?.dataset.state;

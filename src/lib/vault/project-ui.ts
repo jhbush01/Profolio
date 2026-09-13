@@ -27,13 +27,22 @@ import {
   type Programme,
 } from './db';
 import { describeFindings, scanFiles } from './deidentify';
-import { detailPanel, wireDetails } from './detail-panel';
+import { detailBody, detailPanel, wireDetails } from './detail-panel';
+import { breadcrumbTrail } from './file-browser';
+import {
+  applyFilters,
+  anyActive,
+  filterBar,
+  filterFromEvent,
+  filterSummary,
+  NO_FILTERS,
+  type Filters,
+} from './filters';
 import { isComplete, missingDimensions } from './dimensions';
 import {
   breadcrumbHtml,
-  breadcrumbTrail,
   childFolders,
-  dropZone,
+  uploadButton,
   fileRow,
   folderCounts,
   folderRow,
@@ -125,6 +134,19 @@ let tab: TabId = 'hub';
  */
 let folderCursor: string | null = null;
 
+/** Faceted filters on the Evidence tab. Not in the URL: a filter is a glance. */
+let filters: Filters = { ...NO_FILTERS };
+
+/**
+ * Report headings currently expanded.
+ *
+ * Null until the tab is first rendered, at which point it seeds itself with the
+ * heading you are most likely to be working on rather than opening everything
+ * or nothing. After that it is whatever the user has clicked.
+ */
+let openHeadings = new Set<string>();
+let headingsSeeded = false;
+
 const projectId = () => new URLSearchParams(window.location.search).get('id') ?? '';
 
 function readFolder(): string | null {
@@ -156,6 +178,37 @@ function setTab(next: TabId) {
 
 function assigned(): VaultDocument[] {
   return programme ? documents.filter((doc) => doc.programmes.includes(programme!.id)) : [];
+}
+
+/**
+ * Extends the header trail with what only this page knows.
+ *
+ * The server renders "Home / Projects" from the path. The project's name, the
+ * open tab and the open folder live in state and in the query string, and they
+ * are the segments that actually tell you where you are.
+ */
+function renderTrail() {
+  const host = document.getElementById('trail-extra');
+  if (!host || !programme) return;
+
+  const base = `/project?id=${encodeURIComponent(programme.id)}`;
+  const crumbs: { href: string; label: string }[] = [
+    { href: `${base}&tab=hub`, label: programme.name },
+    { href: `${base}&tab=${tab}`, label: TABS.find((t) => t.id === tab)?.label ?? '' },
+  ];
+
+  if (tab === 'evidence' && folderCursor) {
+    for (const folder of breadcrumbTrail(folders, folderCursor)) {
+      crumbs.push({ href: `${base}&tab=evidence&folder=${folder.id}`, label: folder.name });
+    }
+  }
+
+  host.innerHTML = crumbs
+    .map(
+      (crumb) => `<span aria-hidden="true">/</span>
+        <a href="${crumb.href}" class="shrink-0 truncate rounded px-1 transition hover:text-accent">${escapeHtml(crumb.label)}</a>`,
+    )
+    .join('');
 }
 
 function setStatus(message: string, busy = false) {
@@ -465,15 +518,16 @@ function browserOptions(closed: boolean): BrowserOptions {
 function evidenceTab(closed: boolean): string {
   const options = browserOptions(closed);
   const records = options.scoped;
-  const here = records
-    .filter((doc) => (doc.folderId ?? null) === folderCursor)
-    .sort((a, b) => b.addedAt - a.addedAt);
-  const subfolders = childFolders(folders, folderCursor);
-  const incomplete = records.filter((doc) => !isComplete(doc)).length;
-  const where = folderCursor
-    ? breadcrumbTrail(folders, folderCursor).at(-1)?.name ?? 'this folder'
-    : 'this project';
 
+  // Filtering reaches across the project's folders, for the same reason search
+  // does: "which of these still need detail" is not a question about the
+  // folder that happens to be open.
+  const filtering = anyActive(filters);
+  const matched = applyFilters(records, filters);
+  const here = (filtering ? matched : matched.filter((doc) => (doc.folderId ?? null) === folderCursor))
+    .slice()
+    .sort((a, b) => b.addedAt - a.addedAt);
+  const subfolders = filtering ? [] : childFolders(folders, folderCursor);
   // Records with a stage set but no folder — captured before this project had
   // automatic filing, or filed nowhere because nothing had a rule yet. Offered
   // rather than done: moving somebody's files without asking is rude, even when
@@ -485,8 +539,6 @@ function evidenceTab(closed: boolean): string {
     : 0;
 
   return `<div class="flex flex-col gap-5">
-    ${dropZone(where, closed, deidAcknowledged)}
-
     ${
       filable > 0 && !closed
         ? `<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-canvas px-4 py-3">
@@ -499,7 +551,9 @@ function evidenceTab(closed: boolean): string {
         : ''
     }
 
-    <section class="card p-6">
+    <!-- The card itself is the drop target. Silent until files are actually
+         dragged over it; see uploadButton() for why the dashed panel went. -->
+    <section data-drop class="card p-6 transition">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <nav class="-ml-1 flex flex-wrap items-center gap-1 text-sm text-ink-muted" aria-label="Folder">
           ${breadcrumbHtml(folders, folderCursor, 'All evidence')}
@@ -507,30 +561,34 @@ function evidenceTab(closed: boolean): string {
         ${
           closed
             ? ''
-            : `<button type="button" data-new-folder
-                 class="rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent">New folder</button>`
+            : `<div class="flex items-center gap-2">
+                 ${uploadButton(closed, deidAcknowledged)}
+                 <button type="button" data-new-folder
+                   class="pf-press rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent/40 hover:text-accent">New folder</button>
+               </div>`
         }
       </div>
 
-      <p class="prose-body mt-1 text-xs">
-        ${records.length} record${records.length === 1 ? '' : 's'}${
-          incomplete > 0 ? ` · <span class="text-caution">${incomplete} need detail</span>` : ''
-        }
+      <div class="mt-3">${filterBar(records, filters)}</div>
+      <p class="mt-2 text-xs text-ink-muted">
+        ${filtering ? escapeHtml(filterSummary(here.length, records.length, filters)) : `${records.length} record${records.length === 1 ? '' : 's'}`}
       </p>
 
       ${
         subfolders.length === 0 && here.length === 0
           ? `<p class="mt-4 rounded-md border border-dashed border-line bg-canvas px-4 py-6 text-center text-sm text-ink-muted">
                ${
-                 folderCursor === null
-                   ? 'Nothing filed here yet.'
-                   : 'This folder holds nothing from this project.'
+                 filtering
+                   ? 'Nothing matches these filters.'
+                   : folderCursor === null
+                     ? 'Nothing filed here yet.'
+                     : 'This folder holds nothing from this project.'
                }
              </p>`
           : `<ul class="mt-3">${subfolders
               .map((folder) => folderRow(options, folder))
               .join('')}${here
-              .map((doc) => fileRow(doc, closed, detailPanel(doc, { programmes: openProjects(), folders })))
+              .map((doc) => fileRow(doc, closed, detailPanel(doc)))
               .join('')}</ul>`
       }
     </section>
@@ -927,6 +985,15 @@ function reportTab(closed: boolean): string {
   const answers = programme.report ?? {};
   const outline = outlineFor(template);
 
+  if (!headingsSeeded) {
+    headingsSeeded = true;
+    // The last heading with writing in it, because that is where you stopped.
+    // Failing that the first, because a page of shut drawers is a dead end.
+    const written = outline.filter((heading) => writtenFor(answers, heading).trim());
+    const landing = written.at(-1) ?? outline[0];
+    if (landing) openHeadings.add(landing.id);
+  }
+
   const blocks = outline
     .map((heading, index) => headingBlock(heading, index, records, answers, closed))
     .join('');
@@ -990,9 +1057,18 @@ function headingBlock(
         ? `${words} word${words === 1 ? '' : 's'} written`
         : '';
 
-  return `<section class="card p-6">
-    <div class="flex flex-wrap items-baseline justify-between gap-3">
-      <h2 class="text-lg font-semibold">
+  // Collapsible, and open by default only where there is work in progress.
+  // 4,000 words across six practices is not a page you scroll — it is six
+  // pages you visit one at a time, and the writing gets better when the other
+  // five are not in your peripheral vision.
+  const open = openHeadings.has(heading.id);
+
+  return `<section class="card p-0">
+    <button type="button" data-heading="${escapeHtml(heading.id)}"
+      aria-expanded="${open}"
+      class="flex w-full flex-wrap items-baseline justify-between gap-3 p-6 text-left transition hover:bg-canvas/50">
+      <h2 class="flex items-baseline gap-2 text-lg font-semibold">
+        <span aria-hidden="true" class="font-mono text-sm font-normal text-ink-faint">${open ? '▾' : '▸'}</span>
         <span class="font-mono text-sm font-normal text-ink-faint">${index + 1}.</span>
         ${escapeHtml(heading.title)}
       </h2>
@@ -1001,8 +1077,10 @@ function headingBlock(
           counter && items.length > 0 ? ' · ' : ''
         }<span data-count="${escapeHtml(heading.id)}">${counter}</span>
       </p>
-    </div>
-    ${heading.blurb ? `<p class="prose-body mt-1 text-xs">${escapeHtml(heading.blurb)}</p>` : ''}
+    </button>
+
+    <div class="px-6 pb-6" ${open ? '' : 'hidden'}>
+    ${heading.blurb ? `<p class="prose-body -mt-2 text-xs">${escapeHtml(heading.blurb)}</p>` : ''}
 
     ${heading.includesContext ? contextFieldsBlock(closed) : ''}
 
@@ -1049,12 +1127,15 @@ function headingBlock(
         closed ? 'cursor-not-allowed opacity-70' : ''
       }"
     >${escapeHtml(written)}</textarea>
+    </div>
   </section>`;
 }
 
 function render() {
   const host = $('project');
   if (!host || !programme) return;
+
+  renderTrail();
 
   const closed = programme.closedAt !== null;
   const records = assigned();
@@ -1221,6 +1302,7 @@ export async function initProject() {
       render();
     },
     programmes: openProjects,
+    body: (doc) => detailBody(doc, { programmes: openProjects(), folders }),
   });
 
   // The file picker, and dropping onto the zone. Both delegated, because the
@@ -1239,19 +1321,30 @@ export async function initProject() {
   host.addEventListener('dragover', (event) => {
     const target = zone(event);
     if (!target) return;
+    // Files only. A drag carrying text or an element is not an upload.
+    if (!(event as DragEvent).dataTransfer?.types.includes('Files')) return;
     event.preventDefault();
-    target.classList.add('border-accent', 'bg-accent-soft');
+    target.classList.add('ring-2', 'ring-accent', 'ring-offset-2');
   });
   host.addEventListener('dragleave', (event) => {
-    zone(event)?.classList.remove('border-accent', 'bg-accent-soft');
+    zone(event)?.classList.remove('ring-2', 'ring-accent', 'ring-offset-2');
   });
   host.addEventListener('drop', (event) => {
     const target = zone(event);
     if (!target) return;
     event.preventDefault();
-    target.classList.remove('border-accent', 'bg-accent-soft');
+    target.classList.remove('ring-2', 'ring-accent', 'ring-offset-2');
     void receiveFiles(Array.from((event as DragEvent).dataTransfer?.files ?? []));
   });
+
+  const onFilter = (event: Event) => {
+    const next = filterFromEvent(event, filters);
+    if (!next) return;
+    filters = next;
+    render();
+  };
+  host.addEventListener('click', onFilter);
+  host.addEventListener('change', onFilter);
 
   // The word count keeps up as you type. A count that only appears after you
   // click away is no use to somebody trying to land inside a required range.
@@ -1387,6 +1480,14 @@ export async function initProject() {
         render();
         setStatus(`Filed ${pending.length} file${pending.length === 1 ? '' : 's'}.`);
       });
+    }
+
+    const heading = button.dataset.heading;
+    if (heading) {
+      if (openHeadings.has(heading)) openHeadings.delete(heading);
+      else openHeadings.add(heading);
+      render();
+      return;
     }
 
     const fix = button.dataset.fix;

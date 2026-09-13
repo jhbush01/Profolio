@@ -83,10 +83,50 @@ const primaryActive = (link: { href: string; also?: string[] }) =>
     ? path === '/'
     : path.startsWith(link.href) || (link.also ?? []).some((p) => path.startsWith(p));
 
-// Every page but the ProFolio itself is somewhere you came from somewhere.
-// A link rather than history.back(), which sends a deep link or a refreshed
-// tab out of the app entirely.
-const showBack = path !== '/';
+/**
+ * Where you are, as a trail you can click back through.
+ *
+ * One back arrow can only ever undo one step, and inside a project — three
+ * tabs and two folders deep — the step it undoes is rarely the one you want.
+ * A trail says where you are and lets you leave from any point in it.
+ *
+ * Built from the path here, and extended client-side by pages that know more
+ * than the URL does (a project's name, the open tab, the open folder). Server
+ * side it is honest about what it knows and nothing more.
+ */
+const TRAIL_NAMES: Record<string, string> = {
+  '/': 'Home',
+  '/programmes': 'Projects',
+  '/project': 'Projects',
+  '/portfolio': 'All Artefacts',
+  '/capture': 'Capture',
+  '/export': 'Export',
+  '/pedagogy': 'My pedagogy',
+  '/account': 'Account',
+  '/privacy': 'Privacy',
+  '/data-profile': 'Data collection profile',
+  '/standards': `${portfolio.framework} alignment`,
+  '/sequence': 'A teaching sequence',
+  '/present': 'Presentation mode',
+};
+
+const root = `/${path.split('/').filter(Boolean)[0] ?? ''}`;
+const here = TRAIL_NAMES[root];
+
+// The trail starts at Home unless you are on it. A project page adds its own
+// segments from the client, so this is the part the server can be sure of.
+const trail =
+  path === '/'
+    ? []
+    : [
+        { href: '/', label: 'Home' },
+        ...(here ? [{ href: root === '/project' ? '/programmes' : root, label: here }] : []),
+      ];
+
+// The arrow is for the flat pages, where "back" means one thing: Home. Inside a
+// project the trail does the job and an arrow beside it is a second, worse
+// answer to the same question.
+const showBack = path !== '/' && !path.startsWith('/project');
 ---
 
 <header class="no-print sticky top-0 z-30 border-b border-line-subtle bg-paper/90 backdrop-blur">
@@ -150,10 +190,31 @@ const showBack = path !== '/';
         point. It is identity here, not navigation: the nav row and the Home
         link already go home, and a third link to the same place is noise. */}
     <div class="ml-auto flex items-center gap-3">
-      <span class="hidden font-display text-base font-normal sm:inline">Profolio</span>
+      {/* Shown at every width now. On a phone the bar was a hamburger, a back
+          arrow and a large gap, which reads as a page that failed to load. */}
+      <span class="font-display text-base font-normal">Profolio</span>
       <AccountMenu />
     </div>
   </div>
+
+  {
+    trail.length > 0 && (
+      <div class="border-t border-line-subtle/60">
+        <nav class="pf-shell flex items-center gap-1 overflow-x-auto py-1.5 text-[0.7rem] text-ink-faint" aria-label="Breadcrumb">
+          {trail.map((crumb, index) => (
+            <>
+              {index > 0 && <span aria-hidden="true">/</span>}
+              <a href={crumb.href} class="shrink-0 rounded px-1 transition hover:text-accent">
+                {crumb.label}
+              </a>
+            </>
+          ))}
+          {/* Pages that know more than the path extend this. */}
+          <span id="trail-extra" class="flex items-center gap-1"></span>
+        </nav>
+      </div>
+    )
+  }
 </header>
 
 <!-- Overlay + drawer. `hidden` is toggled by the script; CSS handles the slide. -->

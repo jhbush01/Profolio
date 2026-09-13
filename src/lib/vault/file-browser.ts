@@ -178,40 +178,32 @@ export function fileRow(
 }
 
 /**
- * The drop target.
+ * The Upload control.
  *
- * Scoped to its own box, never the whole window. A full-page overlay that
- * appeared on any drag — including dragging a row to reorder it — was the app
- * fighting the user: it covered the page, it had no way out, and it fired on a
- * gesture that had nothing to do with uploading.
+ * Replaced a permanent dashed "Drop files here" panel. That panel sat above
+ * every folder on every visit, taking a fifth of the screen to advertise a
+ * gesture that only exists on a desktop — while the button that actually gets
+ * used on a phone was nowhere.
+ *
+ * Dropping still works. The surrounding card is a silent drop target that only
+ * shows itself while files are actually being dragged over it, so the
+ * affordance appears exactly when it is true and never otherwise.
  */
-export function dropZone(where: string, frozen: boolean, acknowledged: boolean): string {
-  if (frozen) {
-    return `<p class="rounded-lg border border-dashed border-line bg-canvas px-4 py-3 text-xs text-ink-muted">
-      This project is closed. Reopen it in Settings to add files.
-    </p>`;
-  }
+export function uploadButton(frozen: boolean, acknowledged: boolean): string {
+  if (frozen) return '';
 
   if (!acknowledged) {
-    return `<div class="rounded-lg border border-dashed border-caution bg-caution-surface px-4 py-3">
-      <p class="text-xs text-caution">
-        Read and accept the de-identification notice before your first upload.
-      </p>
-      <a href="/capture" class="mt-2 inline-block text-xs font-medium text-accent hover:underline">Read it</a>
-    </div>`;
+    return `<a href="/capture"
+      class="pf-press rounded-md border border-caution/40 bg-caution-surface px-3 py-1.5 text-xs font-medium text-caution transition">
+      Read the privacy notice to upload
+    </a>`;
   }
 
-  return `<div data-drop
-    class="rounded-lg border border-dashed border-line bg-canvas px-4 py-5 text-center transition">
-    <p class="text-sm font-medium">Drop files here</p>
-    <p class="prose-body mx-auto mt-1 max-w-[46ch] text-xs">
-      Any number, any type, straight into ${escapeHtml(where)}.
-    </p>
-    <label class="mt-3 inline-block cursor-pointer rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
-      Choose files
-      <input type="file" multiple data-upload class="sr-only" />
-    </label>
-  </div>`;
+  return `<label
+    class="pf-press inline-flex cursor-pointer items-center rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white transition hover:opacity-90">
+    Upload
+    <input type="file" multiple data-upload class="sr-only" />
+  </label>`;
 }
 
 /**

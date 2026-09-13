@@ -24,7 +24,13 @@ import {
 import { childFolders, escapeHtml } from './file-browser';
 import type { VaultDocument, VaultFolder } from './types';
 
-const STANDARDS = standardsJson as Array<{ code: string; focus: string; domain: string }>;
+const STANDARDS = standardsJson as Array<{
+  code: string;
+  focus: string;
+  domain: string;
+  /** Present only where the verbatim wording is held; see src/types.ts. */
+  descriptor?: string;
+}>;
 
 type Option = { readonly value: string; readonly label: string };
 
@@ -79,20 +85,27 @@ function programmeChips(doc: VaultDocument, programmes: Programme[]): string {
 }
 
 /**
- * The summary line, which is the bit you see when the panel is shut.
+ * The one line you see when the panel is shut.
  *
- * It names what is missing rather than saying "incomplete", because the gap is
- * the actionable part: "missing purpose, standards" tells you what to do, and a
- * count tells you only that there is something to do.
+ * Quiet on purpose. This was a tinted box with a caution border and a sentence
+ * naming every missing field, which is fine on one row and unbearable on
+ * twenty — a folder of new uploads became a wall of orange, and the warning
+ * stopped meaning anything because everything was warning.
+ *
+ * So: a small dot and a count. The dot carries the state at a glance, the
+ * count says how much work, and the specifics are one click away where they
+ * are actionable rather than decorative. The page-level filter is what turns
+ * "which ones" into a real answer.
  */
 function summaryLine(doc: VaultDocument): string {
   const gaps = missingDimensions(doc);
   if (gaps.length === 0) {
-    return `<span class="text-positive" aria-hidden="true">●</span>
-      <span class="text-ink-muted">Details complete</span>`;
+    return `<span class="size-1.5 shrink-0 rounded-full bg-positive" aria-hidden="true"></span>
+      <span class="text-ink-faint">Details</span>`;
   }
-  return `<span class="text-caution" aria-hidden="true">▲</span>
-    <span class="text-caution">Missing ${escapeHtml(gaps.join(', '))}</span>`;
+  return `<span class="size-1.5 shrink-0 rounded-full bg-caution" aria-hidden="true"></span>
+    <span class="text-ink-muted">Details</span>
+    <span class="text-ink-faint">· ${gaps.length} to fill in</span>`;
 }
 
 export interface PanelOptions {
@@ -102,23 +115,73 @@ export interface PanelOptions {
   folders?: VaultFolder[];
 }
 
-/** The panel, collapsed by default so a folder of thirty files is thirty lines. */
-export function detailPanel(doc: VaultDocument, options: PanelOptions): string {
-  const standardChips = STANDARDS.map(
-    (standard) => `<label
-        title="${escapeHtml(standard.focus)}"
-        class="cursor-pointer rounded-sm border border-line px-2 py-0.5 font-mono text-[0.7rem] text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:font-medium has-[:checked]:text-accent"
-      >
-        <input
-          type="checkbox"
-          data-standard="${doc.id}"
-          value="${standard.code}"
-          ${doc.standards.includes(standard.code) ? 'checked' : ''}
-          class="sr-only"
-        />${standard.code}
-      </label>`,
-  ).join('');
+/**
+ * The APST picker.
+ *
+ * It used to be 12 bare numbers. Nobody knows the standards by their codes —
+ * "5.4" is a lookup, not a label — so tagging meant opening AITSL in another
+ * tab, or guessing, or skipping the field. It is now the full graduate set of
+ * 37 focus areas with their titles, grouped by domain, filtered as you type.
+ *
+ * Selected ones are pulled to the top so a record with four tags does not
+ * require scrolling a list of thirty-three to see them.
+ */
+function standardsPicker(doc: VaultDocument): string {
+  const chosen = new Set(doc.standards);
+  const picked = STANDARDS.filter((standard) => chosen.has(standard.code));
+  const rest = STANDARDS.filter((standard) => !chosen.has(standard.code));
 
+  const chip = (standard: (typeof STANDARDS)[number]) => `<label
+      data-standard-chip
+      data-search="${escapeHtml(`${standard.code} ${standard.focus} ${standard.domain}`.toLowerCase())}"
+      title="${escapeHtml(standard.descriptor ?? standard.focus)}"
+      class="flex cursor-pointer items-start gap-2 rounded-md border border-line px-2 py-1.5 text-[0.7rem] leading-snug text-ink-muted transition has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent"
+    >
+      <input
+        type="checkbox"
+        data-standard="${doc.id}"
+        value="${standard.code}"
+        ${chosen.has(standard.code) ? 'checked' : ''}
+        class="sr-only"
+      />
+      <span class="shrink-0 font-mono font-medium">${standard.code}</span>
+      <span class="min-w-0">${escapeHtml(standard.focus)}</span>
+    </label>`;
+
+  return `<div class="sm:col-span-2">
+    <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+      <p class="text-[0.7rem] font-medium text-ink-muted">
+        APST focus areas${picked.length > 0 ? ` · ${picked.length} selected` : ''}
+      </p>
+      <input type="search" data-standard-search placeholder="Filter…"
+        class="w-32 rounded border border-line bg-surface px-2 py-0.5 text-[0.7rem]" />
+    </div>
+    <div data-standard-list class="grid max-h-56 gap-1 overflow-y-auto rounded-md border border-line-subtle bg-canvas p-1.5 sm:grid-cols-2">
+      ${[...picked, ...rest].map(chip).join('')}
+    </div>
+  </div>`;
+}
+
+/**
+ * The panel's shell: a summary line and an empty body.
+ *
+ * The body is NOT rendered here. With the APST picker at its full 37 focus
+ * areas, rendering every closed panel put 37 checkboxes into the DOM per row —
+ * 666 on a page of eighteen files, and several thousand on a real placement.
+ * A `<details>` hides its content; it does not avoid building it.
+ *
+ * So the body is built on first open, by wireDetails, and cached in place. A
+ * closed row costs one line again.
+ */
+export function detailPanel(doc: VaultDocument): string {
+  return `<details data-panel class="mb-2.5 rounded-md border border-line-subtle open:border-line open:bg-canvas/40">
+    <summary class="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-[0.7rem] transition hover:text-ink">${summaryLine(doc)}</summary>
+    <div data-panel-body class="border-t border-line-subtle"></div>
+  </details>`;
+}
+
+/** Everything inside the panel. Built once, the first time it is opened. */
+export function detailBody(doc: VaultDocument, options: PanelOptions): string {
   const designed = doc.selfDesigned;
 
   const folderControl = options.folders
@@ -144,11 +207,7 @@ export function detailPanel(doc: VaultDocument, options: PanelOptions): string {
       })()
     : '';
 
-  return `<details class="mb-2.5 rounded-lg border ${
-    isComplete(doc) ? 'border-line' : 'border-caution/40 bg-caution-surface/30'
-  }">
-    <summary class="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs">${summaryLine(doc)}</summary>
-    <div class="grid gap-2 border-t border-line p-3 sm:grid-cols-2">
+  return `<div class="grid gap-2 p-3 sm:grid-cols-2">
       <input
         type="text"
         data-caption="${doc.id}"
@@ -175,17 +234,13 @@ export function detailPanel(doc: VaultDocument, options: PanelOptions): string {
           <option value="no"${designed === false ? ' selected' : ''}>Someone else / commercial</option>
         </select>
       </label>
-      <div class="sm:col-span-2">
-        <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">APST focus areas</p>
-        <div class="flex flex-wrap gap-1">${standardChips}</div>
-      </div>
+      ${standardsPicker(doc)}
       <div class="sm:col-span-2">
         <p class="mb-1 text-[0.7rem] font-medium text-ink-muted">Counts toward</p>
         ${programmeChips(doc, options.programmes)}
       </div>
       ${folderControl}
-    </div>
-  </details>`;
+    </div>`;
 }
 
 /**
@@ -200,13 +255,6 @@ export function refreshPanelStatus(doc: VaultDocument) {
 
   const badge = row.querySelector<HTMLElement>('[data-needs-detail]');
   if (badge) badge.hidden = isComplete(doc);
-
-  const panel = row.querySelector<HTMLElement>('details');
-  if (panel) {
-    panel.className = `mb-2.5 rounded-lg border ${
-      isComplete(doc) ? 'border-line' : 'border-caution/40 bg-caution-surface/30'
-    }`;
-  }
 
   const summary = row.querySelector<HTMLElement>('details > summary');
   if (summary) summary.innerHTML = summaryLine(doc);
@@ -223,6 +271,8 @@ export interface PanelContext {
   reload: () => Promise<void>;
   /** Open projects, for re-rendering the chips after a toggle. */
   programmes: () => Programme[];
+  /** Builds the panel body for a record, the first time it is opened. */
+  body: (doc: VaultDocument) => string;
 }
 
 /**
@@ -232,6 +282,37 @@ export interface PanelContext {
  * identical behaviour from one place rather than two copies that drift.
  */
 export function wireDetails(root: HTMLElement, context: PanelContext) {
+  // Fill a panel the first time it opens, and never again. `toggle` does not
+  // bubble, so this is captured rather than delegated in the usual way.
+  root.addEventListener(
+    'toggle',
+    (event) => {
+      const panel = event.target as HTMLDetailsElement;
+      if (panel.dataset?.panel === undefined || !panel.open) return;
+      const host = panel.querySelector<HTMLElement>('[data-panel-body]');
+      if (!host || host.childElementCount > 0) return;
+      const id = panel.closest<HTMLElement>('[data-doc-id]')?.dataset.docId;
+      const doc = id ? context.find(id) : undefined;
+      if (doc) host.innerHTML = context.body(doc);
+    },
+    true,
+  );
+
+  // Filtering the standards list. Local to the open panel and never saved:
+  // it is a way of finding 5.4 among thirty-seven, not a preference.
+  root.addEventListener('input', (event) => {
+    const field = event.target as HTMLInputElement;
+    if (field.dataset?.standardSearch === undefined) return;
+    const needle = field.value.trim().toLowerCase();
+    // Scoped to this record's panel. Reaching up to the nearest <div> found the
+    // first list in the document instead, so typing in one row's filter
+    // re-revealed every other row's.
+    const list = field.closest('[data-doc-id]')?.querySelector('[data-standard-list]');
+    for (const chip of list?.querySelectorAll<HTMLElement>('[data-standard-chip]') ?? []) {
+      chip.hidden = needle.length > 0 && !(chip.dataset.search ?? '').includes(needle);
+    }
+  });
+
   root.addEventListener('click', async (event) => {
     const toggle = (event.target as HTMLElement).closest<HTMLElement>('button[data-programme-toggle]');
     if (!toggle) return;
