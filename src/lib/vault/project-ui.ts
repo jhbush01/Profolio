@@ -610,7 +610,7 @@ function settingsTab(closed: boolean): string {
         four placements with four pictures are four things; four without are four forms.
       </p>
       <div class="flex items-center gap-4">
-        <div class="flex h-20 w-36 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line-subtle bg-canvas text-xs text-ink-faint">
+        <div class="flex aspect-[16/6] w-48 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line-subtle bg-paper text-xs text-ink-faint">
           ${
             programme.imageUpdatedAt
               ? `<img src="/api/programmes/${encodeURIComponent(programme.id)}/image?v=${programme.imageUpdatedAt}"
@@ -1394,8 +1394,10 @@ export async function initProject() {
     input.value = '';
     if (!file) return;
 
-    const { cropToSquare } = await import('./avatar-crop');
-    const square = await cropToSquare(file);
+    const { cropImage } = await import('./avatar-crop');
+    // The aspect is the shape of the slot it is going into, so what gets
+    // positioned is what gets shown.
+    const square = await cropImage(file, { aspect: 16 / 6, title: 'Position the cover image' });
     if (!square) {
       setStatus('Image not changed.');
       return;

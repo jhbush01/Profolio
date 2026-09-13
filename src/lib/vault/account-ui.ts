@@ -171,8 +171,10 @@ export async function initAccount() {
     // Choose the square before it is sent. A landscape photo used to be
     // squashed to fit, which turned a picture of a person into a strip of
     // classroom with a head somewhere in it.
-    const { cropToSquare } = await import('./avatar-crop');
-    const square = await cropToSquare(file);
+    const { cropImage } = await import('./avatar-crop');
+    // The aspect is the shape of the slot it is going into, so what gets
+    // positioned is what gets shown.
+    const square = await cropImage(file, { aspect: 1, title: 'Position your picture' });
     if (!square) {
       setStatus('Picture not changed.');
       return;

@@ -94,7 +94,7 @@ export function projectCard(programme: Programme, documents: VaultDocument[]): s
 
   return `<a href="/project?id=${encodeURIComponent(programme.id)}"
     class="card flex flex-col overflow-hidden p-0 transition hover:border-accent/40 hover:shadow-[0_4px_14px_rgba(77,51,22,0.08)]">
-    <div class="aspect-[16/6] w-full overflow-hidden border-b border-line-subtle bg-canvas">${cover}</div>
+    <div class="aspect-[16/6] w-full overflow-hidden border-b border-line-subtle bg-paper">${cover}</div>
     <!-- Fixed header height, so the rules line up across a row whether a
          title runs to one line or two. -->
     <div class="flex min-h-[6.25rem] items-start justify-between gap-3 border-b border-line-subtle px-5 py-4">

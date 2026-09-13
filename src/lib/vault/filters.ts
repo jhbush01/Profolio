@@ -126,23 +126,29 @@ export function filterBar(documents: VaultDocument[], filters: Filters): string 
  * Reads a filter change out of an event, or null if it was not one.
  *
  * Returns the next state rather than mutating, so the page owns its own state
- * and this stays a pure function of what was clicked.
+ * and this stays a pure function of what happened.
+ *
+ * THE EVENT TYPE MATTERS. Pages bind both `click` and `change` here, and a
+ * click on a <select> is the click that OPENS its dropdown. Handling that click
+ * meant re-rendering the bar — replacing the <select> element — while its
+ * dropdown was open, so the menu appeared and vanished in the same instant and
+ * the filter could never be used. Buttons answer to clicks; selects answer to
+ * change, and only to change.
  */
 export function filterFromEvent(event: Event, current: Filters): Filters | null {
   const target = event.target as HTMLElement;
 
-  const toggle = target.closest<HTMLElement>('[data-filter-status]');
-  if (toggle) {
-    return { ...current, status: current.status === 'incomplete' ? '' : 'incomplete' };
-  }
-
-  if (target.closest('[data-filter-clear]')) return { ...NO_FILTERS };
-
-  const select = target.closest('select[data-filter]') as HTMLSelectElement | null;
-  if (select) {
+  if (event.type === 'change') {
+    const select = target.closest('select[data-filter]') as HTMLSelectElement | null;
+    if (!select) return null;
     const name = select.dataset.filter as keyof Filters;
     return { ...current, [name]: select.value };
   }
+
+  if (target.closest('[data-filter-status]')) {
+    return { ...current, status: current.status === 'incomplete' ? '' : 'incomplete' };
+  }
+  if (target.closest('[data-filter-clear]')) return { ...NO_FILTERS };
 
   return null;
 }
