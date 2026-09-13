@@ -115,6 +115,7 @@ const TABS = [
   { id: 'checklist', label: 'Checklist' },
   { id: 'evidence', label: 'Evidence' },
   { id: 'report', label: 'Report' },
+  { id: 'preview', label: 'Preview' },
   { id: 'settings', label: 'Settings' },
 ] as const;
 
@@ -1131,6 +1132,48 @@ function headingBlock(
   </section>`;
 }
 
+/**
+ * The project as a finished document, and the two ways out of it.
+ *
+ * A tab rather than a button because it is a view of the same thing, and a
+ * link rather than an inline render because the document wants the whole page:
+ * no drawer, no tab bar, no footer, so that what is on screen is what comes
+ * out of the printer.
+ */
+function previewTab(): string {
+  if (!programme) return '';
+  const href = `/showcase?id=${encodeURIComponent(programme.id)}`;
+  const records = assigned();
+  const written = Object.values(programme.report ?? {}).filter((body) => body.trim()).length;
+
+  return `<section class="card p-6">
+    <h2 class="text-lg font-semibold">Your portfolio as a document</h2>
+    <p class="prose-body mt-1 text-sm">
+      The report, the context statement, your evidence at full size and the data table — laid out
+      to be read. Print it to PDF from there, or open the same page in Word if you need a file you
+      can edit.
+    </p>
+    <p class="prose-body mt-2 text-sm">
+      Recordings play in the page. They cannot print, so on paper they become a line naming the
+      file. It opens only for you: this is not a public link.
+    </p>
+    <p class="mt-3 font-mono text-xs text-ink-faint">
+      ${written} section${written === 1 ? '' : 's'} written · ${records.length} piece${records.length === 1 ? '' : 's'} of evidence
+    </p>
+    <div class="mt-4 flex flex-wrap gap-2">
+      <a href="${href}" class="pf-press rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">Open the document</a>
+      <button type="button" data-export-project
+        class="pf-press rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
+        Export the submission bundle
+      </button>
+    </div>
+    <p class="prose-body mt-3 text-xs">
+      The bundle is the other export: it copies every uploaded PDF in page-for-page, which a
+      printed page cannot do. Use the document to be read, and the bundle to be submitted.
+    </p>
+  </section>`;
+}
+
 function render() {
   const host = $('project');
   if (!host || !programme) return;
@@ -1206,6 +1249,8 @@ function render() {
       ${
         tab === 'hub'
           ? hubTab()
+          : tab === 'preview'
+            ? previewTab()
           : tab === 'report'
             ? reportTab(closed)
           : tab === 'checklist'

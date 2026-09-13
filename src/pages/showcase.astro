@@ -1,0 +1,139 @@
+---
+/**
+ * One project, as a document rather than a workspace.
+ *
+ * WHY THIS EXISTS. The PDF exporter lays out pages by hand with pdf-lib at
+ * fixed coordinates in Helvetica. That is the right tool for one job — copying
+ * an uploaded PDF into the bundle page-for-page — and the wrong tool for
+ * everything around it. Manual coordinate layout cannot do a decent measure, a
+ * hanging indent, a widow, or a table that breathes, so the narrative half of
+ * the export has always looked like a receipt.
+ *
+ * A browser can do all of that, and it is already here. So the narrative is
+ * rendered as a page and printed through the browser: real typography, real
+ * page breaks, real images at real resolution. Cmd-P / Ctrl-P gives a PDF that
+ * looks like a document. Opening the same page in Word gives an editable file
+ * for anyone whose institution insists on one.
+ *
+ * NOT PUBLIC. This sits behind Cloudflare Access like every other route: the
+ * URL is shareable with yourself, across your own devices, and with nobody
+ * else. Evidence here includes children's work, and a genuinely public
+ * portfolio needs a sharing model — per-artefact opt-in, revocation, expiry —
+ * designed before it is built, not a route that happens to render nicely.
+ * See docs/DECISIONS.md.
+ *
+ * No app chrome: no drawer, no bottom bar, no footer. This is the thing
+ * itself, so that what is on screen is what comes out of the printer.
+ */
+---
+
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portfolio</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body data-shell="reading">
+    <!-- The action bar never prints. -->
+    <div class="no-print sticky top-0 z-20 border-b border-line-subtle bg-paper/95 backdrop-blur">
+      <div class="pf-shell flex flex-wrap items-center gap-2 py-2.5">
+        <a
+          id="showcase-back"
+          href="/programmes"
+          class="pf-press rounded-md px-2 py-1.5 text-sm font-medium text-ink-muted transition hover:text-accent"
+        >← Back to the project</a>
+        <span class="ml-auto flex items-center gap-2">
+          <button
+            id="showcase-print"
+            type="button"
+            class="pf-press rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+          >Print or save as PDF</button>
+          <button
+            id="showcase-copy"
+            type="button"
+            class="pf-press rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent/40"
+          >Copy link</button>
+        </span>
+      </div>
+      <p id="showcase-status" role="status" aria-live="polite" class="pf-shell pb-2 text-xs text-ink-muted"></p>
+    </div>
+
+    <main id="showcase" class="pf-shell py-10">
+      <div class="animate-pulse space-y-4">
+        <div class="h-10 w-2/3 rounded bg-canvas"></div>
+        <div class="h-4 w-1/3 rounded bg-canvas"></div>
+        <div class="h-64 rounded bg-canvas"></div>
+      </div>
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+
+  /*
+   * Print rules live here rather than in global.css: they are about this one
+   * document, and a rule that only makes sense for a portfolio has no business
+   * in the app-wide sheet.
+   */
+  @media print {
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+
+    body {
+      background: #fff;
+    }
+
+    /* The measure is the page now, not a reading column on a monitor. */
+    .pf-shell {
+      max-width: none;
+      padding: 0;
+    }
+
+    /* A heading at the foot of a page with its first paragraph overleaf is the
+       single most common way a printed report looks amateur. */
+    .pf-section {
+      break-inside: avoid-page;
+    }
+
+    .pf-section h2 {
+      break-after: avoid-page;
+    }
+
+    .pf-break {
+      break-before: page;
+    }
+
+    p,
+    li {
+      orphans: 3;
+      widows: 3;
+    }
+
+    figure,
+    table {
+      break-inside: avoid;
+    }
+
+    /* Links are useless on paper as blue underlines and useful as addresses,
+       but only where the address is not a 60-character opaque id. */
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* Video cannot print. Say what it is instead of leaving a black rectangle. */
+    video {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import { initShowcase } from '../lib/vault/showcase-ui';
+  initShowcase();
+</script>
