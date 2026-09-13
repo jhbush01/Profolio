@@ -10,6 +10,13 @@ Taking the portfolio and creating a digital, universal professional evidence vau
 Access is an **allowlist**, not public sign-up: only email addresses you add to
 the Access policy can sign in, and each signed-in identity owns its own rows.
 
+## Where to start
+
+- `docs/PRODUCT.md` — what this is, who it is for, and the constraints that are
+  not negotiable.
+- `docs/DECISIONS.md` — what was tried and rejected, and why. Read before
+  proposing a feature.
+
 ## Architecture
 
 | Concern | Where it lives |
@@ -159,57 +166,59 @@ Navigation is a slide-out drawer (`src/components/NavDrawer.astro`) opened from 
 
 ## Project structure
 
+Generated from the tree; if it drifts, trust the tree.
+
 ```
-astro.config.mjs        Astro config (static output, Tailwind v4 via Vite plugin)
-tsconfig.json           Strict TS, `@/*` path alias to src/
-public/
-  favicon.svg
 src/
-  components/
-    NavDrawer.astro       Slide-out navigation drawer
-    Footer.astro          Site footer
-    PageHeader.astro      Shared page title block
-    WeekCard.astro        Summary tile for one week
-    ArtefactCard.astro    One piece of evidence
-    ArtefactList.astro    Artefact grid + empty state + (inert) filters
-    EvidenceUpload.astro  Placeholder upload form — no backend
-    StandardTag.astro     One APST code as a chip
-    StandardTagPicker.astro  Placeholder tagging UI (selections not saved)
+  components/          Astro chrome: NavDrawer, BottomNav, AccountMenu,
+                       Footer, PageHeader. The rest (WeekCard, ArtefactCard,
+                       EvidenceUpload, StandardTag*) belong to the authored
+                       teaching-sequence sample, not to the vault.
   layouts/
-    BaseLayout.astro         Standard chrome (nav + footer)
-    PresentationLayout.astro Stripped-back chrome for presentation mode
+    BaseLayout.astro         Standard chrome; `width="reading"` narrows the measure
+    PresentationLayout.astro Stripped chrome for /present
   pages/
-    index.astro
-    portfolio.astro       Portfolio builder
-    404.astro
-    api/                  On-demand routes (vault, profile, folders, documents)
-    evidence.astro
-    standards.astro
-    present.astro
-    sequence/
-      index.astro
-      [week].astro        Dynamic route → Weeks 1–5
-  data/
-    portfolio.json        Site/owner metadata
-    sequence.json         The five weeks
-    artefacts.json        Placeholder artefact records
-    standards.json        APST descriptors
+    index.astro          Home — the project grid
+    programmes.astro     Projects: start, manage, archive
+    project.astro        One project: Hub / Checklist / Evidence / Report / Settings
+    capture.astro        Phone-first capture and review
+    portfolio.astro      All Artefacts — the folder browser over the whole vault
+    export.astro         Choose projects, build the PDF
+    pedagogy.astro       Teaching philosophy + what the evidence covers
+    account.astro        Cover details, storage, deletion
+    privacy.astro        Retention and deletion notice
+    data-profile.astro   The data table across the whole vault
+    evidence/standards/present/sequence/   The authored sample
+    api/                 On-demand routes; everything else is prerendered
+  data/                  standards.json (APST), privacy.json, and the sample
   lib/
-    portfolio.ts          Data-access seam for the authored (teaching) content
+    portfolio.ts         Data seam for the authored teaching content
+    programmes/          Template registry. types.ts is the contract;
+                         final-placement.ts and professional-development.ts
+                         are data. Adding one is a file plus an index entry.
     server/
-      access.ts           Cloudflare Access JWT verification
-      repo.ts             D1 + R2 data access, scoped to one owner
-      handler.ts          Shared auth + error wrapper for /api routes
+      access.ts          Cloudflare Access JWT verification
+      accounts.ts        Token → account id (the ownership indirection)
+      handler.ts         Shared auth + error wrapper for /api
+      repo.ts            D1 + R2, every query scoped to one owner
     vault/
-      types.ts            Folder / document / profile types (the API contract)
-      db.ts               Browser-side API client
-      pdf.ts              PDF export (pdf-lib), byte loader injected
-      ui.ts               DOM controller for /portfolio
-migrations/
-  0001_init.sql           D1 schema
-  styles/
-    global.css            Tailwind import + design tokens (@theme)
-  types.ts                Shared domain types
+      types.ts           The API contract: folder / document / profile
+      dimensions.ts      The evidence vocabularies
+      db.ts              Browser-side API client
+      file-browser.ts    Folder rows, breadcrumb, drop zone — shared
+      detail-panel.ts    The per-artefact details editor — shared
+      viewer.ts          Artefact preview dialog
+      report.ts          The written report, shared by screen and export
+      profile-table.ts   The data collection table, shared by screen and export
+      pdf.ts             PDF assembly (pdf-lib); knows nothing about templates
+      deidentify.ts      Identifier detection for filenames
+      avatar-crop.ts     Profile picture positioning
+      *-ui.ts            One DOM controller per page
+  styles/global.css      Tailwind import + design tokens (@theme)
+migrations/              Applied by hand, in order. See migrations/README.md.
+docs/
+  PRODUCT.md             Positioning and constraints
+  DECISIONS.md           What was tried and rejected
 ```
 
 ### Two deliberate deviations from a literal "Week 1–5 + APST" build
@@ -244,12 +253,19 @@ single-file change. Helpers: `getPhase`, `getStandard`, `artefactsForPhase`,
 ## Not built yet (intentionally)
 
 Public sign-up (access is an allowlist, not registration), sharing a portfolio
-by link, drag-to-reorder, resumable uploads for large files, artefact previews
-in the teaching module, rich-text reflections.
+by link, offline capture, organisations and roles, an audit log, rich-text
+reflections.
 
-Uploads are capped at 25 MB per file (`MAX_UPLOAD_BYTES` in
-`src/lib/server/repo.ts`) — a single Worker request has to hold the body, so
-larger files need presigned direct-to-R2 uploads.
+Uploads are capped at 80 MB per file (`MAX_UPLOAD_BYTES` in
+`src/lib/server/repo.ts`). It cannot go much higher: a single Worker request
+has to hold the body and the platform caps that at 100 MB, enforced at the
+edge, so a larger file never reaches our code. Beyond that needs presigned
+direct-to-R2 multipart uploads.
+
+Drag-to-reorder was built and then removed — see `docs/DECISIONS.md` for why,
+along with everything else that was tried and rejected. **Read that file before
+planning a feature**; it exists so the same handful of ideas do not get
+re-proposed every time.
 
 ## Before real use
 
