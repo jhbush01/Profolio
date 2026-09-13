@@ -1,0 +1,137 @@
+---
+/**
+ * Capture, over whatever you were already doing.
+ *
+ * It used to be a page. That meant capturing evidence while working inside a
+ * project cost you the project: you navigated away, uploaded, reviewed, and
+ * then had to find your way back to the tab, the folder and the scroll
+ * position you had left. The thing capture is for — fifteen seconds in a
+ * corridor — was surrounded by thirty seconds of navigation on either side.
+ *
+ * So it is an overlay on every page, and closing it puts you back exactly
+ * where you were, because you never left.
+ *
+ * Opening pushes a history entry, so the phone's back gesture closes it rather
+ * than leaving the app. `/capture` still exists and still works — a home-screen
+ * shortcut, an old link, a bookmark — it just opens the overlay on Home now.
+ */
+---
+
+<div
+  id="capture-overlay"
+  class="no-print fixed inset-0 z-50 hidden bg-paper"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Capture evidence"
+>
+  <div class="flex h-full flex-col">
+    <!-- Its own bar, not the app's: the app's chrome is behind this, and two
+         sets of navigation on one screen is two places to look for the way out. -->
+    <div class="flex shrink-0 items-center gap-3 border-b border-line-subtle px-5 py-3">
+      <h2 class="font-display text-lg font-normal">Capture</h2>
+      <button
+        type="button"
+        id="capture-close"
+        class="pf-press ml-auto rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent/40"
+      >Done</button>
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="mx-auto w-full max-w-lg px-5 pb-44 pt-5">
+        <p class="prose-body text-sm">
+          Files are saved as soon as you take them. Add the details and choose a project,
+          or discard.
+        </p>
+
+        <p id="capture-status" role="status" aria-live="polite" class="mt-3 text-xs text-ink-muted"></p>
+
+        <!-- Same acknowledgement record as the artefacts page. -->
+        <section
+          id="capture-gate"
+          hidden
+          class="mt-4 rounded-lg border border-caution/30 bg-caution-surface p-4 text-sm text-caution"
+        >
+          <p class="font-semibold">Before you photograph student work</p>
+          <p class="mt-1">
+            Keep faces, names and student numbers out of the frame. Refer to individuals
+            by a pseudonym. Check your school's rules before capturing anything about a student.
+          </p>
+          <button
+            id="capture-accept"
+            type="button"
+            class="pf-press mt-3 w-full rounded-md bg-caution px-4 py-3 text-sm font-medium text-white"
+          >I understand</button>
+        </section>
+
+        <p class="mt-5 rounded-lg bg-canvas px-3 py-2 text-xs text-ink-muted">
+          Check the frame before you shoot: no faces, no names, no student numbers.
+        </p>
+
+        <!-- One review card at a time, then what has been saved this session. -->
+        <div id="capture-body" class="mt-5 flex flex-col gap-4"></div>
+      </div>
+    </div>
+
+    <!-- Thumb zone: pinned to the bottom, above the safe area. -->
+    <div
+      id="capture-bar"
+      class="shrink-0 border-t border-line bg-surface/95 backdrop-blur"
+      style="padding-bottom: env(safe-area-inset-bottom, 0px)"
+    >
+      <div class="mx-auto flex w-full max-w-lg items-stretch gap-2 p-4">
+        <button
+          id="capture-photo-button"
+          type="button"
+          disabled
+          class="pf-press-lg flex flex-1 flex-col items-center justify-center gap-1 rounded-lg bg-accent px-3 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <i data-lucide="camera" class="size-6" aria-hidden="true"></i>
+          Camera
+        </button>
+        <button
+          id="capture-file-button"
+          type="button"
+          disabled
+          class="pf-press-lg flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-line bg-surface px-3 py-3.5 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <i data-lucide="upload" class="size-6" aria-hidden="true"></i>
+          Upload
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two inputs, because the attributes are what steer the phone.
+       `capture` goes straight to the rear camera. The bare input, with no
+       `accept`, makes the device offer its own sheet — Photo Library, Take
+       Photo, Choose File on iOS; Gallery, Files, Drive on Android. Splitting
+       "photos" from "files" ourselves meant guessing at that sheet and
+       getting it wrong on half the devices. -->
+  <input id="capture-photo" type="file" accept="image/*" capture="environment" class="sr-only" />
+  <input id="capture-file" type="file" multiple class="sr-only" />
+</div>
+
+<script>
+  import { openCapture, wireCaptureOverlay } from '../lib/vault/capture-overlay';
+
+  wireCaptureOverlay();
+
+  // Anything that used to navigate to /capture now opens the overlay instead:
+  // the nav row, the phone bar, the "Capture evidence" button on a project.
+  // Delegated, so a link rendered later by a controller is covered too.
+  document.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    const link = target?.closest?.<HTMLAnchorElement>('a[href="/capture"], a[href^="/capture?"]');
+    if (!link) return;
+    // Let a modified click open a real tab, the way any link should.
+    const mouse = event as MouseEvent;
+    if (mouse.metaKey || mouse.ctrlKey || mouse.shiftKey || mouse.button !== 0) return;
+    event.preventDefault();
+    openCapture();
+  });
+
+  // Landing on /capture directly — a bookmark, the home-screen shortcut —
+  // swaps to Home with the overlay already open. The trailing slash is not
+  // optional to handle: Astro serves this route as /capture/.
+  if (/^\/capture\/?$/.test(window.location.pathname)) openCapture({ replace: true });
+</script>

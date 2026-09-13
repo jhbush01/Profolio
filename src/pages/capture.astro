@@ -1,95 +1,24 @@
 ---
 /**
- * Capture — the phone screen.
+ * /capture — kept only as a door.
  *
- * Built for one hand in a corridor: the two capture buttons sit at the bottom
- * of the viewport where a thumb reaches, tagging uses large chips rather than
- * dropdowns, and nothing is required before the file is safely uploaded.
+ * Capture is an overlay now (see components/CaptureOverlay.astro), because a
+ * page meant leaving whatever you were doing and then finding your way back to
+ * it. This route survives for the home-screen shortcut, old bookmarks and
+ * anything that deep-links here: the overlay script sees the path, swaps the
+ * history entry for Home and opens itself, so the address is still good and
+ * lands you in the right place.
  *
- * Deliberately not the builder. Anything needing a keyboard — captions,
- * source, standards, folders — stays on the desktop page.
+ * The markup below is what someone sees for the instant before that happens,
+ * and what they see if the script never runs at all.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout
-  title="Capture"
-  description="Capture evidence on your phone and tag it later."
->
-  <div class="mx-auto w-full max-w-lg pb-40">
-    <h1 class="text-2xl font-semibold">Capture</h1>
-    <p class="prose-body mt-1 text-sm">
-      Files are saved as soon as you take them. Add the details and choose a project,
-      or discard.
-    </p>
-
-    <p id="capture-status" role="status" aria-live="polite" class="mt-3 text-xs text-ink-muted"></p>
-
-    <!-- Same acknowledgement record as the builder. -->
-    <section
-      id="capture-gate"
-      hidden
-      class="mt-4 rounded-lg border border-caution/30 bg-caution-surface p-4 text-sm text-caution"
-    >
-      <p class="font-semibold">Before you photograph student work</p>
-      <p class="mt-1">
-        Keep faces, names and student numbers out of the frame. Refer to individuals
-        by a pseudonym. Check your school's rules before capturing anything about a student.
-      </p>
-      <button
-        id="capture-accept"
-        type="button"
-        class="mt-3 w-full rounded-md bg-caution px-4 py-3 text-sm font-medium text-white"
-      >I understand</button>
-    </section>
-
-    <p class="mt-5 rounded-lg bg-canvas px-3 py-2 text-xs text-ink-muted">
-      Check the frame before you shoot: no faces, no names, no student numbers.
-    </p>
-
-    <!-- One review card at a time, then what has been saved this session. -->
-    <div id="capture-body" class="mt-5 flex flex-col gap-4"></div>
+<BaseLayout title="Capture" description="Capture evidence on your phone and tag it later.">
+  <div class="mx-auto w-full max-w-lg py-16 text-center">
+    <h1 class="font-display text-2xl font-normal">Capture</h1>
+    <p class="prose-body mt-2 text-sm">Opening the camera and upload sheet…</p>
+    <a href="/" class="mt-4 inline-block text-sm font-medium text-accent hover:underline">Go to Home</a>
   </div>
-
-  <!-- Thumb zone: pinned to the bottom of the viewport, above the safe area. -->
-  <div
-    id="capture-bar"
-    class="no-print fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur"
-    style="padding-bottom: env(safe-area-inset-bottom, 0px)"
-  >
-    <div class="mx-auto flex w-full max-w-lg items-stretch gap-2 p-4">
-      <button
-        id="capture-photo-button"
-        type="button"
-        disabled
-        class="pf-press-lg flex flex-1 flex-col items-center justify-center gap-1 rounded-lg bg-accent px-3 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <i data-lucide="camera" class="size-6" aria-hidden="true"></i>
-        Camera
-      </button>
-      <button
-        id="capture-file-button"
-        type="button"
-        disabled
-        class="pf-press-lg flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-line bg-surface px-3 py-3.5 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <i data-lucide="upload" class="size-6" aria-hidden="true"></i>
-        Upload
-      </button>
-    </div>
-  </div>
-
-  <!-- Two inputs, because the attributes are what steer the phone.
-       `capture` goes straight to the rear camera. The bare input, with no
-       `accept`, makes the device offer its own sheet — Photo Library, Take
-       Photo, Choose File on iOS; Gallery, Files, Drive on Android. Splitting
-       "photos" from "files" ourselves meant guessing at that sheet and
-       getting it wrong on half the devices. -->
-  <input id="capture-photo" type="file" accept="image/*" capture="environment" class="sr-only" />
-  <input id="capture-file" type="file" multiple class="sr-only" />
 </BaseLayout>
-
-<script>
-  import { initCapture } from '../lib/vault/capture-ui';
-  initCapture();
-</script>

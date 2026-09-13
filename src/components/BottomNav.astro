@@ -11,11 +11,13 @@
  * so a project is where you go looking for it. All artefacts is the search
  * across projects, which is a less frequent errand than the four below.
  *
- * Hidden on /capture, which runs its own action bar along the bottom. Two
- * stacked bars would put the camera under the nav instead of under a thumb.
+ * The capture overlay carries its own action bar and sits above this one, so
+ * the camera is never under the nav.
  */
 const path = Astro.url.pathname;
-const hidden = path.startsWith('/capture') || path.startsWith('/present');
+// /capture is a transient door now — it redirects into the overlay, which
+// covers this bar anyway — so only presentation mode still hides it.
+const hidden = path.startsWith('/present');
 
 interface NavLink {
   href: string;

@@ -3,6 +3,7 @@
  * BaseLayout — chrome for every authoring/browsing page.
  * Presentation mode uses PresentationLayout instead (no nav, no footer).
  */
+import CaptureOverlay from '../components/CaptureOverlay.astro';
 import NavDrawer from '../components/NavDrawer.astro';
 import BottomNav from '../components/BottomNav.astro';
 import Footer from '../components/Footer.astro';
@@ -30,9 +31,8 @@ const { title, description = site.tagline, width = 'app' } = Astro.props;
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- Home-screen install. start_url is /capture, because the reason to keep
-         this on a phone is capture, not browsing. A service worker (and with it
-         offline capture) is deliberately not here yet — see docs/PRODUCT.md. -->
+    <!-- Home-screen install. A service worker (and with it offline capture) is
+         deliberately not here yet — see docs/PRODUCT.md. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -49,6 +49,7 @@ const { title, description = site.tagline, width = 'app' } = Astro.props;
     </main>
     <Footer />
     <BottomNav />
+    <CaptureOverlay />
     <script>
       // @ts-expect-error — lucide is loaded globally from the CDN script above.
       window.lucide?.createIcons();
