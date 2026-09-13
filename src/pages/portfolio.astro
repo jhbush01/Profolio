@@ -10,8 +10,6 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="All Artefacts" description="Every file you have captured, across every project.">
-  <h1 class="mb-6 font-display text-3xl font-normal tracking-[-0.02em] sm:text-4xl">All Artefacts</h1>
-
   <!-- De-identification gate. Hidden by the controller once acknowledged;
        server-side, uploads are refused until the record exists. This one stays
        in full: it is the recorded acknowledgement that the warning was given. -->
@@ -51,47 +49,62 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </button>
   </section>
 
-  <div class="mb-5 flex flex-wrap items-center gap-2">
-    <button id="add-files" type="button" disabled class="pf-press rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
-      Upload
-    </button>
-    <button id="new-folder" type="button" class="pf-press rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40">
-      New folder
-    </button>
-    <button id="export-pdf" type="button" disabled class="pf-press rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50">
-      Export PDF
-    </button>
-    <p id="export-status" role="status" aria-live="polite" class="text-xs text-ink-muted"></p>
+  {/*
+      One band: the heading, what you can do, what you are looking for, and
+      what you are looking at. It used to be four stacked rows — title,
+      buttons, search, filters — roughly 200px of chrome before the first file
+      appeared on a page whose entire job is showing you files.
+
+      `flex-wrap` and the `lg:` breakpoints do the work. Above ~1024px it is a
+      single line. Below that it folds into two tiers in a deliberate order
+      rather than wherever the browser happens to break: identity and actions
+      on top, finding-things underneath. On a phone the search takes the full
+      width, because a 140px search box is a search box nobody uses.
+  */}
+  <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <h1 class="mr-auto font-display text-2xl font-normal tracking-[-0.02em] sm:text-3xl lg:mr-0">
+      All Artefacts
+    </h1>
+
+    {/* Search takes whatever is left. It is the widest thing here on purpose:
+        every other control is a fixed choice, this one is typed into. */}
+    <div class="order-last w-full lg:order-none lg:ml-4 lg:w-auto lg:min-w-56 lg:flex-1">
+      <label for="doc-search" class="sr-only">Search artefacts</label>
+      <input
+        id="doc-search"
+        type="search"
+        placeholder="Search every folder…"
+        autocomplete="off"
+        class="w-full rounded-md border border-line bg-surface px-3 py-1.5 text-sm"
+      />
+    </div>
+
+    {/* Filled by the controller: the unfinished toggle and three facets. */}
+    <div id="filter-bar" class="order-last w-full overflow-x-auto lg:order-none lg:w-auto lg:overflow-visible"></div>
+
+    <div class="flex shrink-0 items-center gap-2">
+      <button id="add-files" type="button" disabled class="pf-press rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+        Upload
+      </button>
+      <button id="new-folder" type="button" class="pf-press rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent/40">
+        New folder
+      </button>
+      <button id="export-pdf" type="button" disabled class="pf-press rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50">
+        Export
+      </button>
+    </div>
     <input id="file-input" type="file" multiple class="sr-only" />
   </div>
 
-  <div class="mb-5">
-    <label for="doc-search" class="sr-only">Search artefacts</label>
-    <input
-      id="doc-search"
-      type="search"
-      placeholder="Search every folder by name, caption, source or project…"
-      autocomplete="off"
-      class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-    />
-    <p id="search-summary" class="mt-1.5 text-xs text-ink-muted"></p>
-  </div>
-
-  <!-- Filled by the controller: the unfinished toggle and three facets. -->
-  <div id="filter-bar" class="mb-3"></div>
-  <p id="filter-summary" class="mb-3 text-xs text-ink-muted"></p>
+  {/* One status line for all of it. Three separate ones — export, search,
+      filter — could never be on screen together, and each reserved its own
+      strip of empty page waiting for the chance. */}
+  <p id="page-status" role="status" aria-live="polite" class="mb-3 min-h-4 text-xs text-ink-muted"></p>
 
   <section class="card p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <nav id="folder-crumbs" class="-ml-1 flex flex-wrap items-center gap-1 text-sm text-ink-muted" aria-label="Folder"></nav>
-      <div class="flex items-center gap-2">
-        <span
-          id="pending-detail"
-          hidden
-          class="rounded-sm bg-caution-surface px-2.5 py-0.5 text-xs font-medium text-caution"
-        ></span>
-        <p id="usage" class="text-xs text-ink-muted"></p>
-      </div>
+      <p id="usage" class="text-xs text-ink-muted"></p>
     </div>
 
     <div id="folder-note-wrap" class="mt-3" hidden>

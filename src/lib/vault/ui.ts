@@ -27,14 +27,7 @@ import {
 import { describeFindings, scanFiles } from './deidentify';
 import { isComplete } from './dimensions';
 import { detailBody, detailPanel, wireDetails } from './detail-panel';
-import {
-  applyFilters,
-  filterBar,
-  filterFromEvent,
-  filterSummary,
-  NO_FILTERS,
-  type Filters,
-} from './filters';
+import { applyFilters, filterBar, filterFromEvent, NO_FILTERS, type Filters } from './filters';
 import {
   breadcrumbHtml,
   childFolders,
@@ -173,9 +166,6 @@ function renderDocuments() {
   const items = visibleDocuments();
   const subfolders = searching ? [] : childFolders(folders, cursor);
 
-  const summary = $('filter-summary');
-  if (summary) summary.textContent = filterSummary(items.length, documents.length, filters);
-
   if (items.length === 0 && subfolders.length === 0) {
     host.innerHTML = `<p class="rounded-lg border border-dashed border-line bg-canvas px-4 py-8 text-center text-sm text-ink-muted">
       ${searching ? 'Nothing matches that.' : 'Nothing here yet.'}
@@ -219,28 +209,29 @@ function artefactRow(doc: VaultDocument, searching: boolean): string {
   </li>`;
 }
 
-/** "N need detail" in the list header — the nudge to come back and enrich. */
-function renderPendingCount() {
-  const host = $('pending-detail');
-  if (!host) return;
-  const pending = visibleDocuments().filter((doc) => !isComplete(doc)).length;
-  host.hidden = pending === 0;
-  host.textContent = pending === 1 ? '1 needs detail' : `${pending} need detail`;
-}
-
 function renderSearchSummary() {
-  const host = $('search-summary');
-  if (!host) return;
   const needle = search.trim();
-  if (!needle) {
-    host.textContent = '';
+  const filtering = anyFilter();
+  if (!needle && !filtering) {
+    setStatus('');
     return;
   }
+
   const found = visibleDocuments().length;
-  host.textContent =
-    found === 0
-      ? `Nothing matches "${needle}".`
-      : `${found} artefact${found === 1 ? '' : 's'} match "${needle}".`;
+  if (found === 0) {
+    setStatus(needle ? `Nothing matches "${needle}".` : 'Nothing matches these filters.');
+    return;
+  }
+
+  // The plural lands on the verb the other way round: one artefact matches,
+  // two artefacts match.
+  setStatus(
+    needle
+      ? found === 1
+        ? `1 artefact matches "${needle}".`
+        : `${found} artefacts match "${needle}".`
+      : `${found} of ${documents.length} shown.`,
+  );
 }
 
 function renderUsage() {
@@ -284,7 +275,6 @@ async function refresh() {
   if (cursor && !folders.some((f) => f.id === cursor)) cursor = null;
   renderDocuments();
   renderUsage();
-  renderPendingCount();
   renderSearchSummary();
 }
 
@@ -331,8 +321,17 @@ async function handleFiles(files: FileList | File[]) {
   });
 }
 
+/**
+ * The page's one status line.
+ *
+ * Export progress, search results and filter counts used to have a strip each,
+ * and no two of them could ever be on screen at once — so the page reserved
+ * three bands of empty space for messages that arrived one at a time. They
+ * share a line now, and `min-h-4` holds its height so nothing jumps when one
+ * appears.
+ */
 function setStatus(message: string, busy = false) {
-  const host = $('export-status');
+  const host = $('page-status');
   if (!host) return;
   host.textContent = message;
   host.classList.toggle('animate-pulse', busy);
@@ -438,7 +437,7 @@ export async function initVault() {
     if (!next) return;
     filters = next;
     renderDocuments();
-    renderPendingCount();
+    renderSearchSummary();
   };
   $('filter-bar')?.addEventListener('click', onFilter);
   $('filter-bar')?.addEventListener('change', onFilter);
@@ -446,7 +445,6 @@ export async function initVault() {
   $<HTMLInputElement>('doc-search')?.addEventListener('input', (event) => {
     search = (event.target as HTMLInputElement).value;
     renderDocuments();
-    renderPendingCount();
     renderSearchSummary();
   });
 
@@ -531,8 +529,7 @@ export async function initVault() {
         setStatus(message);
         // The "N need detail" badge is this page's own, so it is refreshed here
         // rather than inside the shared panel that knows nothing about it.
-        renderPendingCount();
-      },
+          },
       guard,
       reload: async () => {
         await refresh();

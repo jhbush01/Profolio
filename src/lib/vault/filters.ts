@@ -78,7 +78,7 @@ export function filterBar(documents: VaultDocument[], filters: Filters): string 
     options.length === 0
       ? ''
       : `<select data-filter="${name}" aria-label="${escapeHtml(placeholder)}"
-           class="rounded-md border px-2 py-1 text-xs transition ${
+           class="shrink-0 rounded-md border px-2 py-1 text-xs transition ${
              current ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface text-ink-muted'
            }">
           <option value="">${escapeHtml(placeholder)}</option>
@@ -92,12 +92,16 @@ export function filterBar(documents: VaultDocument[], filters: Filters): string 
             .join('')}
         </select>`;
 
-  return `<div class="flex flex-wrap items-center gap-2">
+  // `nowrap` with shrink-0 children, so on a narrow screen this becomes one
+  // horizontally scrollable strip inside its container rather than wrapping
+  // into a second and third row of controls. Above `lg` there is room and it
+  // never scrolls, so the behaviour costs nothing where it is not needed.
+  return `<div class="flex w-max items-center gap-2 lg:w-auto">
     ${
       incomplete > 0
         ? `<button type="button" data-filter-status
              aria-pressed="${filters.status === 'incomplete'}"
-             class="pf-press rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+             class="pf-press shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
                filters.status === 'incomplete'
                  ? 'border-caution bg-caution-surface text-caution'
                  : 'border-line bg-surface text-ink-muted hover:border-caution/40 hover:text-caution'
@@ -112,7 +116,7 @@ export function filterBar(documents: VaultDocument[], filters: Filters): string 
     ${
       anyActive(filters)
         ? `<button type="button" data-filter-clear
-             class="pf-press rounded-md px-2 py-1 text-xs text-ink-faint underline underline-offset-2 transition hover:text-ink">Clear</button>`
+             class="pf-press shrink-0 rounded-md px-2 py-1 text-xs text-ink-faint underline underline-offset-2 transition hover:text-ink">Clear</button>`
         : ''
     }
   </div>`;
