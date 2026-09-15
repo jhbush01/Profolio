@@ -3,8 +3,9 @@
  * scoped to them, run the handler, and turn anything thrown into JSON.
  */
 import { env } from 'cloudflare:workers';
-import { errorResponse, HttpError, requireIdentity } from './access';
+import { errorResponse, HttpError } from './access';
 import { resolveAccount } from './accounts';
+import { authenticate } from './identity';
 import { Repo } from './repo';
 
 /**
@@ -18,9 +19,11 @@ export async function withRepo(
 ): Promise<Response> {
   const bindings = env as Env & { ACCESS_DEV_BYPASS?: string };
   try {
-    // Two steps on purpose: access.ts proves who the token belongs to, and
-    // accounts.ts decides which account that is. Rows are owned by the second.
-    const token = await requireIdentity(request, bindings);
+    // Two steps on purpose: identity.ts proves who the caller is, by whatever
+    // means they signed in with, and accounts.ts decides which account that is.
+    // Rows are owned by the second, which is why a new way of signing in is a
+    // new authenticator rather than a migration.
+    const token = await authenticate(request, bindings);
     const who = await resolveAccount(bindings.DB, token);
     const repo = new Repo(bindings.DB, bindings.DOCUMENTS, who);
     return await run(repo, who.email);

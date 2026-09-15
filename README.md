@@ -7,8 +7,9 @@ Taking the portfolio and creating a digital, universal professional evidence vau
 1. **Portfolio builder** (`/portfolio`) — industry-neutral and functional. Upload documents, organise them into nested folders, and export the whole portfolio as one PDF with a cover page, contents page and page numbers. Documents are stored in Cloudflare R2, metadata in D1, behind Cloudflare Access.
 2. **Teaching portfolio** (`/sequence`, `/evidence`, `/standards`, `/present`) — a worked example: a five-week teaching sequence mapped to the Australian Professional Standards for Teachers (APST). Authored content read from JSON at build time.
 
-Access is an **allowlist**, not public sign-up: only email addresses you add to
-the Access policy can sign in, and each signed-in identity owns its own rows.
+Sign-in is Cloudflare Access. Who may sign in, and how, is an Access policy —
+an allowlist of addresses, a whole email domain, or open sign-up — and each
+signed-in identity owns its own rows. See **Sign-in** below.
 
 ## Where to start
 
@@ -57,7 +58,7 @@ In the Cloudflare dashboard, under **Zero Trust → Access → Applications**, a
 self-hosted application:
 
 - **Domain**: your Worker's hostname, with path `/` (covering `/api/*` too).
-- **Policy**: Allow → Emails → the addresses you want to let in.
+- **Policy**: Allow → see **Sign-in** below for what to put here.
 - After saving, open the application's **Overview** tab and copy the
   **Application Audience (AUD) tag**.
 
@@ -91,6 +92,67 @@ In **Workers Builds**, set:
 | Deploy command | `npx wrangler deploy -c dist/server/wrangler.json` |
 | Version command | `npx wrangler versions upload -c dist/server/wrangler.json` |
 | Root directory | `/` |
+
+## Sign-in
+
+**There is no password in this repo, on purpose.** Access supports Google,
+Microsoft, GitHub, LinkedIn, SAML and a one-time email code as identity
+providers, so "sign in with Google" and "sign in with any email address" are
+both settings in a dashboard. An app holding de-identified children's work is
+better off never storing a password than storing one carefully — and a
+procurement security review is a great deal shorter when the answer to "how do
+you protect credentials" is "we never hold any".
+
+### Letting people in with Google
+
+**Zero Trust → Settings → Authentication → Login methods → Add new → Google.**
+Cloudflare's setup page walks through creating the OAuth client in Google Cloud
+and pasting the client ID and secret back. Nothing in this repo changes:
+`src/lib/server/access.ts` verifies whatever token Access issues, and
+`src/lib/server/accounts.ts` maps it to an account.
+
+### Letting people in with any email address
+
+Add **One-time PIN** as a login method in the same place. Anyone types an
+address, receives a six-digit code, and is signed in. This is the closest thing
+to "email and password" that does not require this app to hold a password.
+
+### Who is allowed
+
+The login *method* is separate from the *policy* that decides who may use it.
+In the application's **Policies** tab:
+
+| You want | Policy rule |
+| --- | --- |
+| Only you and a few testers | Include → Emails → list the addresses |
+| Everyone at one university | Include → Emails ending in → `@yourinstitution.edu.au` |
+| Open sign-up | Include → Everyone |
+
+Open sign-up means anyone on the internet can create an account and upload to
+your R2 bucket. `MAX_ACCOUNT_BYTES` in `src/lib/server/repo.ts` bounds what one
+account can cost you; nothing bounds how many accounts there are. Do not open it
+without deciding that first.
+
+### Adding a second way in, later
+
+If ProFolio is ever sold to a school that cannot use Access, it will need its
+own sign-in. The seam is already there and is the only thing that needs to be:
+
+- Routes call `authenticate()` in `src/lib/server/identity.ts`, never Access
+  directly. A second authenticator is one entry in `AUTHENTICATORS`.
+- Rows are owned by an **account id**, not an email, and have been since
+  migration 0007. `account_identities` maps `(kind, value)` pairs to accounts,
+  so a password login records a new `kind` and needs no schema change and no
+  data migration.
+- An authenticator returns `null` only when the request carries no credential of
+  its kind, and throws when it carries a bad one. Returning `null` for a bad
+  credential would let a request fall through to the weakest authenticator on
+  the chain. This is the one rule in that file that is a security property.
+
+What is deliberately *not* done in advance: password hashing, session cookies,
+verification email, reset tokens, rate limiting and lockout. Writing those
+before anyone needs them means maintaining security-critical code that nothing
+exercises. See `docs/DECISIONS.md`.
 
 ## How authentication is enforced
 

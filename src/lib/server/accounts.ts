@@ -22,7 +22,7 @@
  * than addresses get recycled. Revisit it if this is ever used somewhere that
  * recycles addresses quickly.
  */
-import type { TokenIdentity } from './access';
+import type { VerifiedIdentity } from './identity';
 
 /** The owner of rows: an internal id, plus the token details for display. */
 export interface Identity {
@@ -30,6 +30,11 @@ export interface Identity {
   accountId: string;
   /** Verified email, for showing who is signed in. Never an ownership key. */
   email: string;
+  /**
+   * How they signed in, for display and support. Never an authorisation input:
+   * nothing is permitted because of which authenticator proved the caller.
+   */
+  method: string;
 }
 
 interface IdentityRow {
@@ -86,12 +91,12 @@ async function link(db: D1Database, accountId: string, kind: string, value: stri
     .run();
 }
 
-export async function resolveAccount(db: D1Database, token: TokenIdentity): Promise<Identity> {
+export async function resolveAccount(db: D1Database, token: VerifiedIdentity): Promise<Identity> {
   if (token.subject) {
     const bySubject = await lookup(db, 'subject', token.subject);
     if (bySubject) {
       await touch(db, bySubject);
-      return { accountId: bySubject, email: token.email };
+      return { accountId: bySubject, email: token.email, method: token.method };
     }
   }
 
@@ -101,7 +106,7 @@ export async function resolveAccount(db: D1Database, token: TokenIdentity): Prom
     // and so this account keeps working if the email later changes.
     if (token.subject) await link(db, byEmail, 'subject', token.subject);
     await touch(db, byEmail);
-    return { accountId: byEmail, email: token.email };
+    return { accountId: byEmail, email: token.email, method: token.method };
   }
 
   const accountId = newAccountId();
@@ -120,5 +125,5 @@ export async function resolveAccount(db: D1Database, token: TokenIdentity): Prom
   const settled =
     (token.subject ? await lookup(db, 'subject', token.subject) : null) ??
     (await lookup(db, 'email', token.email));
-  return { accountId: settled ?? accountId, email: token.email };
+  return { accountId: settled ?? accountId, email: token.email, method: token.method };
 }

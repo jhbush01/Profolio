@@ -14,6 +14,8 @@
  * silently serving an unauthenticated endpoint.
  */
 
+import type { Authenticator } from './identity';
+
 /**
  * What the Access token asserts. Deliberately not the row owner: see
  * accounts.ts, which resolves one of these to a stable account id.
@@ -164,6 +166,34 @@ export async function requireIdentity(request: Request, env: AccessEnv): Promise
     subject: typeof payload.sub === 'string' && payload.sub ? payload.sub : null,
   };
 }
+
+/**
+ * Access as one link in the authentication chain. See identity.ts.
+ *
+ * Returns null ONLY when the request carries no Access token at all. A token
+ * that is present and bad throws, so it can never fall through to a weaker
+ * authenticator added later.
+ *
+ * Misconfiguration is a different thing from a missing token, and is handled
+ * by requireIdentity's 503 rather than by stepping aside: an app whose Access
+ * settings have gone missing must not start letting the next authenticator in
+ * the chain decide who gets in.
+ */
+export const accessAuthenticator: Authenticator = {
+  name: 'access',
+  async verify(request, env) {
+    const bindings = env as AccessEnv;
+    const configured = Boolean(bindings.ACCESS_TEAM_DOMAIN?.trim() && bindings.ACCESS_AUD?.trim());
+    if (bindings.ACCESS_DEV_BYPASS !== 'true' && configured) {
+      const cookie = request.headers.get('Cookie') ?? '';
+      const present =
+        request.headers.has('Cf-Access-Jwt-Assertion') ||
+        /(?:^|;\s*)CF_Authorization=/.test(cookie);
+      if (!present) return null;
+    }
+    return { ...(await requireIdentity(request, bindings)), method: 'access' };
+  },
+};
 
 /** Turns an AuthError (or anything else) into a JSON response. */
 export function errorResponse(error: unknown): Response {

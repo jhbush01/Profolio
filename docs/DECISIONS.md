@@ -213,6 +213,31 @@ The general rule this is an instance of: **any per-account endpoint on a fixed
 URL must be `no-store` or carry the account in the URL.** There is no third
 option that survives a shared device.
 
+**Email-and-password sign-in, in this app.** Asked for directly, and declined
+in that form. Access already offers Google, Microsoft, GitHub, LinkedIn and a
+one-time email code as login methods, so "sign in with Google" and "sign in with
+any email address" are dashboard settings rather than code. Adding our own
+credentials means taking Access *off* the app — it intercepts before our code
+runs — and so becoming responsible for session cookies, password hashing,
+verification email, reset tokens, rate limiting, lockout, and the protection of
+every `/api/*` route that Cloudflare currently guards. On an app holding
+de-identified children's work, aimed at institutional buyers, never holding a
+password is a feature and not a gap.
+
+What *was* built instead is the seam: routes call `authenticate()` in
+`identity.ts` rather than Access directly, so a second authenticator is one new
+module. Rows have been owned by an account id since 0007, and
+`account_identities` maps `(kind, value)` pairs, so a password login is a new
+`kind` with no schema change and no data migration. Deliberately NOT written in
+advance: the hashing, sessions, email and rate limiting. Security-critical code
+that nothing exercises is code that rots.
+
+The one rule in `identity.ts` that is a security property, restated because it
+is easy to undo: **an authenticator returns `null` only when the request carries
+no credential of its kind, and throws when it carries a bad one.** Return `null`
+on a bad credential and the chain silently becomes "use the weakest thing on the
+request".
+
 ---
 
 ## Open, and not for a planner to settle alone

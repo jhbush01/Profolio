@@ -45,6 +45,45 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+/**
+ * How this person signed in, named the way they would name it.
+ *
+ * Access serves /cdn-cgi/access/get-identity on every hostname it protects, so
+ * no team domain is baked in here — the same reason the sign-out link carries
+ * none. Best effort by design: the line stays hidden when the endpoint is not
+ * there, which is what happens in local development and what would happen again
+ * if the app ever moved off Access. Nothing depends on the answer, because how
+ * somebody signed in must never decide what they are allowed to do.
+ */
+async function showSignInMethod() {
+  const host = $('account-method');
+  if (!host) return;
+
+  const NAMED: Record<string, string> = {
+    google: 'your Google account',
+    'google-apps': 'your Google Workspace account',
+    github: 'your GitHub account',
+    azureAD: 'your Microsoft account',
+    linkedin: 'your LinkedIn account',
+    onetimepin: 'a code emailed to you',
+    otp: 'a code emailed to you',
+  };
+
+  try {
+    const response = await fetch('/cdn-cgi/access/get-identity', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return;
+    const identity = (await response.json()) as { idp?: { type?: string } };
+    const label = NAMED[identity.idp?.type ?? ''];
+    if (!label) return;
+    host.textContent = `Signed in with ${label}.`;
+    host.hidden = false;
+  } catch {
+    // Offline, or not behind Access. Not worth saying anything about.
+  }
+}
+
 /** Two letters from a name, or from the address when there is no name yet. */
 function initialsFrom(name: string, email: string): string {
   const parts = (name.trim() || email).split(/[\s.@_-]+/).filter(Boolean);
@@ -216,4 +255,7 @@ export async function initAccount() {
   }
 
   await guard('Loading your account', load);
+  // Not inside `guard`, and not awaited with the rest: a provider name is a
+  // nicety, and a page that failed to render because of one would be absurd.
+  void showSignInMethod();
 }

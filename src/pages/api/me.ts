@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import type { APIRoute } from 'astro';
-import { errorResponse, requireIdentity } from '../../lib/server/access';
+import { errorResponse } from '../../lib/server/access';
+import { authenticate } from '../../lib/server/identity';
 
 export const prerender = false;
 
@@ -14,9 +15,9 @@ export const prerender = false;
  */
 export const GET: APIRoute = async ({ request }) => {
   try {
-    const token = await requireIdentity(request, env as Env & { ACCESS_DEV_BYPASS?: string });
+    const token = await authenticate(request, env as Env & { ACCESS_DEV_BYPASS?: string });
     return Response.json(
-      { email: token.email },
+      { email: token.email, method: token.method },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch (error) {

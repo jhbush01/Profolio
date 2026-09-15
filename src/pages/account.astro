@@ -22,7 +22,26 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <section class="card p-6">
       <h2 class="text-base font-semibold">Signed in</h2>
       <p id="account-page-email" class="mt-1 break-all text-sm font-medium">…</p>
+      {/*
+          Which provider, not only which address. On a shared staffroom device
+          "signed in as jh@…" does not say whether that was the Google account
+          or a code sent to a personal inbox, and those can be two people.
+          Filled in by the controller, and left hidden when it cannot be read.
+      */}
+      <p id="account-method" hidden class="prose-body mt-1 text-xs"></p>
       <p id="account-usage" class="prose-body mt-1 text-xs">…</p>
+
+      <p class="prose-body mt-3 border-t border-line-subtle pt-3 text-xs">
+        Your evidence belongs to an account, not to an address. Signing in a different way
+        on the same address lands you in the same account — which is what lets you move
+        from a university address to a personal one when a placement ends.
+      </p>
+      <a
+        href="/cdn-cgi/access/logout"
+        class="pf-press mt-3 inline-block rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-critical/40 hover:text-critical"
+      >
+        Sign out
+      </a>
     </section>
 
     <!-- Printed on the PDF cover page, and shown at the top of Home. -->
