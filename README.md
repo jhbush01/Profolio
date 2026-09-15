@@ -17,6 +17,8 @@ signed-in identity owns its own rows. See **Sign-in** below.
   not negotiable.
 - `docs/DECISIONS.md` — what was tried and rejected, and why. Read before
   proposing a feature.
+- `docs/ROADMAP.md` — what to build next, what is blocked, and what is already
+  built under another name. Read before planning one.
 
 ## Architecture
 
