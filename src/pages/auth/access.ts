@@ -22,6 +22,14 @@ export const prerender = false;
  * A redirect rather than JSON: this is reached by a person clicking a link, and
  * what they want next is the app.
  */
+/** Same rule as the sign-in page: a path on this site, or Home. */
+function destination(url: URL): string {
+  const next = url.searchParams.get('next');
+  if (!next) return '/';
+  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/';
+  return next;
+}
+
 export const GET: APIRoute = async ({ request }) => {
   try {
     const bindings = env as Env & { ACCESS_DEV_BYPASS?: string };
@@ -34,7 +42,11 @@ export const GET: APIRoute = async ({ request }) => {
 
     return new Response(null, {
       status: 303,
-      headers: { Location: '/', 'Set-Cookie': cookie, 'Cache-Control': 'no-store' },
+      headers: {
+        Location: destination(new URL(request.url)),
+        'Set-Cookie': cookie,
+        'Cache-Control': 'no-store',
+      },
     });
   } catch (error) {
     return errorResponse(error);

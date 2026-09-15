@@ -67,21 +67,27 @@ function sessionStore(): Storage | null {
 }
 
 /**
- * Recover from an expired Access session by reloading: Access intercepts the
- * navigation, the user signs in, and the app comes back.
+ * Send someone whose session has ended to the sign-in page.
  *
- * That only works while Access is actually in front of the Worker. When it is
- * not — a route that stopped matching, a blocked cookie, `wrangler dev`
- * without ACCESS_DEV_BYPASS — the reload lands on the same 401 and the page
- * reloads forever, hammering the API and never telling the user why.
+ * This USED to reload the page, which worked only because Cloudflare Access sat
+ * in front of every route: the reload was intercepted, Access signed you in,
+ * and the app came back. Access now guards one path instead, so a reload lands
+ * on the same 401 and the page reloads until the budget below stops it — the
+ * user sees a broken app and never sees a way back in.
  *
- * So reloads are counted in sessionStorage (per tab, gone when the tab closes)
- * and stop after AUTH_RELOAD_LIMIT inside a minute. Returns true if a reload
- * has started and the caller should stop; false means show the error instead.
- * Without usable storage there is no way to count, and an uncounted reload is
- * the loop, so that returns false too.
+ * /signin is right in both arrangements. A password session that has expired
+ * gets the form. An Access session that has expired gets the form plus the
+ * button through to /auth/access. And if Access is still in front of
+ * everything, the navigation is intercepted exactly as the reload used to be.
+ *
+ * The budget survives because navigation is cheap but not free, and a 401 that
+ * somehow persists should stop rather than bounce. Returns true when the caller
+ * should stop and let the browser leave; false means show the error instead.
  */
 export function reloadForAuth(): boolean {
+  // Already here. Bouncing /signin to /signin is the loop this guards against.
+  if (window.location.pathname.replace(/\/$/, '') === '/signin') return false;
+
   const store = sessionStore();
   if (!store) return false;
 
@@ -101,7 +107,13 @@ export function reloadForAuth(): boolean {
   if (recent.length >= AUTH_RELOAD_LIMIT) return false;
 
   store.setItem(AUTH_RELOAD_KEY, JSON.stringify([...recent, now]));
-  window.location.reload();
+
+  // Where they were, so signing in again does not also mean navigating back.
+  // Path and query only, never a full URL: a `next` that could name another
+  // host is an open redirect with a sign-in page in front of it.
+  const here = `${window.location.pathname}${window.location.search}`;
+  const next = here.startsWith('/') && !here.startsWith('//') ? here : '/';
+  window.location.href = `/signin?next=${encodeURIComponent(next)}`;
   return true;
 }
 

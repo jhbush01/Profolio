@@ -13,6 +13,23 @@
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
+/**
+ * Where to go once signed in.
+ *
+ * `next` comes from the URL, which anyone can write, so it is checked rather
+ * than trusted: a path on this site only. A `next` naming another host would
+ * make this page an open redirect — a convincing ProFolio sign-in form that
+ * hands people to somewhere else afterwards.
+ */
+function destination(): string {
+  const next = new URLSearchParams(window.location.search).get('next');
+  if (!next) return '/';
+  // Must be a bare path. Rejects "//evil.example", "https://evil.example" and
+  // anything with a scheme; "/\evil" too, which some browsers treat as "//".
+  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/';
+  return next;
+}
+
 const SELECTED = 'bg-surface text-ink shadow-[0_1px_2px_rgba(77,51,22,0.08)]';
 const UNSELECTED = 'text-ink-muted hover:text-ink';
 
@@ -42,6 +59,11 @@ export function initSignIn() {
     if (hint) hint.hidden = !next;
     error!.hidden = true;
   }
+
+  // The Google/Cloudflare door takes the same destination with it, so the two
+  // ways in land in the same place.
+  const accessLink = document.querySelector<HTMLAnchorElement>('a[href="/auth/access"]');
+  if (accessLink) accessLink.href = `/auth/access?next=${encodeURIComponent(destination())}`;
 
   tabIn.addEventListener('click', () => setMode(false));
   tabUp.addEventListener('click', () => setMode(true));
@@ -73,7 +95,7 @@ export function initSignIn() {
       if (response.ok) {
         // A full navigation, not history.pushState: the session cookie has just
         // been set and every page behind it needs a fresh request to see it.
-        window.location.href = '/';
+        window.location.href = destination();
         return;
       }
 
