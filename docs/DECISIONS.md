@@ -262,6 +262,19 @@ during a procurement review rather than fixed before one.
 a capture is worse than a failed upload the user can see. When it is built, it
 should queue uploads explicitly rather than cache the app shell and hope.
 
+**PBKDF2 at 100,000 iterations, because Workers will not do more.** Not a
+tuning decision — the platform throws above it. Worth recording because the
+number looks low against OWASP's 210,000 and someone will want to raise it: it
+cannot be raised, and `hashPassword` clamps so that trying fails safe instead of
+failing at sign-up in production. Two chained calls would reach 200,000 and the
+maths is sound; rejected because it doubles the CPU the cap exists to bound.
+
+The general lesson, which cost a broken sign-up form: **the local runtime is
+more permissive than production.** Neither workerd-local nor Node enforces the
+PBKDF2 cap, so the test passed and the deploy did not. Anything that depends on
+a platform limit has to be verified in production or encoded as a constant that
+cannot drift.
+
 **No password reset.** Deliberate, and a real gap. A reset flow needs an email
 sender, a secret, a token table and an expiry policy; without a provider chosen
 it would be dead code. A forgotten password is currently unrecoverable and both

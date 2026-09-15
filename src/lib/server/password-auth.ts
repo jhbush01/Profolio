@@ -22,9 +22,17 @@ import {
   hashPassword,
   needsRehash,
   passwordProblem,
+  PBKDF2_ITERATIONS,
   verifyPassword,
   type StoredPassword,
 } from './passwords';
+
+/**
+ * The algorithm name real rows carry, for the decoy derive below. Must match
+ * `ALGORITHM` in passwords.ts — a mismatch makes verifyPassword return false
+ * before doing any work, which is the timing leak wearing a disguise.
+ */
+const DUMMY_ALGORITHM = 'PBKDF2-SHA256';
 
 /** Failed attempts on one account before it stops answering, and for how long. */
 const LOCK_AFTER = 5;
@@ -201,12 +209,19 @@ export async function signInWithPassword(
   if (!row) {
     await recordFailure(db, request);
     // A derive against a throwaway salt, so a missing address does not answer
-    // faster than a wrong password and turn timing into an account list.
+    // faster than a wrong password and turn timing into a list of who has an
+    // account here.
+    //
+    // It has to use the SAME parameters real rows use, or it is not equal work.
+    // Hard-coding them once meant this asked for an iteration count the
+    // platform refuses, which throws immediately — an unknown address would
+    // have returned in no time at all while a real one took a tenth of a
+    // second, which is precisely the signal this exists to remove.
     await verifyPassword(typeof password === 'string' ? password : '', {
       hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
       salt: 'AAAAAAAAAAAAAAAAAAAAAA==',
-      algorithm: 'PBKDF2-SHA256',
-      iterations: 210_000,
+      algorithm: DUMMY_ALGORITHM,
+      iterations: PBKDF2_ITERATIONS,
     });
     throw refuse();
   }

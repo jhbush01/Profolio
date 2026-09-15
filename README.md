@@ -162,15 +162,27 @@ which they are.
 If you stop after step 1, Google and Cloudflare keep working and password
 sign-in simply is not reachable. Nothing breaks.
 
-**What is stored.** PBKDF2-HMAC-SHA256 at 210,000 iterations with a per-user
+**What is stored.** PBKDF2-HMAC-SHA256 at 100,000 iterations with a per-user
 salt, parameters kept per row so the cost can be raised and each password
 upgraded on next use. Sessions are rows in `account_sessions`; the cookie holds
 a random token and only its SHA-256 is stored.
 
-⚠️ **The iteration count needs CPU headroom.** 210,000 iterations is roughly a
-tenth of a second of CPU per sign-in, which is fine on a paid Workers plan and
-will exceed the free plan's 10ms allowance. The number *is* the security of the
-stored password — move the app, not the constant.
+⚠️ **100,000 is the platform ceiling, not a choice.** Workers refuses more —
+*"iteration counts above 100000 are not supported"* — so OWASP's current 210,000
+for this construction is unavailable here. **The local runtime does not enforce
+the cap**, and neither does Node, so this cannot be caught by a passing test; it
+shipped wrong once for exactly that reason. `hashPassword` now clamps rather
+than trusting the constant.
+
+Halving the iterations costs an attacker one bit. One more word in a passphrase
+is worth eleven or twelve, so at this end of the range the password dominates
+the hash parameters completely — which is why the 12-character minimum is the
+control worth arguing about. Chaining two PBKDF2 calls would reach 200,000
+effective iterations and the maths is sound, but it doubles the CPU the cap
+exists to bound, so it is not done.
+
+Budget roughly 60ms of CPU per sign-in. Fine on a paid Workers plan; over the
+free plan's 10ms allowance.
 
 **A password sign-up always creates a NEW account.** It never adopts an existing
 one by email, because an address typed into a public form proves nothing and
