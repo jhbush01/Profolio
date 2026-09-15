@@ -1,0 +1,121 @@
+---
+/**
+ * Signing in with an address and a password ProFolio holds.
+ *
+ * This page only does anything if Cloudflare Access is NOT enforcing on it —
+ * Access intercepts before Astro exists, so a visitor behind an Access policy
+ * never sees this. See the README: the Access application needs a Bypass policy
+ * on `/` and an Allow policy on `/auth/access` for both ways in to coexist.
+ *
+ * Standalone by design: no drawer, no account menu, no navigation. Every one of
+ * those fetches /api/me, which is a 401 for somebody who has not signed in yet,
+ * and a sign-in page that renders three error states before you have typed
+ * anything is a sign-in page nobody trusts.
+ */
+import '../styles/global.css';
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sign in · ProFolio</title>
+    <meta name="robots" content="noindex" />
+  </head>
+  <body class="bg-canvas text-ink">
+    <main class="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
+      <h1 class="text-center font-display text-3xl font-normal tracking-[-0.02em]">ProFolio</h1>
+      <p class="prose-body mt-1 text-center text-sm">Your teaching evidence, in one place.</p>
+
+      <section class="card mt-7 p-6">
+        <div class="mb-5 flex gap-1 rounded-md bg-canvas p-1" role="tablist">
+          <button
+            type="button"
+            id="tab-in"
+            role="tab"
+            aria-selected="true"
+            class="flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition"
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            id="tab-up"
+            role="tab"
+            aria-selected="false"
+            class="flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition"
+          >
+            Create account
+          </button>
+        </div>
+
+        <form id="auth-form" novalidate class="flex flex-col gap-4">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-xs font-medium">Email address</span>
+            <input
+              id="email"
+              type="email"
+              name="email"
+              required
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+              class="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm"
+            />
+          </label>
+
+          <label class="flex flex-col gap-1.5">
+            <span class="text-xs font-medium">Password</span>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              required
+              autocomplete="current-password"
+              class="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm"
+            />
+            {/* Only on the sign-up tab: telling somebody signing IN what the
+                rules are is telling them about a password they already have. */}
+            <span id="password-hint" hidden class="prose-body text-xs">
+              At least 12 characters. A few unrelated words beats a short one with symbols in it —
+              and there is no way to reset this yet, so use your password manager.
+            </span>
+          </label>
+
+          <p id="auth-error" role="alert" hidden class="rounded-md bg-critical-surface px-3 py-2 text-xs text-critical"></p>
+
+          <button
+            id="submit"
+            type="submit"
+            class="pf-press min-h-11 w-full rounded-md bg-accent px-4 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+          >
+            Sign in
+          </button>
+        </form>
+
+        <!-- A real navigation, not fetch(): Access has to set cookies and redirect. -->
+        <div class="mt-5 border-t border-line-subtle pt-5">
+          <p class="pf-eyebrow mb-2 text-center text-ink-faint">Or</p>
+          <a
+            href="/auth/access"
+            class="pf-press flex min-h-11 w-full items-center justify-center rounded-md border border-line bg-surface px-4 text-sm font-medium transition hover:border-accent/40"
+          >
+            Sign in with Google or Cloudflare
+          </a>
+        </div>
+      </section>
+
+      <p class="prose-body mt-6 text-center text-xs">
+        Evidence about students is the most sensitive thing this app holds.
+        Read the <a href="/privacy" class="underline underline-offset-2">privacy notice</a>
+        before you upload anything.
+      </p>
+    </main>
+
+    <script>
+      import { initSignIn } from '../lib/vault/signin-ui';
+      initSignIn();
+    </script>
+  </body>
+</html>

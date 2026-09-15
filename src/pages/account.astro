@@ -44,6 +44,74 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </a>
     </section>
 
+    {/*
+        Setting a password on an account that already exists.
+
+        This is the ONLY way an account reached through Google or Cloudflare
+        gains one, and it is why signing up with a password never adopts an
+        existing account by email: an address typed into a public form proves
+        nothing, and adopting on it would hand over somebody else's evidence.
+        Here, you are already inside the account.
+    */}
+    <section class="card p-6">
+      <h2 class="text-base font-semibold">Password sign-in</h2>
+      <p id="password-state" class="prose-body mt-1 text-xs">Checking…</p>
+
+      <form id="password-form" hidden class="mt-4 flex flex-col gap-3">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">Sign in with this address</span>
+          <input
+            id="password-email"
+            type="email"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            class="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm"
+          />
+        </label>
+
+        <label id="current-wrap" hidden class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">Current password</span>
+          <input
+            id="password-current"
+            type="password"
+            autocomplete="current-password"
+            class="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1.5">
+          <span class="text-xs font-medium">New password</span>
+          <input
+            id="password-new"
+            type="password"
+            autocomplete="new-password"
+            class="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm"
+          />
+          <span class="prose-body text-xs">
+            At least 12 characters. There is no way to reset a forgotten password yet, so put it in
+            your password manager now.
+          </span>
+        </label>
+
+        <p id="password-error" role="alert" hidden class="rounded-md bg-critical-surface px-3 py-2 text-xs text-critical"></p>
+
+        <div>
+          <button
+            id="password-save"
+            type="submit"
+            class="pf-press rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+          >
+            Save password
+          </button>
+        </div>
+        <p class="prose-body text-xs">
+          Saving signs you out everywhere, this tab included. A password change that leaves the
+          sessions it was changed because of still running has not changed anything.
+        </p>
+      </form>
+    </section>
+
     <!-- Printed on the PDF cover page, and shown at the top of Home. -->
     <section class="card p-6">
       <h2 class="text-base font-semibold">Cover details</h2>

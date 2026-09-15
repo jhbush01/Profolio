@@ -5,6 +5,7 @@
  * user's documents to another even once this becomes multi-user.
  */
 import { HttpError } from './access';
+import { hasPassword, setPassword } from './password-auth';
 import type { Identity } from './accounts';
 import { templateFor } from '../programmes';
 import type { Dimensions } from '../vault/dimensions';
@@ -190,6 +191,24 @@ export class Repo {
     private readonly bucket: R2Bucket,
     private readonly who: Identity,
   ) {}
+
+  /** The account rows are owned by. Exposed for the auth routes, read-only. */
+  get accountId(): string {
+    return this.who.accountId;
+  }
+
+  /** The address this account signs in with by password, or null. */
+  passwordEmail(): Promise<string | null> {
+    return hasPassword(this.db, this.who.accountId);
+  }
+
+  /**
+   * Sets or changes this account's password. Ends every session on success,
+   * including the one making the request.
+   */
+  setPassword(email: string, current: unknown, next: unknown): Promise<void> {
+    return setPassword(this.db, this.who.accountId, email, current, next);
+  }
 
   /**
    * Key for a NEW object. Existing objects are not moved when an account is
@@ -1235,6 +1254,15 @@ export class Repo {
     await this.clearAll();
     await this.db.batch([
       this.db.prepare(`DELETE FROM profiles WHERE owner = ?1`).bind(this.who.accountId),
+      // The credential and every live session, explicitly rather than by
+      // foreign key: a deleted account whose sessions still verify is an
+      // account that is not deleted.
+      this.db
+        .prepare(`DELETE FROM account_sessions WHERE account_id = ?1`)
+        .bind(this.who.accountId),
+      this.db
+        .prepare(`DELETE FROM account_passwords WHERE account_id = ?1`)
+        .bind(this.who.accountId),
       this.db
         .prepare(`DELETE FROM account_identities WHERE account_id = ?1`)
         .bind(this.who.accountId),

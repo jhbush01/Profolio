@@ -92,6 +92,15 @@ async function link(db: D1Database, accountId: string, kind: string, value: stri
 }
 
 export async function resolveAccount(db: D1Database, token: VerifiedIdentity): Promise<Identity> {
+  // The session authenticator already knows the account: the id came out of our
+  // own session row, not from anything the caller sent. Resolving it again by
+  // email would be a second lookup, and — worse — would put a password account
+  // through the adopt-by-email path that password sign-ups are kept out of.
+  if (token.accountId) {
+    await touch(db, token.accountId);
+    return { accountId: token.accountId, email: token.email, method: token.method };
+  }
+
   if (token.subject) {
     const bySubject = await lookup(db, 'subject', token.subject);
     if (bySubject) {

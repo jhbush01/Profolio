@@ -1,38 +1,54 @@
 /**
  * Proving who is asking, whatever they proved it with.
  *
- * Today there is exactly one way in: Cloudflare Access, which gates the app at
- * the edge and hands the Worker a signed JWT. That is deliberate — Access
- * supports Google, Microsoft, GitHub and a one-time email code as identity
- * providers, so "sign in with Google" and "sign in with any email address" are
- * settings in a dashboard rather than a credential database in this repo. An
- * app holding de-identified children's work is better off never storing a
- * password than storing one carefully.
+ * Two ways in.
  *
- * This file exists because that may not stay true. If ProFolio is ever sold to
- * a school that cannot use Access, it will need its own sign-in, and the way to
- * be ready for that is NOT to write it now — it is to make sure adding it later
- * is one new module rather than an edit to every route.
+ * CLOUDFLARE ACCESS gates the app at the edge and hands the Worker a signed
+ * JWT. Google, Microsoft, GitHub, LinkedIn and a one-time email code are all
+ * this one path — they are login methods configured in a dashboard, and this
+ * code cannot tell them apart beyond the label it shows the user.
  *
- * So: routes ask `authenticate()`. They do not know what proved the caller, and
- * nothing downstream does either — `resolveAccount` turns whatever comes back
- * into an account id, and rows have been owned by that id since migration 0007.
- * A password authenticator would slot into AUTHENTICATORS below, record its
- * identity in `account_identities` under a new `kind`, and require no schema
- * change and no data migration.
+ * A PROFOLIO SESSION, for someone who signed up with an email address and a
+ * password this app stores. See sessions.ts and password-auth.ts.
  *
- * THE ORDER OF THE CHAIN IS A SECURITY PROPERTY. An authenticator returns null
- * only when the request carries no credential OF ITS KIND, and throws when it
- * carries one that is bad. If a bad Access token returned null instead, the
- * request would fall through to whatever authenticator came next — which is how
- * a chain quietly becomes "use the weakest thing on the request".
+ * Routes ask `authenticate()` and never either of those directly. Nothing
+ * downstream knows or cares which one answered: `resolveAccount` turns the
+ * result into an account id, and rows have been owned by that id since
+ * migration 0007, which is why adding the second way in needed no change to a
+ * single query.
+ *
+ * THE ORDER OF THE CHAIN IS A SECURITY PROPERTY, in two ways.
+ *
+ * First: an authenticator returns null only when the request carries no
+ * credential OF ITS KIND, and throws when it carries one that is bad. Return
+ * null for a bad credential and the chain quietly becomes "use the weakest
+ * thing on the request".
+ *
+ * Second: Access comes first because it is the stronger proof. A request
+ * carrying both an Access token and a session cookie resolves through Access,
+ * so a stolen or stale session can never displace a good token. Nothing follows
+ * the session entry, so a session that fails to verify falls through to a 401
+ * rather than to anything weaker.
  */
 import { accessAuthenticator, AuthError } from './access';
+import { sessionAuthenticator } from './session-auth';
 
 /** What an authenticator proves. Not an owner: see accounts.ts. */
 export interface VerifiedIdentity {
   /** Verified email claim. Used for display and for linking an account. */
   email: string;
+  /**
+   * The account, when the authenticator already knows it rather than having to
+   * resolve an identity into one. Set by the session authenticator, where the
+   * id came out of our own session row — never from anything the caller sent.
+   * `resolveAccount` short-circuits on it.
+   */
+  accountId?: string;
+  /**
+   * A cookie the response must carry: a session being extended, so that one in
+   * daily use never expires under someone. Applied by withRepo.
+   */
+  setCookie?: string;
   /** A stable provider-side id, when there is one. */
   subject: string | null;
   /**
@@ -54,10 +70,8 @@ export interface Authenticator {
   verify(request: Request, env: unknown): Promise<VerifiedIdentity | null>;
 }
 
-/**
- * In order. One entry today, and the single place a second one gets added.
- */
-const AUTHENTICATORS: Authenticator[] = [accessAuthenticator];
+/** In order, and the order matters. See the note at the top of this file. */
+const AUTHENTICATORS: Authenticator[] = [accessAuthenticator, sessionAuthenticator];
 
 /** The caller's verified identity, or throws AuthError. */
 export async function authenticate(request: Request, env: unknown): Promise<VerifiedIdentity> {

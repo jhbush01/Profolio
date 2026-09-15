@@ -258,4 +258,87 @@ export async function initAccount() {
   // Not inside `guard`, and not awaited with the rest: a provider name is a
   // nicety, and a page that failed to render because of one would be absurd.
   void showSignInMethod();
+  void wirePassword();
+}
+
+/**
+ * Setting or changing the password on the account already signed in.
+ *
+ * The only route by which an account reached through Google or Cloudflare gains
+ * a password, which is what lets sign-up refuse to adopt accounts by email. See
+ * password-auth.ts for why that refusal is the thing holding this up.
+ */
+async function wirePassword() {
+  const form = $<HTMLFormElement>('password-form');
+  const state = $('password-state');
+  const addressField = $<HTMLInputElement>('password-email');
+  const currentWrap = $('current-wrap');
+  const currentField = $<HTMLInputElement>('password-current');
+  const nextField = $<HTMLInputElement>('password-new');
+  const save = $<HTMLButtonElement>('password-save');
+  const error = $('password-error');
+  if (!form || !state || !addressField || !nextField || !save || !error) return;
+
+  let existing: string | null = null;
+
+  try {
+    const response = await fetch('/api/auth/password', { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('unavailable');
+    existing = ((await response.json()) as { email: string | null }).email;
+  } catch {
+    state.textContent = 'Password sign-in is not available on this deployment.';
+    return;
+  }
+
+  if (existing) {
+    state.textContent = `You can sign in with ${existing} and a password.`;
+    addressField.value = existing;
+    if (currentWrap) currentWrap.hidden = false;
+    save.textContent = 'Change password';
+  } else {
+    state.textContent =
+      'This account has no password yet. Add one and you can sign in without Google or Cloudflare.';
+    const signedInAs = $('account-page-email')?.textContent?.trim() ?? '';
+    if (signedInAs.includes('@')) addressField.value = signedInAs;
+  }
+  form.hidden = false;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    save.disabled = true;
+    const was = save.textContent;
+    // PBKDF2 is slow on purpose, so a pause here is the feature working.
+    save.textContent = 'Saving…';
+
+    try {
+      const response = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          email: addressField.value.trim(),
+          current: currentField?.value ?? '',
+          password: nextField.value,
+        }),
+      });
+
+      if (response.ok) {
+        // Every session just ended, including this one. Going anywhere else
+        // would show a page that 401s a moment later.
+        window.location.href = '/signin';
+        return;
+      }
+
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      error.textContent = body.error ?? 'That did not work.';
+      error.hidden = false;
+    } catch {
+      error.textContent = 'Could not reach ProFolio. Check your connection and try again.';
+      error.hidden = false;
+    } finally {
+      save.disabled = false;
+      save.textContent = was;
+    }
+  });
 }

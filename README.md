@@ -133,26 +133,63 @@ your R2 bucket. `MAX_ACCOUNT_BYTES` in `src/lib/server/repo.ts` bounds what one
 account can cost you; nothing bounds how many accounts there are. Do not open it
 without deciding that first.
 
-### Adding a second way in, later
+### Signing in with an email address and a password
 
-If ProFolio is ever sold to a school that cannot use Access, it will need its
-own sign-in. The seam is already there and is the only thing that needs to be:
+Built, and it changes how Access is deployed. Access intercepts before any of
+this code runs, so it **cannot** keep gating the whole app — a password user
+would never reach a page to sign in on. The arrangement is inverted:
 
-- Routes call `authenticate()` in `src/lib/server/identity.ts`, never Access
-  directly. A second authenticator is one entry in `AUTHENTICATORS`.
-- Rows are owned by an **account id**, not an email, and have been since
-  migration 0007. `account_identities` maps `(kind, value)` pairs to accounts,
-  so a password login records a new `kind` and needs no schema change and no
-  data migration.
-- An authenticator returns `null` only when the request carries no credential of
-  its kind, and throws when it carries a bad one. Returning `null` for a bad
-  credential would let a request fall through to the weakest authenticator on
-  the chain. This is the one rule in that file that is a security property.
+| Path | Guarded by |
+| --- | --- |
+| `/auth/access` | Cloudflare Access (Allow → Everyone) |
+| everything else | ProFolio's own session cookie |
 
-What is deliberately *not* done in advance: password hashing, session cookies,
-verification email, reset tokens, rate limiting and lockout. Writing those
-before anyone needs them means maintaining security-critical code that nothing
-exercises. See `docs/DECISIONS.md`.
+`/auth/access` is the bridge: Access proves who you are, and that route turns
+the result into the same session cookie a password sign-in issues. Google and
+password users then hold the same kind of cookie and no route downstream cares
+which they are.
+
+**Deploy in this order. It has no lockout window.**
+
+1. Apply migration `0014_password_sign_in.sql` and deploy the code. Nothing
+   changes yet: the chain accepts an Access token *or* a session, so every
+   existing sign-in keeps working exactly as before.
+2. In the Access application covering `/`, change the policy to
+   **Bypass → Everyone**. The app now enforces its own sessions.
+3. Add a second Access application on the path `/auth/access`, policy
+   **Allow → Everyone** (or your allowlist). This is the Google/Cloudflare door.
+
+If you stop after step 1, Google and Cloudflare keep working and password
+sign-in simply is not reachable. Nothing breaks.
+
+**What is stored.** PBKDF2-HMAC-SHA256 at 210,000 iterations with a per-user
+salt, parameters kept per row so the cost can be raised and each password
+upgraded on next use. Sessions are rows in `account_sessions`; the cookie holds
+a random token and only its SHA-256 is stored.
+
+⚠️ **The iteration count needs CPU headroom.** 210,000 iterations is roughly a
+tenth of a second of CPU per sign-in, which is fine on a paid Workers plan and
+will exceed the free plan's 10ms allowance. The number *is* the security of the
+stored password — move the app, not the constant.
+
+**A password sign-up always creates a NEW account.** It never adopts an existing
+one by email, because an address typed into a public form proves nothing and
+adopting on it would hand over somebody else's students' work. Adding a password
+to an account that already exists is done from the Account page, while signed
+in. This is why no email-verification gate is needed for the feature to be safe.
+
+**Not built.** There is no password reset, because there is no email provider
+configured and a reset flow without one is a dead end. A forgotten password is
+currently unrecoverable — the sign-up form says so. Adding it means choosing a
+sending provider, a secret, and a token table.
+
+### The rule that keeps the chain safe
+
+An authenticator returns `null` only when the request carries no credential of
+its kind, and throws when it carries a bad one. Returning `null` for a bad
+credential would let a request fall through to the weakest authenticator on the
+chain. Access is checked first because it is the stronger proof, so a stale
+session can never displace a good token.
 
 ## How authentication is enforced
 

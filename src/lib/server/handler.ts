@@ -26,7 +26,17 @@ export async function withRepo(
     const token = await authenticate(request, bindings);
     const who = await resolveAccount(bindings.DB, token);
     const repo = new Repo(bindings.DB, bindings.DOCUMENTS, who);
-    return await run(repo, who.email);
+    const response = await run(repo, who.email);
+
+    // A session being extended has to reach the browser, and the handler that
+    // produced the response knows nothing about sessions. Appended rather than
+    // set, so a route that sets its own cookie keeps it.
+    if (token.setCookie) {
+      const headers = new Headers(response.headers);
+      headers.append('Set-Cookie', token.setCookie);
+      return new Response(response.body, { status: response.status, headers });
+    }
+    return response;
   } catch (error) {
     return errorResponse(schemaDrift(error) ?? error);
   }

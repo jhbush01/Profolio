@@ -213,24 +213,25 @@ The general rule this is an instance of: **any per-account endpoint on a fixed
 URL must be `no-store` or carry the account in the URL.** There is no third
 option that survives a shared device.
 
-**Email-and-password sign-in, in this app.** Asked for directly, and declined
-in that form. Access already offers Google, Microsoft, GitHub, LinkedIn and a
-one-time email code as login methods, so "sign in with Google" and "sign in with
-any email address" are dashboard settings rather than code. Adding our own
-credentials means taking Access *off* the app — it intercepts before our code
-runs — and so becoming responsible for session cookies, password hashing,
-verification email, reset tokens, rate limiting, lockout, and the protection of
-every `/api/*` route that Cloudflare currently guards. On an app holding
-de-identified children's work, aimed at institutional buyers, never holding a
-password is a feature and not a gap.
+**Email-and-password sign-in.** Argued against, asked for twice, and built. The
+argument is recorded because it is still true and will come up at the first
+procurement review: Access already offers Google, Microsoft, GitHub, LinkedIn
+and a one-time email code, so "any email address, no password" was available as
+a dashboard toggle. Holding our own credentials means Access can no longer gate
+the whole app, and this repo becomes responsible for sessions, hashing, rate
+limiting and lockout. That was the owner's call to make, and they made it.
 
-What *was* built instead is the seam: routes call `authenticate()` in
-`identity.ts` rather than Access directly, so a second authenticator is one new
-module. Rows have been owned by an account id since 0007, and
-`account_identities` maps `(kind, value)` pairs, so a password login is a new
-`kind` with no schema change and no data migration. Deliberately NOT written in
-advance: the hashing, sessions, email and rate limiting. Security-critical code
-that nothing exercises is code that rots.
+**A password sign-up never adopts an existing account.** This is the single rule
+holding the feature up, and it is not a preference. Every other identity in
+`account_identities` came from a provider that verified the address before
+asserting it, which is why `resolveAccount` may hand a matching email an
+existing account. A password sign-up asserts nothing — anyone can type a
+colleague's address into a public form. Adopting on it would hand over that
+colleague's students' work. So sign-up always creates a new account, and
+attaching a password to an account that already exists happens from inside it,
+signed in. A pleasant consequence: no email-verification gate is needed for this
+to be safe. Tested directly — registering an address an Access account already
+uses yields a new, empty account.
 
 The one rule in `identity.ts` that is a security property, restated because it
 is easy to undo: **an authenticator returns `null` only when the request carries
@@ -260,6 +261,11 @@ during a procurement review rather than fixed before one.
 **Offline capture.** No service worker, deliberately. A caching bug that loses
 a capture is worse than a failed upload the user can see. When it is built, it
 should queue uploads explicitly rather than cache the app shell and hope.
+
+**No password reset.** Deliberate, and a real gap. A reset flow needs an email
+sender, a secret, a token table and an expiry policy; without a provider chosen
+it would be dead code. A forgotten password is currently unrecoverable and both
+forms say so. Choosing a sender is the decision, not writing the flow.
 
 **Uploads above 80MB.** `MAX_UPLOAD_BYTES` cannot go much higher: a Worker's
 request body is capped at 100MB and the cap is enforced at the edge, so an

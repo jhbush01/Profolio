@@ -51,13 +51,16 @@
     <a href="/pedagogy" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">My pedagogy</a>
     <a href="/privacy" class="block rounded-md px-3 py-2 text-sm transition hover:bg-canvas">Privacy</a>
 
-    <!-- A real navigation, not fetch(): Access has to set cookies and redirect. -->
-    <a
-      href="/cdn-cgi/access/logout"
-      class="mt-1 block rounded-md border-t border-line-subtle px-3 py-2 text-sm font-medium text-critical transition hover:bg-critical-surface"
+    <!-- A button, because signing out now has to end a session on the server
+         as well as clear a cookie in the browser. Falls back to the Access
+         logout URL for whoever signed in that way. -->
+    <button
+      type="button"
+      id="account-signout"
+      class="mt-1 block w-full rounded-md border-t border-line-subtle px-3 py-2 text-left text-sm font-medium text-critical transition hover:bg-critical-surface"
     >
       Sign out
-    </a>
+    </button>
   </div>
 </div>
 
@@ -94,6 +97,24 @@
     // home-ui.ts), so the two badges on one screen never disagree about who
     // you are. Splitting on "@" as well means an address with no separator in
     // its local part still yields two letters.
+    // How they signed in, so sign-out knows whether Cloudflare also has a
+    // session to clear. Empty until /api/me answers, which is fine: the button
+    // ends ProFolio's session either way and only the redirect differs.
+    let method = '';
+
+    // Ending the session on the server, not only in this browser. A cookie
+    // cleared locally while the row lives on is a session somebody else may
+    // still be holding — which is the whole reason sessions are rows.
+    document.getElementById('account-signout')?.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'same-origin' });
+      } catch {
+        // Offline. Go to the sign-out destination anyway: the cookie is
+        // HttpOnly, so this is the only way to stop being signed in here.
+      }
+      window.location.href = method === 'access' ? '/cdn-cgi/access/logout' : '/signin';
+    });
+
     const initialsOf = (email: string) => {
       const parts = email.split(/[\s.@_-]+/).filter(Boolean);
       const letters = (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
@@ -108,10 +129,11 @@
     })
       .then((response) =>
         response.ok
-          ? (response.json() as Promise<{ email?: string }>)
+          ? (response.json() as Promise<{ email?: string; method?: string }>)
           : Promise.reject(new Error('signed out')),
       )
       .then((body) => {
+        method = body.method ?? '';
         const email = body.email ?? '';
         if (!email) throw new Error('no email');
         if (emailField) emailField.textContent = email;
