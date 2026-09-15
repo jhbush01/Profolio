@@ -120,6 +120,53 @@ export function matchesItem(item: { matches: (d: Dimensions) => boolean }, recor
 
 const matches = matchesItem;
 
+/** A record that may have been placed by hand on one or more checklists. */
+export interface Placeable extends Dimensions {
+  placements?: Record<string, readonly string[]>;
+}
+
+/**
+ * Which checklist items this record answers, for this programme.
+ *
+ * ONE RULE: where the person has said, that is the answer. Predicates are the
+ * first guess for a record nobody has placed, and nothing more.
+ *
+ * They were never capable of being the answer. A marked summative script is
+ * equally honestly an individual's work sample, marked assessment data, and
+ * something a mentor also graded — so it satisfies "focus student work across
+ * the sequence", "marked summative work" and "record of moderation" at the same
+ * time, and lands under all three. What separates those is what the uploader
+ * meant by it, and that is not a property of the file. Better predicates cannot
+ * fix this; only asking can.
+ *
+ * Returns ids rather than items, so a placement naming an item a later version
+ * of the template has dropped resolves to nothing instead of throwing.
+ */
+export function placedItemIds(
+  template: ProgrammeTemplate,
+  record: Placeable,
+  programmeId: string,
+): string[] {
+  const placed = record.placements?.[programmeId];
+  if (placed) return [...placed];
+  return template.items.filter((item) => matches(item, record)).map((item) => item.id);
+}
+
+/** True when this record counts toward this item. Placement first, always. */
+export function countsToward(
+  template: ProgrammeTemplate,
+  record: Placeable,
+  programmeId: string,
+  itemId: string,
+): boolean {
+  return placedItemIds(template, record, programmeId).includes(itemId);
+}
+
+/** True when a person, rather than a predicate, decided where this sits. */
+export function isPlaced(record: Placeable, programmeId: string): boolean {
+  return record.placements?.[programmeId] !== undefined;
+}
+
 /**
  * Scores every checklist item against the evidence supplied.
  *
@@ -130,14 +177,21 @@ const matches = matchesItem;
  *
  * `elapsed` is the fraction of the window that has passed; pass null for an
  * undated programme, and nothing is ever reported overdue.
+ *
+ * `programmeId` is what lets a hand-placed record count where it was put rather
+ * than where it looks like it goes. Omitting it scores on predicates alone,
+ * which is right only for a caller that has no programme in hand.
  */
 export function scoreProgramme(
   template: ProgrammeTemplate,
-  assigned: Dimensions[],
+  assigned: Placeable[],
   elapsed: number | null,
+  programmeId?: string,
 ): ItemProgress[] {
   return template.items.map((item) => {
-    const matched = assigned.filter((record) => matches(item, record)).length;
+    const matched = assigned.filter((record) =>
+      programmeId ? countsToward(template, record, programmeId, item.id) : matches(item, record),
+    ).length;
     const satisfied = matched >= item.requires;
     return {
       item,

@@ -11,7 +11,10 @@ export const prerender = false;
  */
 export const PATCH: APIRoute = ({ request, params }) =>
   withRepo(request, async (repo) => {
-    const body = (await request.json()) as DocumentPatch & { programmes?: unknown };
+    const body = (await request.json()) as DocumentPatch & {
+      programmes?: unknown;
+      placement?: unknown;
+    };
 
     // Whitelist: never hand raw request keys to the column mapper.
     const patch: DocumentPatch = {};
@@ -47,7 +50,29 @@ export const PATCH: APIRoute = ({ request, params }) =>
       );
     }
 
-    return Response.json(programmes ? { ok: true, programmes } : { ok: true });
+    // Where the record sits on ONE project's checklist. Scoped to a project
+    // because that is how the decision is made: you are looking at one
+    // checklist and moving a file within it, not editing every project the
+    // record happens to belong to.
+    let items: string[] | undefined;
+    if (body.placement && typeof body.placement === 'object') {
+      const placement = body.placement as { programmeId?: unknown; itemIds?: unknown };
+      if (typeof placement.programmeId === 'string') {
+        items = await repo.setDocumentItems(
+          params.id!,
+          placement.programmeId,
+          Array.isArray(placement.itemIds)
+            ? placement.itemIds.filter((id): id is string => typeof id === 'string')
+            : [],
+        );
+      }
+    }
+
+    return Response.json({
+      ok: true,
+      ...(programmes ? { programmes } : {}),
+      ...(items ? { items } : {}),
+    });
   });
 
 export const DELETE: APIRoute = ({ request, params }) =>

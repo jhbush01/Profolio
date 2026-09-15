@@ -44,6 +44,16 @@ export interface VaultDocument extends Dimensions {
    * Never inferred: a programme's contents must not change on its own.
    */
   programmes: string[];
+  /**
+   * Which checklist items this record answers, per programme, where the user
+   * has placed it. Keyed by programme id.
+   *
+   * A programme missing from this map has not been placed, and the template's
+   * predicates decide — which is what keeps uploading thirty files from meaning
+   * filing thirty files by hand. A programme present with an empty array has
+   * been placed under nothing on purpose, and the predicates stay out of it.
+   */
+  placements: Record<string, string[]>;
 }
 
 /** Owner details printed on the exported PDF cover page. */

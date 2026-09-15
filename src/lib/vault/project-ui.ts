@@ -55,11 +55,13 @@ import { wireViewer } from './viewer';
 import { buildPortfolioPdf } from './pdf';
 import { reportEntries } from './report';
 import {
+  countsToward,
   countWords,
   currentWeek,
   elapsedFraction,
-  matchesItem,
+  isPlaced,
   outlineFor,
+  placedItemIds,
   scoreProgramme,
   suggestForProgramme,
   templateFor,
@@ -232,7 +234,29 @@ async function guard(label: string, action: () => Promise<unknown>) {
 
 /* -------------------------------------------------------------- rendering */
 
-function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0): string {
+/** Does this record count toward this item, in this project? Placement first. */
+function counts(doc: VaultDocument, itemId: string): boolean {
+  if (!template || !programme) return false;
+  return countsToward(template, doc, programme.id, itemId);
+}
+
+/**
+ * One record, under wherever it currently sits.
+ *
+ * `movable` is off for the suggestion list, where the record is not in the
+ * project yet and there is nothing to place it on.
+ */
+function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0, movable = false): string {
+  // Where a guess is still standing, say so. "Filed here automatically" is the
+  // difference between a list you trust and a list you have to re-check: it
+  // marks the rows that might be wrong, and stops saying it the moment you
+  // move the row or confirm where it is.
+  const guessed = movable && !!programme && !isPlaced(doc, programme.id);
+  const nowhere =
+    movable && !!template && !!programme
+      ? placedItemIds(template, doc, programme.id).length === 0
+      : false;
+
   return `<li class="flex items-center gap-3 border-t border-line-subtle py-2.5">
     <span class="min-w-0 flex-1">
       <button type="button" data-view="${doc.id}" title="${escapeHtml(doc.name)}"
@@ -246,7 +270,7 @@ function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0): strin
           isComplete(doc)
             ? ''
             : ` · <button type="button" data-fix="${doc.id}" class="text-caution underline underline-offset-2 hover:text-ink">missing detail</button>`
-        }${
+        }${guessed ? ' · <span class="text-ink-faint">filed here automatically</span>' : ''}${
           // One record can answer several items, so it is listed under each.
           // Say so, or the repeat reads as the page rendering it twice.
           alsoCounts > 0 ? ` · also counts toward ${alsoCounts} other item${alsoCounts === 1 ? '' : 's'}` : ''
@@ -256,8 +280,18 @@ function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0): strin
     ${
       closed
         ? ''
-        : `<button type="button" data-unassign="${doc.id}"
-             class="shrink-0 text-xs text-ink-faint underline underline-offset-2 hover:text-critical">Remove</button>`
+        : `<span class="flex shrink-0 items-center gap-3">
+             ${
+               movable
+                 ? `<button type="button" data-place="${doc.id}"
+                      class="text-xs ${guessed || nowhere ? 'text-accent' : 'text-ink-faint'} underline underline-offset-2 hover:text-accent">${
+                        nowhere ? 'File' : 'Move'
+                      }</button>`
+                 : ''
+             }
+             <button type="button" data-unassign="${doc.id}"
+               class="text-xs text-ink-faint underline underline-offset-2 hover:text-critical">Remove</button>
+           </span>`
     }
   </li>`;
 }
@@ -268,7 +302,7 @@ function checklistBlock(closed: boolean): string {
 
   const records = assigned();
   const elapsed = closed ? null : elapsedFraction(programme.startsOn, programme.endsOn);
-  const progress = scoreProgramme(template, records, elapsed);
+  const progress = scoreProgramme(template, records, elapsed, programme.id);
   const sections = [...new Set(template.items.map((item) => item.section))];
 
   const blocks = sections
@@ -276,7 +310,7 @@ function checklistBlock(closed: boolean): string {
       const rows = progress
         .filter((p) => p.item.section === section)
         .map((p) => {
-          const matched = records.filter((doc) => matchesItem(p.item, doc));
+          const matched = records.filter((doc) => counts(doc, p.item.id));
           const tone = p.satisfied ? 'text-positive' : p.overdue ? 'text-critical' : 'text-ink-faint';
           const mark = p.satisfied ? '✓' : p.overdue ? '!' : '○';
 
@@ -296,7 +330,8 @@ function checklistBlock(closed: boolean): string {
                           evidenceRow(
                             doc,
                             closed,
-                            template!.items.filter((other) => other !== p.item && matchesItem(other, doc)).length,
+                            placedItemIds(template!, doc, programme!.id).filter((id) => id !== p.item.id).length,
+                            true,
                           ),
                         )
                         .join('')}</ul>`
@@ -323,7 +358,7 @@ function checklistBlock(closed: boolean): string {
 /** Assigned records that answer nothing on the checklist — still theirs to keep. */
 function extraBlock(closed: boolean): string {
   if (!template) return '';
-  const records = assigned().filter((doc) => !template!.items.some((item) => matchesItem(item, doc)));
+  const records = assigned().filter((doc) => placedItemIds(template!, doc, programme!.id).length === 0);
   if (records.length === 0) return '';
 
   return `<section class="card p-6">
@@ -332,7 +367,7 @@ function extraBlock(closed: boolean): string {
       In the project and in the export, but not matched to a checklist item. Usually this means
       the record's details are not filled in yet.
     </p>
-    <ul>${records.map((doc) => evidenceRow(doc, closed)).join('')}</ul>
+    <ul>${records.map((doc) => evidenceRow(doc, closed, 0, true)).join('')}</ul>
   </section>`;
 }
 
@@ -1020,10 +1055,16 @@ function reportTab(closed: boolean): string {
 
   if (!headingsSeeded) {
     headingsSeeded = true;
+    // The context statement is never the landing heading, finished or not. It
+    // is sixteen fields you fill in once and then scroll past every single time
+    // you come back to write — the longest thing on the page and the least
+    // often wanted. Being incomplete is not a reason to leave it open; it is
+    // the reason the counter in its header says so.
+    const writable = outline.filter((heading) => !heading.includesContext);
     // The last heading with writing in it, because that is where you stopped.
     // Failing that the first, because a page of shut drawers is a dead end.
-    const written = outline.filter((heading) => writtenFor(answers, heading).trim());
-    const landing = written.at(-1) ?? outline[0];
+    const written = writable.filter((heading) => writtenFor(answers, heading).trim());
+    const landing = written.at(-1) ?? writable[0];
     if (landing) openHeadings.add(landing.id);
   }
 
@@ -1063,6 +1104,22 @@ function reportTab(closed: boolean): string {
 }
 
 /**
+ * "11 of 16 filled in", on the closed context heading.
+ *
+ * The context statement starts collapsed now, so its header has to carry the
+ * one fact its body used to show by being open. Collapsing something unfinished
+ * is only acceptable while the closed state still tells you it is unfinished.
+ */
+function contextCounter(heading: ReportHeading): string {
+  if (!heading.includesContext || !template || !programme) return '';
+  const fields = template.contextFields;
+  if (fields.length === 0) return '';
+  const filled = fields.filter((field) => (programme!.context[field.id] ?? '').trim()).length;
+  const tone = filled === fields.length ? 'text-positive' : filled === 0 ? 'text-ink-faint' : 'text-caution';
+  return `<span class="${tone}">${filled} of ${fields.length} filled in</span>`;
+}
+
+/**
  * What this section has to carry, as against what it asks you to think about.
  *
  * The prompts below it are questions, and questions are all the report used to
@@ -1082,7 +1139,7 @@ function requiredEvidenceBlock(heading: ReportHeading, records: VaultDocument[])
 
   const lines = required.map((entry) => {
     const item = entry.item ? template!.items.find((candidate) => candidate.id === entry.item) : undefined;
-    const held = item ? records.filter((doc) => matchesItem(item, doc)).length : 0;
+    const held = item ? records.filter((doc) => counts(doc, item.id)).length : 0;
     const satisfied = item ? held >= item.requires : false;
 
     // Three states, three marks. An unverifiable requirement gets the neutral
@@ -1106,7 +1163,7 @@ function requiredEvidenceBlock(heading: ReportHeading, records: VaultDocument[])
 
   const outstanding = required.filter((entry) => {
     const item = entry.item ? template!.items.find((candidate) => candidate.id === entry.item) : undefined;
-    return item ? records.filter((doc) => matchesItem(item, doc)).length < item.requires : false;
+    return item ? records.filter((doc) => counts(doc, item.id)).length < item.requires : false;
   }).length;
 
   return `<div class="mt-5 border-t border-line-subtle pt-4">
@@ -1129,7 +1186,7 @@ function headingBlock(
   closed: boolean,
 ): string {
   const items = template!.items.filter((item) => (heading.sections ?? []).includes(item.section));
-  const matched = records.filter((doc) => items.some((item) => matchesItem(item, doc)));
+  const matched = records.filter((doc) => items.some((item) => counts(doc, item.id)));
 
   // What an assessor will notice is missing, per artefact.
   const unannotated = matched.filter((doc) => !doc.caption.trim()).length;
@@ -1171,7 +1228,7 @@ function headingBlock(
         ${escapeHtml(heading.title)}
       </h2>
       <p class="font-mono text-xs text-ink-faint">
-        ${items.length > 0 ? `${matched.length} artefact${matched.length === 1 ? '' : 's'}` : ''}${
+        ${contextCounter(heading)}${items.length > 0 ? `${matched.length} artefact${matched.length === 1 ? '' : 's'}` : ''}${
           counter && items.length > 0 ? ' · ' : ''
         }<span data-count="${escapeHtml(heading.id)}">${counter}</span>
       </p>
@@ -1190,7 +1247,7 @@ function headingBlock(
                Nothing assigned here yet. The checklist tab says what would fit.
              </p>`
           : `<ul class="mt-4 flex flex-col">
-               ${matched.map((doc) => evidenceRow(doc, closed)).join('')}
+               ${matched.map((doc) => evidenceRow(doc, closed, 0, true)).join('')}
              </ul>`
     }
 
@@ -1294,6 +1351,7 @@ function render() {
       template,
       records,
       closed ? null : elapsedFraction(programme.startsOn, programme.endsOn),
+      programme.id,
     );
     const done = progress.filter((p) => p.satisfied).length;
     headline = `${done} of ${progress.length} collected`;
@@ -1745,6 +1803,33 @@ export async function initProject() {
         await refresh();
         render();
         setStatus('Moved.');
+      });
+    }
+
+    // Where this record sits on THIS project's checklist. Distinct from
+    // data-move above, which is the folder it lives in: one is what the file is
+    // evidence OF, the other is where the file is KEPT.
+    const place = button.dataset.place;
+    if (place && template) {
+      const doc = documents.find((d) => d.id === place);
+      if (!doc) return;
+      const before = placedItemIds(template, doc, id);
+      const guessed = !isPlaced(doc, id);
+      return guard('Filing evidence', async () => {
+        const { pickPlacement } = await import('./place-picker');
+        const choice = await pickPlacement(template!, doc.name, before, guessed);
+        if (!choice) return;
+        await updateDocument(doc.id, { placement: { programmeId: id, itemIds: choice.itemIds } });
+        await refresh();
+        render();
+        const names = choice.itemIds
+          .map((itemId) => template!.items.find((item) => item.id === itemId)?.label)
+          .filter((label): label is string => Boolean(label));
+        setStatus(
+          names.length === 0
+            ? 'Filed under no checklist item. It stays in the project.'
+            : `Filed under ${names.join(' and ')}.`,
+        );
       });
     }
 

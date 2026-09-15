@@ -52,7 +52,9 @@ export function projectCard(programme: Programme, documents: VaultDocument[]): s
 
   if (template) {
     const elapsed = resting ? null : elapsedFraction(programme.startsOn, programme.endsOn);
-    const progress = scoreProgramme(template, assigned, elapsed);
+    // Scored with the project id, so the card's "3 of 12 items" agrees with the
+    // checklist it links to rather than with the guesses the checklist overrode.
+    const progress = scoreProgramme(template, assigned, elapsed, programme.id);
     const done = progress.filter((p) => p.satisfied).length;
     const overdue = progress.filter((p) => p.overdue);
     percent = progress.length > 0 ? Math.round((done / progress.length) * 100) : 0;

@@ -307,6 +307,16 @@ export interface DocumentPatch {
   standards?: string[];
   /** The complete set of programmes this record belongs to, not a delta. */
   programmes?: string[];
+  /**
+   * Where this record sits on ONE project's checklist: the complete new set of
+   * item ids for that project, not a delta. One project at a time, because
+   * that is how the decision is made — you are looking at one checklist.
+   *
+   * An empty array is a real instruction, not a no-op. It means "in the
+   * project, under no item", which the server records so the predicates stop
+   * guessing at a record whose owner has already decided.
+   */
+  placement?: { programmeId: string; itemIds: string[] };
 }
 
 /** Partial update — anything omitted is left untouched on the server. */

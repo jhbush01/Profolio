@@ -29,6 +29,13 @@ export interface DocumentRow extends Dimensions {
   order: number;
   /** Programmes this record has been assigned to. Never inferred. */
   programmes: string[];
+  /**
+   * Checklist items this record answers, per programme, where the user has
+   * said so. A programme absent from this map has not been placed and falls
+   * back to the template's predicates; a programme present with an empty array
+   * has been placed deliberately under nothing. See migration 0013.
+   */
+  placements: Record<string, string[]>;
 }
 
 export interface ProfileRow {
@@ -259,8 +266,30 @@ export class Repo {
       else byDocument.set(row.document_id, [row.programme_id]);
     }
 
+    // Placements, same reasoning: a third small query beats widening the
+    // biggest payload the vault returns. Most records have no rows here at all,
+    // because most records are still sitting where the predicates put them.
+    const placed = await this.db
+      .prepare(`SELECT document_id, programme_id, item_id FROM document_items WHERE owner = ?1`)
+      .bind(this.who.accountId)
+      .all<{ document_id: string; programme_id: string; item_id: string }>();
+
+    const placements = new Map<string, Record<string, string[]>>();
+    for (const row of placed.results) {
+      let forDocument = placements.get(row.document_id);
+      if (!forDocument) {
+        forDocument = {};
+        placements.set(row.document_id, forDocument);
+      }
+      // The empty string is the marker for "placed under nothing"; it creates
+      // the programme's key and contributes no item.
+      forDocument[row.programme_id] ??= [];
+      if (row.item_id) forDocument[row.programme_id].push(row.item_id);
+    }
+
     return results.map((row) => ({
       programmes: byDocument.get(row.id as string) ?? [],
+      placements: placements.get(row.id as string) ?? {},
       id: row.id as string,
       name: row.name as string,
       folderId: (row.folder_id as string | null) ?? null,
@@ -441,6 +470,11 @@ export class Repo {
     const statements = [
       ...docs.map((doc) =>
         this.db
+          .prepare(`DELETE FROM document_items WHERE document_id = ?1 AND owner = ?2`)
+          .bind(doc.id, this.who.accountId),
+      ),
+      ...docs.map((doc) =>
+        this.db
           .prepare(`DELETE FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
           .bind(doc.id, this.who.accountId),
       ),
@@ -504,6 +538,9 @@ export class Repo {
 
     const doc: DocumentRow = {
       id: crypto.randomUUID(),
+      // A brand new record has been placed nowhere, which is not the same as
+      // being placed under nothing: the predicates get first go at it.
+      placements: {},
       name: file.name,
       folderId,
       mime: file.type,
@@ -937,20 +974,94 @@ export class Repo {
           )
           .bind(documentId, id, this.who.accountId, now),
       ),
-      ...remove.map((id) =>
+      ...remove.flatMap((id) => [
         this.db
           .prepare(
             `DELETE FROM document_programmes
               WHERE document_id = ?1 AND programme_id = ?2 AND owner = ?3`,
           )
           .bind(documentId, id, this.who.accountId),
-      ),
+        // Leaving a project takes its placement with it. A stored placement on
+        // a project the record is no longer in would come back to life, in the
+        // old spot, if it were ever re-added.
+        this.db
+          .prepare(
+            `DELETE FROM document_items
+              WHERE document_id = ?1 AND programme_id = ?2 AND owner = ?3`,
+          )
+          .bind(documentId, id, this.who.accountId),
+      ]),
     ];
     if (statements.length > 0) await this.db.batch(statements);
 
     // Joining a project is the other moment a record can be filed: it may have
     // had its stage of the cycle set weeks ago and had nowhere to go until now.
     if (add.length > 0) await this.autoFile(documentId);
+
+    return wanted;
+  }
+
+  /**
+   * Replaces where a record sits on one programme's checklist.
+   *
+   * `itemIds` is the complete new set for that pair, so this both adds and
+   * removes in one call — which is what "move it to marked summative work"
+   * actually means: it has to leave the two items it was wrongly counted under.
+   *
+   * An empty array is a real instruction, not a no-op. It stores the empty
+   * marker row, which says "in the project, under no item" and stops the
+   * predicates answering for a record whose owner has already decided.
+   *
+   * Closed programmes refuse both directions, like every other change to what
+   * a closed programme holds: moving a record between items changes the
+   * checklist a submitted export was built from.
+   */
+  async setDocumentItems(
+    documentId: string,
+    programmeId: string,
+    itemIds: string[],
+  ): Promise<string[]> {
+    if (!(await this.ownsDocument(documentId))) throw new HttpError(404, 'Document not found');
+
+    const programme = (await this.programmes()).find((row) => row.id === programmeId);
+    if (!programme) throw new HttpError(404, 'Project not found');
+    if (programme.closedAt !== null) {
+      throw new HttpError(409, `"${programme.name}" is closed. Reopen it to change what it holds.`);
+    }
+
+    // Placing a record somewhere on a project's checklist only means anything
+    // if the record is in the project. Refusing is clearer than silently
+    // storing a placement that resolves against nothing.
+    const assigned = await this.db
+      .prepare(
+        `SELECT 1 FROM document_programmes
+          WHERE document_id = ?1 AND programme_id = ?2 AND owner = ?3`,
+      )
+      .bind(documentId, programmeId, this.who.accountId)
+      .first();
+    if (!assigned) throw new HttpError(409, 'That record is not in this project.');
+
+    const wanted = [...new Set(itemIds.filter((id) => typeof id === 'string' && id !== ''))];
+
+    const now = Date.now();
+    await this.db.batch([
+      this.db
+        .prepare(
+          `DELETE FROM document_items
+            WHERE document_id = ?1 AND programme_id = ?2 AND owner = ?3`,
+        )
+        .bind(documentId, programmeId, this.who.accountId),
+      // The empty marker when the set is empty, so the absence is recorded as a
+      // decision rather than read as one never made.
+      ...(wanted.length === 0 ? [''] : wanted).map((itemId) =>
+        this.db
+          .prepare(
+            `INSERT INTO document_items (document_id, programme_id, item_id, owner, assigned_at)
+             VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT DO NOTHING`,
+          )
+          .bind(documentId, programmeId, itemId, this.who.accountId, now),
+      ),
+    ]);
 
     return wanted;
   }
@@ -997,6 +1108,9 @@ export class Repo {
     // longer exists.
     await this.db.batch([
       this.db
+        .prepare(`DELETE FROM document_items WHERE programme_id = ?1 AND owner = ?2`)
+        .bind(id, this.who.accountId),
+      this.db
         .prepare(`DELETE FROM document_programmes WHERE programme_id = ?1 AND owner = ?2`)
         .bind(id, this.who.accountId),
       this.db.prepare(`DELETE FROM programmes WHERE id = ?1 AND owner = ?2`).bind(id, this.who.accountId),
@@ -1013,6 +1127,9 @@ export class Repo {
     if (!row) throw new HttpError(404, 'Document not found');
     await this.bucket.delete(row.r2_key);
     await this.db.batch([
+      this.db
+        .prepare(`DELETE FROM document_items WHERE document_id = ?1 AND owner = ?2`)
+        .bind(id, this.who.accountId),
       this.db
         .prepare(`DELETE FROM document_programmes WHERE document_id = ?1 AND owner = ?2`)
         .bind(id, this.who.accountId),
@@ -1091,6 +1208,7 @@ export class Repo {
     keys.push(...covers.map((row) => row.image_key));
     if (keys.length > 0) await deleteObjects(this.bucket, keys);
     await this.db.batch([
+      this.db.prepare(`DELETE FROM document_items WHERE owner = ?1`).bind(this.who.accountId),
       this.db.prepare(`DELETE FROM document_programmes WHERE owner = ?1`).bind(this.who.accountId),
       this.db.prepare(`DELETE FROM documents WHERE owner = ?1`).bind(this.who.accountId),
       this.db.prepare(`DELETE FROM folders WHERE owner = ?1`).bind(this.who.accountId),
