@@ -87,6 +87,30 @@ export interface ProgrammeTemplate {
   autoFolderByPhase?: Readonly<Record<string, string>>;
 }
 
+/**
+ * One artefact a section has to carry.
+ *
+ * Distinct from a prompt, and the distinction is the point: a prompt asks you
+ * to think, this says what has to be *in* the section for it to be complete.
+ * Assessments that list required inclusions hand submissions back for missing
+ * one, and a scaffold that only ever asks questions cannot tell you that.
+ *
+ * STRUCTURE, NOT CONTENT. What kind of artefact, in the assessment's own
+ * structural terms — never criteria, standards descriptors, rubric wording or
+ * an assessment's explanatory prose. See docs/DECISIONS.md.
+ */
+export interface RequiredEvidence {
+  /** What must be present, in one line. */
+  text: string;
+  /** A second line on what counts, where the bare requirement is ambiguous. */
+  note?: string;
+  /**
+   * The `ChecklistItem` id that evidences this, when one does. Lets the report
+   * say "you have this" rather than only "you need this".
+   */
+  item?: string;
+}
+
 export interface ReportHeading {
   /** Stable storage key. Changing a title must never orphan written text. */
   id: string;
@@ -95,6 +119,11 @@ export interface ReportHeading {
   /** One line on what this heading is for. */
   blurb?: string;
   prompts: readonly string[];
+  /**
+   * Artefacts this section must carry, where the assessment names them.
+   * Omit where it names none — an invented requirement is worse than no list.
+   */
+  requiredEvidence?: readonly RequiredEvidence[];
   /** Checklist sections whose evidence is gathered under this heading. */
   sections?: readonly string[];
   /**

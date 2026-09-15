@@ -1040,8 +1040,14 @@ function reportTab(closed: boolean): string {
         ahead of that heading's evidence in the export.
       </p>
       <p class="prose-body mt-2 text-sm">
-        The questions are prompts, not a template to fill in. Nothing in ProFolio writes any of this
-        for you — an assessor is reading your thinking, and it has to be yours.
+        Two different lists sit under each heading. <span class="text-ink">Must be embedded</span>
+        is the artefacts that section has to carry, ticked off against what you have uploaded — a
+        section missing one is incomplete however well it reads.
+        <span class="text-ink">Answer in your own words</span> is questions, and only questions.
+      </p>
+      <p class="prose-body mt-2 text-sm">
+        Nothing in ProFolio writes any of this for you — an assessor is reading your thinking, and
+        it has to be yours.
       </p>
       <ol class="mt-3 flex flex-wrap gap-x-2 gap-y-1 font-mono text-xs text-ink-faint">
         ${outline
@@ -1053,6 +1059,65 @@ function reportTab(closed: boolean): string {
       </ol>
     </section>
     ${blocks}
+  </div>`;
+}
+
+/**
+ * What this section has to carry, as against what it asks you to think about.
+ *
+ * The prompts below it are questions, and questions are all the report used to
+ * offer — which is fine for the writing and useless for the submission, because
+ * an assessment that lists required inclusions hands back a section that is
+ * missing one no matter how well the questions were answered. This block names
+ * the artefacts. Structure only: never criteria, descriptors or rubric wording.
+ *
+ * Each line reports its own state where a checklist item evidences it, so this
+ * is a status rather than a reminder. Where nothing evidences it — a signed
+ * moderation record is a scan, not a dimension the app can infer — the line
+ * simply states the requirement and says so, which beats a tick that lies.
+ */
+function requiredEvidenceBlock(heading: ReportHeading, records: VaultDocument[]): string {
+  const required = heading.requiredEvidence ?? [];
+  if (required.length === 0) return '';
+
+  const lines = required.map((entry) => {
+    const item = entry.item ? template!.items.find((candidate) => candidate.id === entry.item) : undefined;
+    const held = item ? records.filter((doc) => matchesItem(item, doc)).length : 0;
+    const satisfied = item ? held >= item.requires : false;
+
+    // Three states, three marks. An unverifiable requirement gets the neutral
+    // one: claiming "missing" for something the app cannot see would train
+    // people to ignore the whole list.
+    const mark = !item ? '·' : satisfied ? '✓' : '○';
+    const tone = !item ? 'text-ink-faint' : satisfied ? 'text-positive' : 'text-caution';
+    // The count only where it is news. "1/1" next to a tick is the same fact
+    // twice; "1/3" is the thing you came to find out.
+    const count =
+      item && !satisfied ? `<span class="${tone} font-mono"> ${held}/${item.requires}</span>` : '';
+
+    return `<li class="flex gap-2">
+      <span aria-hidden="true" class="${tone} mt-px font-mono text-xs leading-5">${mark}</span>
+      <span>
+        <span class="${satisfied ? 'text-ink-muted' : 'text-ink'}">${escapeHtml(entry.text)}</span>${count}
+        ${entry.note ? `<span class="mt-0.5 block text-xs text-ink-faint">${escapeHtml(entry.note)}</span>` : ''}
+      </span>
+    </li>`;
+  });
+
+  const outstanding = required.filter((entry) => {
+    const item = entry.item ? template!.items.find((candidate) => candidate.id === entry.item) : undefined;
+    return item ? records.filter((doc) => matchesItem(item, doc)).length < item.requires : false;
+  }).length;
+
+  return `<div class="mt-5 border-t border-line-subtle pt-4">
+    <p class="pf-eyebrow text-ink-faint">
+      Must be embedded in this section${
+        outstanding > 0
+          ? ` · <span class="text-caution">${outstanding} outstanding</span>`
+          : ''
+      }
+    </p>
+    <ul class="prose-body mt-2 space-y-2 text-sm">${lines.join('')}</ul>
   </div>`;
 }
 
@@ -1139,6 +1204,8 @@ function headingBlock(
     }
 
     ${heading.includesDataProfile ? dataProfileBlock() : ''}
+
+    ${requiredEvidenceBlock(heading, records)}
 
     ${
       heading.prompts.length > 0

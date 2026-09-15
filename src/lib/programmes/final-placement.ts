@@ -66,6 +66,27 @@ export const finalPlacement: ProgrammeTemplate = {
       wordRange: [800, 1000],
       // Mandatory Inclusion 3 is embedded in Practice 1. It is not an appendix.
       includesDataProfile: true,
+      requiredEvidence: [
+        {
+          text: 'The completed profile of data collection and use',
+          note: 'Built below. Pseudonyms for your focus students, and no identifiers anywhere in it.',
+        },
+        {
+          text: 'Your planning documents for the learning sequence, or excerpts of them',
+          note: 'Showing where curriculum, pedagogy and assessment line up: the content, knowledge, skills and concepts; the general capabilities including literacy and numeracy; and your formative assessment strategies with the data they collect.',
+          item: 'sequence-plan',
+        },
+        {
+          text: 'The summative task with its marking criteria and standards',
+          note: 'Part of the planning, not an afterthought — it assesses what you taught over the placement.',
+          item: 'summative-task',
+        },
+        {
+          text: 'The data samples that informed your decisions',
+          note: 'The actual evidence behind the planning, not a description of it.',
+          item: 'diagnostic',
+        },
+      ],
       prompts: [
         'What data did you collect before you planned, and why that data rather than other data?',
         'What did it tell you these learners already knew, and what did you assume beyond it?',
@@ -81,6 +102,18 @@ export const finalPlacement: ProgrammeTemplate = {
       sections: [PRACTICE.two],
       legacyKeys: ['Teaching'],
       wordRange: [800, 1000],
+      requiredEvidence: [
+        {
+          text: 'Annotated resources that show your teaching as enacted',
+          note: 'Annotated: an unmarked handout shows what you gave out, not what you did with it.',
+          item: 'differentiation',
+        },
+        {
+          text: 'Evidence of how you differentiated for the range in your class',
+          note: 'Materials you made or adapted, and the research or findings you drew on.',
+          item: 'differentiation',
+        },
+      ],
       prompts: [
         'Which teaching strategies did you choose, and on what basis?',
         'Where did the enacted sequence differ from the planned one, and what caused the change?',
@@ -97,12 +130,35 @@ export const finalPlacement: ProgrammeTemplate = {
       sections: [PRACTICE.three],
       legacyKeys: ['Assessing'],
       wordRange: [800, 1000],
+      requiredEvidence: [
+        {
+          text: 'De-identified work samples from your three focus students, with your feedback on them',
+          note: 'Completed in response to the summative task, and the same samples you take into moderation.',
+          item: 'summative-results',
+        },
+        {
+          text: 'An annotated statement of criteria and standards for each sample',
+          note: 'Your marking against the criteria, alongside the sample it belongs to.',
+          item: 'feedback',
+        },
+        {
+          text: 'A cognitive commentary, one paragraph, for each work sample',
+          note: 'Not the same as your per-criterion marking. It accounts for the one overall judgement: the strengths and the limitations you weighed, and the next steps for teaching this student. Written before moderation, because you take it in with you.',
+          item: 'commentary',
+        },
+        {
+          text: 'A record of moderation',
+          note: 'Three samples spanning above, at and below year-level expectations, two moderators named and signed, and per sample: your grade before moderation, the other assessor’s grade, and any adjustment you made.',
+          item: 'moderation',
+        },
+      ],
       prompts: [
-        'How did you make what "good" looks like visible to these learners?',
-        'What did learners actually do with the feedback you gave them?',
+        'How did you make what "good" looks like visible to these learners, and what did they do with that?',
+        'Which formative activities and feedback moved learners towards thinking about their own learning?',
         'Why was your summative task fit for what you had taught?',
-        'For each focus student: what in the work led you to the grade you gave?',
-        'What changed in your judgement after moderation, and what did that teach you?',
+        'For each focus student: what strengths and what limitations in the work led you to the grade?',
+        'Where did your pre-moderation judgements hold, where did they move, and what accounts for the difference?',
+        'What did moderation change about how you will plan and teach next?',
       ],
     },
     {
@@ -112,6 +168,9 @@ export const finalPlacement: ProgrammeTemplate = {
       sections: [PRACTICE.four],
       legacyKeys: ['Reflecting'],
       wordRange: [800, 1000],
+      // No `requiredEvidence`: this practice names no accompanying artefacts of
+      // its own — it reflects across the evidence already embedded elsewhere.
+      // Deliberately absent, not overlooked.
       prompts: [
         'Was your initial data collection sufficient? What would you collect that you did not?',
         'Which changes to your teaching came from data, and which came from something else?',
@@ -126,6 +185,14 @@ export const finalPlacement: ProgrammeTemplate = {
       sections: [PRACTICE.five],
       legacyKeys: ['Appraising'],
       wordRange: [800, 1000],
+      requiredEvidence: [
+        {
+          text: 'Pre- and post-teaching samples of student work',
+          note: 'From your focus students, or others at a comparable level where that is more appropriate.',
+          item: 'appraisal',
+        },
+        { text: 'The resources that support your appraisal of learning and teaching' },
+      ],
       prompts: [
         'Scenario one, whole class: what did you do, and what is your evidence it worked?',
         'Scenario two, an individual or small group: the same two questions.',
