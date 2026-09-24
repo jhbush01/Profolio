@@ -28,6 +28,7 @@ export const professionalDevelopment: ProgrammeTemplate = {
       detail: 'Courses, workshops and modules you have finished this period.',
       requires: 3,
       dueBy: 1,
+      suggests: { evidenceType: 'qualification', purpose: 'other', cyclePhase: 'reflect', subjectScope: 'cohort', selfDesigned: false },
       matches: (e) => e.evidenceType === 'qualification',
     },
     {
@@ -37,6 +38,7 @@ export const professionalDevelopment: ProgrammeTemplate = {
       detail: 'Mandatory training that has to stay in date.',
       requires: 1,
       dueBy: 0.5,
+      suggests: { evidenceType: 'qualification', purpose: 'other', cyclePhase: 'reflect', subjectScope: 'cohort', selfDesigned: false },
       matches: (e) => e.evidenceType === 'qualification' && e.selfDesigned === false,
     },
     {
@@ -46,6 +48,7 @@ export const professionalDevelopment: ProgrammeTemplate = {
       detail: 'Something from your classroom that shows the learning was applied.',
       requires: 1,
       dueBy: 0.7,
+      suggests: { cyclePhase: 'teach', evidenceType: 'resource', purpose: 'other', subjectScope: 'cohort', selfDesigned: true },
       matches: (e) => e.cyclePhase === 'teach' || e.cyclePhase === 'plan',
     },
     {
@@ -55,6 +58,7 @@ export const professionalDevelopment: ProgrammeTemplate = {
       detail: 'Your own account of what changed as a result.',
       requires: 1,
       dueBy: 0.9,
+      suggests: { cyclePhase: 'reflect', evidenceType: 'reflection', purpose: 'other', subjectScope: 'cohort', selfDesigned: true },
       matches: (e) => e.cyclePhase === 'reflect' || e.evidenceType === 'reflection',
     },
     {
@@ -64,6 +68,7 @@ export const professionalDevelopment: ProgrammeTemplate = {
       detail: 'Data or work samples showing the effect on student learning.',
       requires: 1,
       dueBy: 1,
+      suggests: { cyclePhase: 'appraise', evidenceType: 'assessment-data', purpose: 'summative', subjectScope: 'cohort' },
       matches: (e) => e.cyclePhase === 'appraise' || e.evidenceType === 'assessment-data',
     },
   ],

@@ -27,6 +27,22 @@ export interface ChecklistItem {
   dueBy: number;
   /** Auto-satisfied by any record whose dimensions match. */
   matches: (evidence: Dimensions) => boolean;
+  /**
+   * What a record filed under this item almost certainly is.
+   *
+   * Applied when somebody uploads straight into this checklist item, because
+   * choosing the item IS the statement of what the file is — asking them to say
+   * it again in six dropdowns afterwards is the round trip this exists to kill.
+   *
+   * MUST SATISFY `matches`. The two describe the same thing from opposite ends:
+   * one recognises a record, the other produces one. A `suggests` its own
+   * `matches` would reject would file a document and then not count it.
+   *
+   * `source` and `standards` are deliberately absent. Nobody can guess where a
+   * file came from or which standards it evidences, and a guess there is worse
+   * than a gap: it is a wrong answer in a submission with the app's name on it.
+   */
+  suggests?: Partial<Dimensions>;
 }
 
 /**

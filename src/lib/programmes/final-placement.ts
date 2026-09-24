@@ -248,6 +248,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Evidence of prior learning and current achievement for the whole class.',
       requires: 1,
       dueBy: 0.2,
+      suggests: { cyclePhase: 'plan', evidenceType: 'assessment-data', purpose: 'diagnostic', subjectScope: 'cohort' },
       matches: (e) =>
         e.purpose === 'diagnostic' && e.subjectScope === 'cohort' && e.evidenceType === 'assessment-data',
     },
@@ -258,6 +259,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Baseline evidence for each of the three students you track across the sequence.',
       requires: 3,
       dueBy: 0.25,
+      suggests: { cyclePhase: 'plan', evidenceType: 'assessment-data', purpose: 'diagnostic', subjectScope: 'individual' },
       matches: (e) => e.subjectScope === 'individual' && e.cyclePhase === 'plan',
     },
     {
@@ -267,6 +269,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Planning documents showing how curriculum, teaching and assessment align.',
       requires: 1,
       dueBy: 0.25,
+      suggests: { cyclePhase: 'plan', evidenceType: 'plan', purpose: 'other', subjectScope: 'cohort', selfDesigned: true },
       matches: (e) => e.evidenceType === 'plan' && e.cyclePhase === 'plan',
     },
     {
@@ -276,6 +279,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'The end-of-sequence task with its criteria, planned before you teach.',
       requires: 1,
       dueBy: 0.3,
+      suggests: { cyclePhase: 'plan', evidenceType: 'resource', purpose: 'summative', subjectScope: 'cohort', selfDesigned: true },
       matches: (e) => e.purpose === 'summative' && (e.evidenceType === 'plan' || e.evidenceType === 'resource'),
     },
     {
@@ -285,6 +289,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Materials you made or adapted, showing adjustments across the range of abilities.',
       requires: 1,
       dueBy: 0.5,
+      suggests: { cyclePhase: 'teach', evidenceType: 'resource', purpose: 'other', subjectScope: 'cohort', selfDesigned: true },
       matches: (e) => e.cyclePhase === 'teach' && (e.evidenceType === 'resource' || e.evidenceType === 'plan'),
     },
     {
@@ -294,6 +299,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Formative checks showing how whole-class learning progressed.',
       requires: 2,
       dueBy: 0.6,
+      suggests: { cyclePhase: 'teach', evidenceType: 'assessment-data', purpose: 'formative', subjectScope: 'cohort' },
       matches: (e) => e.purpose === 'formative' && e.subjectScope === 'cohort',
     },
     {
@@ -303,6 +309,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Work samples from your three focus students, showing progress.',
       requires: 3,
       dueBy: 0.7,
+      suggests: { cyclePhase: 'teach', evidenceType: 'work-sample', purpose: 'formative', subjectScope: 'individual' },
       matches: (e) => e.subjectScope === 'individual' && e.evidenceType === 'work-sample',
     },
     {
@@ -312,6 +319,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Annotated work showing the feedback you provided and what learners did with it.',
       requires: 1,
       dueBy: 0.75,
+      suggests: { cyclePhase: 'assess', evidenceType: 'feedback', purpose: 'formative', subjectScope: 'individual', selfDesigned: true },
       matches: (e) => e.evidenceType === 'feedback',
     },
     {
@@ -321,6 +329,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'De-identified work samples marked against the criteria you planned.',
       requires: 3,
       dueBy: 0.85,
+      suggests: { cyclePhase: 'assess', evidenceType: 'assessment-data', purpose: 'summative', subjectScope: 'individual' },
       matches: (e) => e.purpose === 'summative' && e.evidenceType === 'assessment-data',
     },
     {
@@ -330,6 +339,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Your written account of how you arrived at the grade for each focus student.',
       requires: 3,
       dueBy: 0.85,
+      suggests: { cyclePhase: 'assess', evidenceType: 'reflection', purpose: 'summative', subjectScope: 'individual', selfDesigned: true },
       matches: (e) => e.cyclePhase === 'assess' && e.subjectScope === 'individual' && e.evidenceType === 'reflection',
     },
     {
@@ -339,6 +349,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Signed evidence that a colleague graded the same work against the same criteria.',
       requires: 1,
       dueBy: 0.9,
+      suggests: { cyclePhase: 'assess', evidenceType: 'assessment-data', purpose: 'summative', subjectScope: 'individual', selfDesigned: false },
       matches: (e) => e.cyclePhase === 'assess' && e.selfDesigned === false,
     },
     {
@@ -348,6 +359,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Your account of what you changed during the sequence, and why.',
       requires: 1,
       dueBy: 0.9,
+      suggests: { cyclePhase: 'reflect', evidenceType: 'reflection', purpose: 'other', subjectScope: 'cohort', selfDesigned: true },
       matches: (e) => e.cyclePhase === 'reflect',
     },
     {
@@ -357,6 +369,7 @@ export const finalPlacement: ProgrammeTemplate = {
       detail: 'Work from the start and the end of the sequence, for the same learners.',
       requires: 2,
       dueBy: 1,
+      suggests: { cyclePhase: 'appraise', evidenceType: 'work-sample', purpose: 'summative', subjectScope: 'individual' },
       matches: (e) => e.cyclePhase === 'appraise',
     },
   ],

@@ -70,6 +70,7 @@ import {
   type ProgrammeTemplate,
   type ReportHeading,
 } from '../programmes';
+import type { ChecklistItem } from '../programmes/types';
 import { buildProfileRows, PROFILE_COLUMNS, rowCells } from './profile-table';
 import type { ContextField } from '../programmes/types';
 import type { VaultDocument, VaultFolder, VaultProfile } from './types';
@@ -296,6 +297,41 @@ function evidenceRow(doc: VaultDocument, closed: boolean, alsoCounts = 0, movabl
   </li>`;
 }
 
+/**
+ * "This is missing — put it here."
+ *
+ * The checklist knew exactly what was missing and could not accept it. Filling
+ * a gap meant reading the item, leaving for Capture or Artefacts, uploading,
+ * tagging six dropdowns from memory, coming back, and finding the row again —
+ * per item, thirteen times. The round trip was the work.
+ *
+ * Uploading through the item is also the clearest statement of intent the app
+ * ever gets, so it is used twice: the record is PLACED under this item, not
+ * guessed at, and the item's `suggests` pre-fills the dimensions. Four or five
+ * of the eight arrive already answered. Source and standards do not, because
+ * nobody can guess those and a wrong answer in a submission is worse than a gap.
+ *
+ * A plain file input, which on a phone offers the camera as one of its options
+ * — so this covers photographing a worksheet without a second control for it.
+ */
+function itemUpload(item: ChecklistItem, satisfied: boolean, closed: boolean): string {
+  if (closed) return '';
+  if (!deidAcknowledged) return '';
+
+  // Loud while the item is unmet, quiet once it is. A satisfied item can still
+  // take another file; it just stops asking for one.
+  const look = satisfied
+    ? 'border border-line bg-surface text-ink-muted hover:border-accent/40 hover:text-accent'
+    : 'bg-accent text-white hover:opacity-90';
+
+  return `<label
+    title="Upload evidence for: ${escapeHtml(item.label)}"
+    class="pf-press inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-md px-4 py-1.5 text-xs font-medium transition sm:min-h-0 ${look}">
+    Add
+    <input type="file" multiple data-upload data-upload-item="${escapeHtml(item.id)}" class="sr-only" />
+  </label>`;
+}
+
 /** The checklist, with each item's evidence nested underneath it. */
 function checklistBlock(closed: boolean): string {
   if (!template || !programme) return '';
@@ -318,10 +354,13 @@ function checklistBlock(closed: boolean): string {
             <div class="flex items-start gap-3">
               <span aria-hidden="true" class="mt-0.5 w-3 shrink-0 text-center text-sm ${tone}">${mark}</span>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium">
-                  ${escapeHtml(p.item.label)}
-                  <span class="font-mono text-xs font-normal text-ink-muted">${p.matched} of ${p.item.requires}</span>
-                </p>
+                <div class="flex items-start justify-between gap-3">
+                  <p class="text-sm font-medium">
+                    ${escapeHtml(p.item.label)}
+                    <span class="font-mono text-xs font-normal text-ink-muted">${p.matched} of ${p.item.requires}</span>
+                  </p>
+                  ${itemUpload(p.item, p.satisfied, closed)}
+                </div>
                 <p class="prose-body mt-0.5 text-xs">${escapeHtml(p.item.detail)}</p>
                 ${
                   matched.length > 0
@@ -336,7 +375,7 @@ function checklistBlock(closed: boolean): string {
                         )
                         .join('')}</ul>`
                     : `<p class="mt-2 rounded-md border border-dashed border-line bg-canvas px-3 py-2 text-xs text-ink-faint">
-                         Nothing here yet.${closed ? '' : ' Capture it, or add a record that already fits.'}
+                         Nothing here yet.${closed ? '' : ' Add takes a file straight into this item.'}
                        </p>`
                 }
               </div>
@@ -1447,7 +1486,24 @@ async function refresh() {
  * bulk path that skipped the warning would be the easiest way in the app to
  * upload "Year 8 Sarah Smith draft.pdf" by accident.
  */
-async function receiveFiles(files: File[]) {
+/**
+ * Files arriving into the project, optionally into one checklist item.
+ *
+ * `itemId` is what makes "this is missing, upload it here" one action instead
+ * of five. It does two things after the bytes land, and both matter:
+ *
+ *   - PLACES the record under that item. Not a guess that the predicates might
+ *     later disagree with — the person picked the item, which is the clearest
+ *     statement of intent the app ever receives. See migration 0013.
+ *   - PRE-FILLS the dimensions from the item's `suggests`, which is the same
+ *     statement read the other way round.
+ *
+ * The tagging is a second request per file rather than part of the upload,
+ * because the upload is the part that can fail on a bad connection and it
+ * should not also be carrying metadata. A file that uploads and fails to tag
+ * is in the project and untagged, which is recoverable; the reverse is not.
+ */
+async function receiveFiles(files: File[], itemId?: string) {
   if (!programme || files.length === 0) return;
   if (programme.closedAt !== null) {
     setStatus('This project is closed. Reopen it before adding files.');
@@ -1466,23 +1522,56 @@ async function receiveFiles(files: File[]) {
 
   setStatus(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`, true);
 
+  const item = itemId ? template?.items.find((candidate) => candidate.id === itemId) : undefined;
+
   await guard('Upload', async () => {
     const outcome = await uploadFiles(files, folderCursor, programme!.id, (done, total, label) =>
       setStatus(`Uploading ${Math.min(done + 1, total)} of ${total}: ${label}`, true),
     );
+
+    let tagged = 0;
+    if (item && outcome.added.length > 0) {
+      setStatus(`Filing under ${item.label.toLowerCase()}…`, true);
+      for (const doc of outcome.added) {
+        try {
+          await updateDocument(doc.id, {
+            ...(item.suggests ?? {}),
+            placement: { programmeId: programme!.id, itemIds: [item.id] },
+          });
+          tagged += 1;
+        } catch (error) {
+          // The file is stored and in the project either way. Say so at the
+          // end rather than aborting the rest: losing four filings to one
+          // failure is worse than four files needing a Move.
+          if (isAuthError(error)) throw error;
+        }
+      }
+    }
+
     await refresh();
     render();
 
     const saved = outcome.added.length;
     const failed = outcome.rejected;
-    setStatus(
-      failed.length === 0
-        ? `Added ${saved} file${saved === 1 ? '' : 's'}. Fill in their details when you have a minute.`
-        : `Added ${saved}. ${failed.length} could not be stored — ${failed
-            .slice(0, 2)
-            .map((entry) => `${entry.name}: ${entry.reason}`)
-            .join('; ')}${failed.length > 2 ? `, and ${failed.length - 2} more` : ''}.`,
-    );
+    const files$ = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
+
+    let message: string;
+    if (failed.length > 0) {
+      message = `Added ${saved}. ${failed.length} could not be stored — ${failed
+        .slice(0, 2)
+        .map((entry) => `${entry.name}: ${entry.reason}`)
+        .join('; ')}${failed.length > 2 ? `, and ${failed.length - 2} more` : ''}.`;
+    } else if (item && tagged === saved) {
+      // Names what is still outstanding, because `suggests` deliberately
+      // leaves source and standards alone and a silent gap is a gap nobody
+      // fills.
+      message = `Added ${files$(saved)} under "${item.label}", already tagged. Add a source and standards to finish ${saved === 1 ? 'it' : 'them'}.`;
+    } else if (item) {
+      message = `Added ${files$(saved)}, but only ${tagged} could be filed under "${item.label}". Use Move on the rest.`;
+    } else {
+      message = `Added ${files$(saved)}. Fill in their details when you have a minute.`;
+    }
+    setStatus(message);
   });
 }
 
@@ -1539,8 +1628,11 @@ export async function initProject() {
     const input = event.target as HTMLInputElement;
     if (input.dataset?.upload === undefined) return;
     const files = Array.from(input.files ?? []);
+    // Which checklist item asked, if any. The Evidence tab's Upload button
+    // carries no item and behaves exactly as it always has.
+    const itemId = input.dataset.uploadItem;
     input.value = '';
-    void receiveFiles(files);
+    void receiveFiles(files, itemId);
   });
 
   const zone = (event: Event) => (event.target as HTMLElement)?.closest?.('[data-drop]');
